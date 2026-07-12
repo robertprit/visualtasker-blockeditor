@@ -1,0 +1,52 @@
+package de.visualtasker.blockeditor.compose.host
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.Modifier
+import de.visualtasker.blockeditor.compose.ui.BlockEditorScaffold
+
+/**
+ * Public Compose entry point for host embedding.
+ */
+@Composable
+fun BlockEditorHost(
+    controller: BlockEditorController,
+    uiConfig: BlockEditorHostUiConfig = BlockEditorHostUiConfig(),
+    modifier: Modifier = Modifier,
+) {
+    DisposableEffect(controller) {
+        onDispose { controller.close() }
+    }
+
+    BlockEditorScaffold(
+        document = controller.document,
+        layoutCache = controller.layoutCache,
+        viewport = controller.viewport,
+        dragRender = controller.dragRender,
+        selectedBlockIds = controller.selectedBlockIds,
+        codePreview = controller.codePreview,
+        blockInfo = controller.selectedBlockInfo(),
+        showBottomPanel = uiConfig.showBottomPanel && controller.showBottomPanel,
+        expandedCategory = controller.expandedCategory,
+        definitionsForCategory = controller.definitionsForExpandedCategory(),
+        showBlockFactory = uiConfig.showBlockFactory && controller.showBlockFactory,
+        onCategoryClick = controller::onCategoryClick,
+        onDismissCategory = controller::dismissCategory,
+        onAddBlock = controller::addBlockFromPalette,
+        onCreateVariable = controller::createVariable,
+        onToggleBottomPanel = controller::toggleBottomPanel,
+        onOpenBlockFactory = if (uiConfig.showBlockFactory) controller::openBlockFactory else ({ }),
+        onDismissBlockFactory = controller::dismissBlockFactory,
+        onCreateCustomBlock = controller::createCustomBlock,
+        onClearWorkspace = if (uiConfig.allowClearWorkspace) controller::clearWorkspace else ({ }),
+        onViewportChange = controller::onViewportChange,
+        onCanvasSizeChange = controller::onCanvasSizeChange,
+        onTap = controller::onTap,
+        onDoubleTap = controller::onDoubleTap,
+        onLongPressDragStart = controller::onLongPressDragStart,
+        onPointerMove = controller::onPointerMove,
+        onPointerUp = controller::onPointerUp,
+        onFieldChange = controller::updateBlockField,
+        modifier = modifier,
+    )
+}

@@ -1,0 +1,150 @@
+package de.visualtasker.blockeditor.serialization
+
+import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.blockeditor.domain.WorkspaceAction
+import de.visualtasker.blockeditor.domain.WorkspaceDocument
+import de.visualtasker.blockeditor.domain.WorkspaceReducer
+import de.visualtasker.blockeditor.registry.BlockTypes
+import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
+import de.visualtasker.blockeditor.registry.SampleWorkspaceFactory
+import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
+import de.visualtasker.blockeditor.registry.asFactory
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class WorkspaceSerializerTest {
+    @Test
+    fun roundTrip_preservesWorkspace() {
+        val original = SampleWorkspaceFactory.createDemo()
+        val json = WorkspaceSerializer.serialize(original)
+        val restored = WorkspaceSerializer.deserialize(json)
+
+        assertEquals(original.id, restored.id)
+        assertEquals(original.blocks.size, restored.blocks.size)
+        assertEquals(original.rootBlocks, restored.rootBlocks)
+        assertTrue(json.contains("\"type\":\"event.start\""))
+    }
+
+    @Test
+    fun sameDocument_serializesIdenticallyTwice() {
+        val document = WorkspaceBootstrap.starter()
+        val first = WorkspaceSerializer.serialize(document)
+        val second = WorkspaceSerializer.serialize(document)
+        assertEquals(first, second)
+    }
+
+    @Test
+    fun serializeDeserializeSerialize_isByteIdentical() {
+        val document = SampleWorkspaceFactory.createDemo()
+        val first = WorkspaceSerializer.serialize(document)
+        val restored = WorkspaceSerializer.deserialize(first)
+        val second = WorkspaceSerializer.serialize(restored)
+        assertEquals(first, second)
+    }
+
+    @Test
+    fun schemaVersion_isPresent() {
+        val json = WorkspaceSerializer.serialize(WorkspaceBootstrap.starter())
+        assertTrue(json.contains("\"schemaVersion\":$WORKSPACE_SCHEMA_VERSION"))
+    }
+
+    @Test
+    fun blockOrdering_isStableAcrossReorderedMapInsertion() {
+        val factory = DefaultBlockRegistry.asFactory()
+        var document = WorkspaceDocument(id = "ordering")
+        document = WorkspaceReducer.reduce(
+            document,
+            WorkspaceAction.InstantiateBlock(BlockTypes.EVENT_START, 10f, 10f),
+            factory,
+        )
+        document = WorkspaceReducer.reduce(
+            document,
+            WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 10f, 120f),
+            factory,
+        )
+        document = WorkspaceReducer.reduce(
+            document,
+            WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 10f, 220f),
+            factory,
+        )
+
+        val reversedBlocks = linkedMapOf<BlockId, de.visualtasker.blockeditor.domain.BlockNode>()
+        document.blocks.entries.reversed().forEach { reversedBlocks[it.key] = it.value }
+        val reordered = document.copy(blocks = reversedBlocks)
+
+        val canonical = WorkspaceSerializer.serialize(document)
+        assertEquals(canonical, WorkspaceSerializer.serialize(reordered))
+
+        val blockEntryIds = Regex("""\{"id":"([^"]+)","node":""")
+            .findAll(canonical)
+            .map { it.groupValues[1] }
+            .toList()
+        assertTrue(blockEntryIds.isNotEmpty())
+        assertEquals(blockEntryIds.sorted(), blockEntryIds)
+    }
+
+    @Test
+    fun connectionOrdering_isStable() {
+        val document = SampleWorkspaceFactory.createWithStatementSlot()
+        val first = WorkspaceSerializer.serialize(document)
+        val second = WorkspaceSerializer.serialize(WorkspaceSerializer.deserialize(first))
+        assertEquals(first, second)
+        assertTrue(first.contains("\"valueInputs\""))
+        assertTrue(first.contains("\"statementInputs\""))
+    }
+
+    @Test
+    fun unsupportedSchemaVersion_failsDeterministically() {
+        val baseline = WorkspaceSerializer.serialize(WorkspaceBootstrap.starter())
+        val unsupported = baseline.replace(
+            "\"schemaVersion\":$WORKSPACE_SCHEMA_VERSION",
+            "\"schemaVersion\":99",
+        )
+        val failure = try {
+            WorkspaceSerializer.deserialize(unsupported)
+            null
+        } catch (error: WorkspaceSerializationException) {
+            error
+        }
+        assertNotEquals(null, failure)
+        assertTrue(failure!!.message!!.contains("Unsupported workspace schema version"))
+    }
+
+    @Test
+    fun malformedJson_failsDeterministically() {
+        val failure = try {
+            WorkspaceSerializer.deserialize("{not-json")
+            null
+        } catch (error: WorkspaceSerializationException) {
+            error
+        }
+        assertNotEquals(null, failure)
+        assertTrue(failure!!.message!!.contains("Malformed workspace JSON"))
+    }
+
+    @Test
+    fun blankDocument_failsDeterministically() {
+        val failure = try {
+            WorkspaceSerializer.deserialize("   ")
+            null
+        } catch (error: WorkspaceSerializationException) {
+            error
+        }
+        assertNotEquals(null, failure)
+        assertEquals("Workspace document is blank.", failure!!.message)
+    }
+
+    @Test
+    fun transientEditorVersion_doesNotAddNonCanonicalFields() {
+        val starter = WorkspaceBootstrap.starter()
+        val mutated = starter.copy(version = starter.version + 5)
+        val json = WorkspaceSerializer.serialize(mutated)
+        assertFalse(json.contains("drag"))
+        assertFalse(json.contains("viewport"))
+        assertFalse(json.contains("selection"))
+        assertTrue(json.contains("\"version\":${starter.version + 5}"))
+    }
+}

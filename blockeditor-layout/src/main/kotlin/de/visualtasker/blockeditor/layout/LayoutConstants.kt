@@ -1,0 +1,28 @@
+package de.visualtasker.blockeditor.layout
+
+object LayoutConstants {
+    const val HEADER_HEIGHT = 44f
+    const val STATEMENT_MIN_HEIGHT = 48f
+    const val NESTED_INDENT = 32f
+    const val BLOCK_GAP = 8f
+    const val SNAP_RADIUS = 42f
+    const val PREVIEW_RADIUS = 72f
+    const val COLLAPSED_HEIGHT = 44f
+    const val STANDARD_WIDTH = 288f
+    const val REPORTER_WIDTH = 148f
+    const val REPORTER_HEIGHT = 40f
+    const val OUTPUT_TAB = 16f
+    const val SLOT_PADDING = 8f
+    const val FOOTER_HEIGHT = 24f
+    const val ANCHOR_RADIUS = 12f
+    const val FIELD_HEIGHT = 32f
+    const val ELIF_SECTION_HEIGHT = 36f
+    /** Horizontaler Mittelsteg zwischen Container-Zweigen – muss mit [BlockShapes] übereinstimmen. */
+    const val BRANCH_SHELF = 24f
+    /** Unterer Innenradius des C-Blocks – zusätzliche Reserve für den letzten Zweig. */
+    const val CORNER_RADIUS = 16f
+    const val INLINE_OUTPUT_TAB = 20f
+    const val INLINE_OPERATOR_WIDTH = 52f
+    const val INLINE_SLOT_GAP = 6f
+    const val INLINE_MIN_SLOT_WIDTH = REPORTER_WIDTH
+}
