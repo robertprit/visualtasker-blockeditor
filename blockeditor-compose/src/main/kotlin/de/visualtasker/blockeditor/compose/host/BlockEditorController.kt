@@ -63,6 +63,7 @@ class BlockEditorController(
     private val layoutEngine: LayoutEngine = LayoutEngine(registry),
     private val snapEngine: SnapEngine = SnapEngine(),
     private val emscriptGenerator: EmscriptGenerator = EmscriptGenerator(IrGenerator(registry)),
+    private val generateEmscript: (WorkspaceDocument) -> String = { doc -> emscriptGenerator.generate(doc) },
     private val debounceMillis: Long = DEFAULT_DERIVED_OUTPUT_DEBOUNCE_MS,
     private val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : BlockEditorControllerState, AutoCloseable {
@@ -387,9 +388,14 @@ class BlockEditorController(
 
     private fun emitEmscriptImmediate() {
         if (disposed.get()) return
-        val emscript = runCatching { emscriptGenerator.generate(document) }
-            .getOrElse { "" }
-        callbacks.onEmscriptDraftChanged(emscript)
+        runCatching { generateEmscript(document) }
+            .onSuccess { emscript ->
+                callbacks.onEmscriptDraftChanged(emscript)
+            }
+            .onFailure { error ->
+                val reason = error.message?.takeIf { it.isNotBlank() } ?: error::class.simpleName ?: "Unknown error"
+                callbacks.onEmscriptGenerationFailed("EMScript generation failed: $reason")
+            }
     }
 
     private fun constrainStartBlockVisible(candidate: ViewportState): ViewportState {

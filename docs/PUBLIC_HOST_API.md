@@ -112,8 +112,13 @@ interface BlockEditorHostCallbacks {
     fun onWorkspaceDocumentChanged(serializedJson: String)
     fun onEmscriptDraftChanged(emscript: String)
     fun onValidationErrors(errors: List<ValidationError>)
+    fun onEmscriptGenerationFailed(message: String) {}
 }
 ```
+
+`onEmscriptGenerationFailed` is a source-compatible optional callback for generator
+failures. Hosts can map this failure to diagnostics (for example to Studio ERROR
+diagnostics) without replacing the last valid EMScript draft.
 
 Not exposed: dirty state, persistence, save acknowledgment, Runtime, Workflow mutation,
 or any Studio types. Dirty state is host-owned and derived from canonical serialized content.
@@ -194,6 +199,13 @@ After each persistent change, validation and EMScript are coalesced:
 
 - `onValidationErrors`
 - `onEmscriptDraftChanged`
+
+When EMScript generation fails:
+
+- `onEmscriptGenerationFailed` is emitted with a stable message
+- no empty draft is emitted through `onEmscriptDraftChanged`
+- the previous valid draft remains unchanged on the host side
+- workspace document validity and dirty semantics remain unchanged
 
 Initial construction emits derived outputs once without debounce.
 
