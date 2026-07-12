@@ -25,6 +25,7 @@ class SnapEngine(
 
         var best: SnapCandidate? = null
         var bestDistance = Float.MAX_VALUE
+        var bestPriority = Int.MAX_VALUE
         val snapSources = filterSnapSources(layout, dragSession, document, movedAnchors)
 
         for (source in snapSources) {
@@ -49,7 +50,16 @@ class SnapEngine(
                     config.snapRadius
                 }
                 if (distance > threshold) continue
-                if (distance < bestDistance) {
+                val priority = snapPriority(
+                    source = source,
+                    target = target,
+                    document = document,
+                    dragSession = dragSession,
+                )
+                val isBetter = priority < bestPriority ||
+                    (priority == bestPriority && distance < bestDistance)
+                if (isBetter) {
+                    bestPriority = priority
                     bestDistance = distance
                     best = SnapCandidate(
                         sourceConnectionId = source.connectionId,
@@ -81,6 +91,24 @@ class SnapEngine(
         return best
     }
 
+    private fun snapPriority(
+        source: ConnectionAnchor,
+        target: ConnectionAnchor,
+        document: de.visualtasker.blockeditor.domain.WorkspaceDocument,
+        dragSession: DragSession,
+    ): Int {
+        val dragged = document.blocks[dragSession.rootBlockId]
+        val isContainer = dragged?.statementInputs?.isNotEmpty() == true
+        if (isContainer && source.kind == ConnectionKind.Previous) {
+            return when (target.kind) {
+                ConnectionKind.StatementInput -> 0
+                ConnectionKind.Next -> 1
+                else -> 2
+            }
+        }
+        return 0
+    }
+
     /**
      * Container-Blöcke: nahe einem Statement-Slot nicht über `next` andocken,
      * sonst landet Repeat oft unter dem äußeren Repeat statt im DO-Slot.
@@ -94,16 +122,11 @@ class SnapEngine(
         val block = document.blocks[dragSession.rootBlockId] ?: return movedAnchors
         if (block.statementInputs.isEmpty()) return movedAnchors
 
-        val previous = movedAnchors.find { it.kind == ConnectionKind.Previous } ?: return movedAnchors
-        val slotNearby = layout.anchorIndex.queryPoint(previous.x, previous.y, config.previewRadius)
-            .any { anchor ->
-                anchor.kind == ConnectionKind.StatementInput &&
-                    anchor.ownerBlockId !in dragSession.includedBlocks
-            }
-        return if (slotNearby) {
-            movedAnchors.filter { it.kind != ConnectionKind.Next }
-        } else {
-            movedAnchors
+        // Container blocks should expose only external attach points while dragging.
+        // Internal slot anchors (StatementInput/ValueInput) and NEXT create ambiguous
+        // matches and can outrank the intended DO-slot nesting target.
+        return movedAnchors.filter {
+            it.kind == ConnectionKind.Previous || it.kind == ConnectionKind.Output
         }
     }
 
