@@ -11,6 +11,7 @@ interface BlockEditorHostCallbacks {
     fun onWorkspaceDocumentChanged(serializedJson: String)
     fun onEmscriptDraftChanged(emscript: String)
     fun onValidationErrors(errors: List<ValidationError>)
+    fun onEmscriptGenerationFailed(message: String) = Unit
 
     companion object {
         val NoOp: BlockEditorHostCallbacks = object : BlockEditorHostCallbacks {
