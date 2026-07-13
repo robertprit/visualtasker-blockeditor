@@ -1,16 +1,16 @@
 # VisionTasker Logic Editor
 
-> A native Kotlin/Jetpack Compose block editor built specifically for VisionTasker Studio.
+> A native Kotlin/Jetpack Compose block editor built specifically for VisualTasker Studio.
 
 ---
 
 # Why another block editor?
 
-VisionTasker originally integrated Google's Blockly as a visual programming interface.
+VisualTasker originally integrated Google's Blockly as a visual programming interface.
 
 While Blockly is a mature and powerful project, it was designed as a **general-purpose visual programming framework**.
 
-VisionTasker has fundamentally different goals.
+VisualTasker has fundamentally different goals.
 
 The project revolves around a single architectural principle:
 
@@ -38,7 +38,7 @@ Every translation layer introduces complexity, synchronization problems and main
 
 ---
 
-# VisionTasker Architecture
+# VisualTasker Architecture
 
 The native Logic Editor follows a different architecture.
 
@@ -63,7 +63,7 @@ Every other representation is generated from the same underlying model.
 
 # Design Goals
 
-The Logic Editor is designed specifically for VisionTasker.
+The Logic Editor is designed specifically for VisualTasker.
 
 It is **not** intended to become a Blockly clone.
 
@@ -88,7 +88,7 @@ Instead it focuses on:
 
 Blockly stores workflows as XML.
 
-VisionTasker stores workflows as a Workflow Graph.
+VisualTasker stores workflows as a Workflow Graph.
 
 This removes unnecessary conversions and synchronization problems.
 
@@ -128,7 +128,7 @@ All are synchronized through the Workflow Graph.
 
 ## Material 3 Integration
 
-Instead of SVG blocks, VisionTasker uses Material 3 Expressive Shapes.
+Instead of SVG blocks, VisualTasker uses Material 3 Expressive Shapes.
 
 Shapes become semantic elements rather than decorative graphics.
 
@@ -186,7 +186,7 @@ The editor simply reflects those changes.
 
 Blockly was originally optimized for desktop browsers.
 
-VisionTasker targets Android devices first.
+VisualTasker targets Android devices first.
 
 The editor is therefore designed for:
 
@@ -298,9 +298,9 @@ Workflow Graph
 
 # Philosophy
 
-VisionTasker does not replace Blockly because Blockly is a bad project.
+VisualTasker does not replace Blockly because Blockly is a bad project.
 
-VisionTasker replaces Blockly because it has different architectural requirements.
+VisualTasker replaces Blockly because it has different architectural requirements.
 
 The goal is not feature parity.
 
