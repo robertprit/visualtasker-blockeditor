@@ -1,4 +1,4 @@
-# VisionTasker Logic Editor
+# VisualTasker Logic Editor
 
 > A native Kotlin/Jetpack Compose block editor built specifically for VisualTasker Studio.
 
@@ -314,7 +314,7 @@ the editor adapts itself to VisionTasker's architecture.
 
 # Vision
 
-The Logic Editor is intended to become the canonical visual workflow editor of VisionTasker Studio.
+The Logic Editor is intended to become the canonical visual workflow editor of VisualTasker Studio.
 
 It is designed around a single architectural principle:
 
