@@ -39,6 +39,7 @@ import de.visualtasker.blockeditor.domain.VariableRegistry
 import de.visualtasker.blockeditor.domain.VariableScope
 import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.registry.FieldKind
+import de.visualtasker.blockeditor.registry.FieldOption
 import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
 import de.visualtasker.blockeditor.registry.VariableReporterFactory
 import de.visualtasker.blockeditor.registry.asFactory
@@ -48,6 +49,7 @@ data class BlockInfoField(
     val label: String,
     val kind: FieldKind,
     val value: String,
+    val options: List<FieldOption> = emptyList(),
 )
 
 data class BlockInfoSnapshot(
@@ -331,6 +333,7 @@ class BlockEditorViewModel(
                     label = field.label.ifEmpty { field.key },
                     kind = field.kind,
                     value = block.fields[field.key]?.asString() ?: field.defaultValue,
+                    options = field.options,
                 )
             },
             slotContext = slotContext,
@@ -346,7 +349,7 @@ class BlockEditorViewModel(
             FieldKind.NUMBER -> rawValue.toDoubleOrNull()?.let { FieldValue.Number(it) }
                 ?: FieldValue.Number(0.0)
             FieldKind.BOOLEAN -> FieldValue.Bool(rawValue.equals("true", ignoreCase = true))
-            FieldKind.TEXT -> FieldValue.Text(rawValue)
+            FieldKind.TEXT, FieldKind.CHOICE -> FieldValue.Text(rawValue)
         }
         onAction(WorkspaceAction.UpdateField(blockId, fieldKey, parsed))
     }

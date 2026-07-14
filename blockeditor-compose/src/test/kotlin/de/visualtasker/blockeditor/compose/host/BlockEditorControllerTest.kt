@@ -6,6 +6,9 @@ import de.visualtasker.blockeditor.emscript.WorkspaceCodeGenerator
 import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
+import de.visualtasker.blockeditor.registry.BlockDefinition
+import de.visualtasker.blockeditor.registry.CompositeBlockRegistry
+import de.visualtasker.blockeditor.registry.StaticBlockRegistry
 import de.visualtasker.blockeditor.validation.ValidationError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -335,6 +338,20 @@ class BlockEditorControllerTest {
         assertEquals("valid-draft", controller.codePreview)
         assertTrue(callbacks.emscriptGenerationFailures.last().contains("preview failed"))
         assertEquals(listOf("valid-draft"), callbacks.emscriptDrafts)
+        controller.close()
+    }
+
+    @Test fun hiddenDefinitionsAreExcludedFromPaletteButRemainInRegistry() {
+        val hidden = BlockDefinition("hidden", "Hidden", "test", true, true, paletteVisible = false)
+        val visible = BlockDefinition("visible", "Visible", "test", true, true, paletteOrder = 5)
+        val registry = CompositeBlockRegistry(StaticBlockRegistry(listOf(hidden, visible)))
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+            registry = registry,
+        )
+        controller.onCategoryClick("test")
+        assertEquals(listOf("visible"), controller.definitionsForExpandedCategory().map(BlockDefinition::id))
+        assertEquals("hidden", registry.getDefinition("hidden")?.id)
         controller.close()
     }
 

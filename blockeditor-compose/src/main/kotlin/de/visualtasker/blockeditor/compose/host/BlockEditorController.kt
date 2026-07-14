@@ -224,7 +224,8 @@ class BlockEditorController(
         val category = expandedCategory ?: return emptyList()
         return registry.definitionsByCategory(category)
             .filter { definition ->
-                category != BlockCategories.VARIABLE || definition.id != BlockTypes.VARIABLE_GET
+                definition.paletteVisible &&
+                    (category != BlockCategories.VARIABLE || definition.id != BlockTypes.VARIABLE_GET)
             }
             .sortedWith(
                 compareBy<BlockDefinition> {
@@ -233,7 +234,7 @@ class BlockEditorController(
                         it.id.startsWith(BlockTypes.VARIABLE_REPORTER_PREFIX) -> 1
                         else -> 2
                     }
-                }.thenBy { it.label.lowercase() },
+                }.thenBy(BlockDefinition::paletteOrder).thenBy { it.label.lowercase() },
             )
     }
 
@@ -303,6 +304,7 @@ class BlockEditorController(
                     label = field.label.ifEmpty { field.key },
                     kind = field.kind,
                     value = block.fields[field.key]?.asString() ?: field.defaultValue,
+                    options = field.options,
                 )
             },
             slotContext = slotContext,
@@ -319,7 +321,7 @@ class BlockEditorController(
             FieldKind.NUMBER -> rawValue.toDoubleOrNull()?.let { FieldValue.Number(it) }
                 ?: FieldValue.Number(0.0)
             FieldKind.BOOLEAN -> FieldValue.Bool(rawValue.equals("true", ignoreCase = true))
-            FieldKind.TEXT -> FieldValue.Text(rawValue)
+            FieldKind.TEXT, FieldKind.CHOICE -> FieldValue.Text(rawValue)
         }
         onAction(WorkspaceAction.UpdateField(blockId, fieldKey, parsed))
     }

@@ -175,7 +175,7 @@ private fun BlockFieldEditor(
                 )
             }
         }
-        FieldKind.NUMBER, FieldKind.TEXT -> {
+        FieldKind.NUMBER, FieldKind.TEXT, FieldKind.CHOICE -> {
             var draft by remember(blockId, field.key) { mutableStateOf(field.value) }
             LaunchedEffect(blockId, field.key) {
                 draft = field.value
