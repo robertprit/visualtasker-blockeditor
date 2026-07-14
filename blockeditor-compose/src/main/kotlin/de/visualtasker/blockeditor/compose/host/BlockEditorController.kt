@@ -16,6 +16,7 @@ import de.visualtasker.blockeditor.domain.WorkspaceReducer
 import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.domain.withRootOffset
 import de.visualtasker.blockeditor.emscript.EmscriptGenerator
+import de.visualtasker.blockeditor.emscript.WorkspaceCodeGenerator
 import de.visualtasker.blockeditor.interaction.DragLayoutPreview
 import de.visualtasker.blockeditor.interaction.DragOperations
 import de.visualtasker.blockeditor.interaction.HitResult
@@ -62,13 +63,13 @@ class BlockEditorController(
     private val registry: CompositeBlockRegistry = CompositeBlockRegistry(),
     private val layoutEngine: LayoutEngine = LayoutEngine(registry),
     private val snapEngine: SnapEngine = SnapEngine(),
-    private val emscriptGenerator: EmscriptGenerator = EmscriptGenerator(IrGenerator(registry)),
-    private val generateEmscript: (WorkspaceDocument) -> String = { doc -> emscriptGenerator.generate(doc) },
+    private val workspaceCodeGenerator: WorkspaceCodeGenerator = EmscriptGenerator(IrGenerator(registry)),
     private val debounceMillis: Long = DEFAULT_DERIVED_OUTPUT_DEBOUNCE_MS,
     private val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : BlockEditorControllerState, AutoCloseable {
     private val disposed = AtomicBoolean(false)
     private var debounceJob: Job? = null
+    private var lastValidDraft: String = ""
 
     override var document by mutableStateOf(initialDocument)
         private set
@@ -102,8 +103,7 @@ class BlockEditorController(
         get() = if (disposed.get()) {
             ""
         } else {
-            runCatching { emscriptGenerator.generate(document) }
-                .getOrElse { "// Code preview error: ${it.message}" }
+            generateDraft(reportFailure = true) ?: lastValidDraft
         }
 
     val isDisposed: Boolean
@@ -261,6 +261,12 @@ class BlockEditorController(
         showBottomPanel = !showBottomPanel
     }
 
+    /** Explicitly regenerates the derived code with the same generator used by all other paths. */
+    fun regenerateCode(): String? {
+        if (disposed.get()) return null
+        return generateDraft(reportFailure = true)?.also(callbacks::onEmscriptDraftChanged)
+    }
+
     override fun selectedBlockInfo(): BlockInfoSnapshot? {
         if (disposed.get()) return null
         val blockId = selectedBlockId ?: return null
@@ -388,15 +394,26 @@ class BlockEditorController(
 
     private fun emitEmscriptImmediate() {
         if (disposed.get()) return
-        runCatching { generateEmscript(document) }
-            .onSuccess { emscript ->
-                callbacks.onEmscriptDraftChanged(emscript)
-            }
-            .onFailure { error ->
-                val reason = error.message?.takeIf { it.isNotBlank() } ?: error::class.simpleName ?: "Unknown error"
+        generateDraft(reportFailure = true)?.also(callbacks::onEmscriptDraftChanged)
+    }
+
+    private fun generateDraft(reportFailure: Boolean): String? = runCatching {
+        workspaceCodeGenerator.generate(document)
+    }.fold(
+        onSuccess = { draft ->
+            lastValidDraft = draft
+            draft
+        },
+        onFailure = { error ->
+            if (reportFailure) {
+                val reason = error.message?.takeIf { it.isNotBlank() }
+                    ?: error::class.simpleName
+                    ?: "Unknown error"
                 callbacks.onEmscriptGenerationFailed("EMScript generation failed: $reason")
             }
-    }
+            null
+        },
+    )
 
     private fun constrainStartBlockVisible(candidate: ViewportState): ViewportState {
         val size = canvasSize ?: return candidate

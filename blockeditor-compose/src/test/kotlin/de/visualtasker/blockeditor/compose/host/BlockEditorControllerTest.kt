@@ -2,6 +2,7 @@ package de.visualtasker.blockeditor.compose.host
 
 import de.visualtasker.blockeditor.domain.Offset2
 import de.visualtasker.blockeditor.domain.WorkspaceAction
+import de.visualtasker.blockeditor.emscript.WorkspaceCodeGenerator
 import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
@@ -203,7 +204,7 @@ class BlockEditorControllerTest {
             callbacks = callbacks,
             coroutineScope = CoroutineScope(SupervisorJob() + dispatcher),
             debounceMillis = 50L,
-            generateEmscript = { doc ->
+            workspaceCodeGenerator = WorkspaceCodeGenerator { doc ->
                 if (shouldFail) error("generator boom")
                 "# Script: ${doc.id}\nLOG \"ok\""
             },
@@ -245,7 +246,7 @@ class BlockEditorControllerTest {
             callbacks = callbacks,
             coroutineScope = CoroutineScope(SupervisorJob() + dispatcher),
             debounceMillis = 50L,
-            generateEmscript = {
+            workspaceCodeGenerator = WorkspaceCodeGenerator {
                 if (shouldFail) error("debounce failure")
                 "# Script: workspace\nLOG \"after-failure\""
             }
@@ -279,7 +280,7 @@ class BlockEditorControllerTest {
             callbacks = callbacks,
             coroutineScope = CoroutineScope(SupervisorJob() + dispatcher),
             debounceMillis = 50L,
-            generateEmscript = { error("always fail") },
+            workspaceCodeGenerator = WorkspaceCodeGenerator { error("always fail") },
         )
         callbacks.clear()
 
@@ -290,6 +291,51 @@ class BlockEditorControllerTest {
 
         assertEquals(0, callbacks.emscriptGenerationFailures.size)
         assertEquals(1, callbacks.documentChanges.size)
+    }
+
+    @Test
+    fun injectedGeneratorDrivesInitialPreviewDebounceAndExplicitRegeneration() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val callbacks = RecordingCallbacks()
+        var calls = 0
+        val generator = WorkspaceCodeGenerator { "generated-${++calls}" }
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.starter(),
+            callbacks = callbacks,
+            workspaceCodeGenerator = generator,
+            coroutineScope = CoroutineScope(SupervisorJob() + dispatcher),
+            debounceMillis = 20L,
+        )
+
+        assertEquals(listOf("generated-1"), callbacks.emscriptDrafts)
+        assertEquals("generated-2", controller.codePreview)
+        assertEquals("generated-3", controller.regenerateCode())
+        assertEquals("generated-3", callbacks.emscriptDrafts.last())
+
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
+        advanceTimeBy(20L)
+        runCurrent()
+        assertEquals("generated-4", callbacks.emscriptDrafts.last())
+        controller.close()
+    }
+
+    @Test
+    fun previewFailureRetainsPreviousValidDraftAndReportsFailure() {
+        val callbacks = RecordingCallbacks()
+        var fail = false
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.starter(),
+            callbacks = callbacks,
+            workspaceCodeGenerator = WorkspaceCodeGenerator {
+                if (fail) error("preview failed") else "valid-draft"
+            },
+        )
+        fail = true
+
+        assertEquals("valid-draft", controller.codePreview)
+        assertTrue(callbacks.emscriptGenerationFailures.last().contains("preview failed"))
+        assertEquals(listOf("valid-draft"), callbacks.emscriptDrafts)
+        controller.close()
     }
 
     private class RecordingCallbacks : BlockEditorHostCallbacks {

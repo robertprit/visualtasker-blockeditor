@@ -9,8 +9,11 @@ import de.visualtasker.blockeditor.domain.WorkspaceDocument
 class EmscriptGenerator(
     private val irGenerator: IrGenerator = IrGenerator(),
     private val indent: String = "  ",
-) {
-    fun generate(document: WorkspaceDocument, scriptName: String = document.id): String =
+) : WorkspaceCodeGenerator {
+    override fun generate(document: WorkspaceDocument): String =
+        generate(document, document.id)
+
+    fun generate(document: WorkspaceDocument, scriptName: String): String =
         generate(irGenerator.generate(document, scriptName))
 
     fun generate(script: IrScript): String = buildString {
