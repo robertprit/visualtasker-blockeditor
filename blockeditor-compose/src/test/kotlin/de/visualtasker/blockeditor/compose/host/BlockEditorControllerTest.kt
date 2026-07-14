@@ -8,6 +8,9 @@ import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.CompositeBlockRegistry
+import de.visualtasker.blockeditor.registry.FieldDefinition
+import de.visualtasker.blockeditor.registry.FieldKind
+import de.visualtasker.blockeditor.registry.FieldOption
 import de.visualtasker.blockeditor.registry.StaticBlockRegistry
 import de.visualtasker.blockeditor.validation.ValidationError
 import kotlinx.coroutines.CoroutineScope
@@ -336,8 +339,45 @@ class BlockEditorControllerTest {
         fail = true
 
         assertEquals("valid-draft", controller.codePreview)
-        assertTrue(callbacks.emscriptGenerationFailures.last().contains("preview failed"))
+        assertEquals(0, callbacks.emscriptGenerationFailures.size)
         assertEquals(listOf("valid-draft"), callbacks.emscriptDrafts)
+        controller.close()
+    }
+
+    @Test fun invalidChoiceValueIsRejectedWithoutDocumentChange() {
+        val choice = BlockDefinition(
+            "choice",
+            "Choice",
+            "test",
+            true,
+            true,
+            fields = listOf(
+                FieldDefinition(
+                    key = "mode",
+                    label = "Mode",
+                    kind = FieldKind.CHOICE,
+                    defaultValue = "a",
+                    options = listOf(FieldOption("a", "A"), FieldOption("b", "B")),
+                ),
+            ),
+        )
+        val callbacks = RecordingCallbacks()
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+            callbacks = callbacks,
+            registry = CompositeBlockRegistry(StaticBlockRegistry(listOf(choice))),
+        )
+        callbacks.clear()
+
+        controller.addBlockFromPalette(choice)
+        controller.onTap(Offset2(96f, 120f))
+        callbacks.clear()
+
+        controller.updateBlockField("mode", "invalid")
+        assertEquals(0, callbacks.documentChanges.size)
+
+        controller.updateBlockField("mode", "b")
+        assertEquals(1, callbacks.documentChanges.size)
         controller.close()
     }
 

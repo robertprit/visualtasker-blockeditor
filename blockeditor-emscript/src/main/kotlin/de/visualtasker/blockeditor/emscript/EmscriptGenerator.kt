@@ -26,11 +26,11 @@ class EmscriptGenerator(
             is IrStatement.Wait -> appendLine(depth, "WAIT ${statement.milliseconds}")
             is IrStatement.Log -> appendLine(depth, "OUTPUT \"${escape(statement.message)}\"")
             is IrStatement.SetVariable -> {
-                requireIdentifier(statement.name, "variable")
+                val name = sanitizeIdentifier(statement.name, "variable")
                 require(isSafeScalarExpression(statement.value)) {
                     "Unsupported demo SET expression: ${statement.value}"
                 }
-                appendLine(depth, "SET ${statement.name} = ${statement.value}")
+                appendLine(depth, "SET $name = ${statement.value}")
             }
             is IrStatement.Repeat -> {
                 require(statement.times >= 0) { "LOOP count must not be negative" }
@@ -63,7 +63,7 @@ class EmscriptGenerator(
         is IrExpression.ScreenContains -> unsupportedExpression("screenContains")
         is IrExpression.And -> "(${emitExpression(expression.left)} AND ${emitExpression(expression.right)})"
         is IrExpression.Or -> "(${emitExpression(expression.left)} OR ${emitExpression(expression.right)})"
-        is IrExpression.GetVariable -> requireIdentifier(expression.name, "variable reference")
+        is IrExpression.GetVariable -> sanitizeIdentifier(expression.name, "variable reference")
         is IrExpression.LiteralBoolean -> if (expression.value) "TRUE" else "FALSE"
         is IrExpression.LiteralText -> unsupportedExpression("text condition")
         is IrExpression.Operate -> unsupportedExpression("operate:${expression.operator}")
@@ -79,9 +79,21 @@ class EmscriptGenerator(
         .replace("\\", "\\\\")
         .replace("\"", "\\\"")
 
-    private fun requireIdentifier(value: String, role: String): String {
-        require(value.matches(Regex("[A-Za-z_][A-Za-z0-9_]*"))) { "Invalid $role: $value" }
-        return value
+    private fun sanitizeIdentifier(value: String, role: String): String {
+        val trimmed = value.trim()
+        require(trimmed.isNotEmpty()) { "Invalid $role: $value" }
+        val sanitized = buildString {
+            trimmed.forEachIndexed { index, char ->
+                val safe = when {
+                    char == '_' || char.isLetterOrDigit() -> char
+                    else -> '_'
+                }
+                if (index == 0 && safe.isDigit()) append('_')
+                append(safe)
+            }
+        }
+        require(sanitized.any { it == '_' || it.isLetter() }) { "Invalid $role: $value" }
+        return sanitized
     }
 
     private fun isSafeScalarExpression(value: String): Boolean =

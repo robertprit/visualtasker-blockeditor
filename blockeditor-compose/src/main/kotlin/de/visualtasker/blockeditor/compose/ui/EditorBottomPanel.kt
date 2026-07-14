@@ -17,6 +17,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -175,7 +179,8 @@ private fun BlockFieldEditor(
                 )
             }
         }
-        FieldKind.NUMBER, FieldKind.TEXT, FieldKind.CHOICE -> {
+        FieldKind.CHOICE -> ChoiceFieldEditor(field, onFieldChange)
+        FieldKind.NUMBER, FieldKind.TEXT -> {
             var draft by remember(blockId, field.key) { mutableStateOf(field.value) }
             LaunchedEffect(blockId, field.key) {
                 draft = field.value
@@ -190,6 +195,47 @@ private fun BlockFieldEditor(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChoiceFieldEditor(
+    field: BlockInfoField,
+    onFieldChange: (String, String) -> Unit,
+) {
+    var expanded by remember(field.key) { mutableStateOf(false) }
+    val selected = field.options.firstOrNull { it.value == field.value }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        OutlinedTextField(
+            value = selected?.label ?: field.value,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(field.label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth(),
+            singleLine = true,
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            field.options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.label) },
+                    onClick = {
+                        expanded = false
+                        onFieldChange(field.key, option.value)
+                    },
+                )
+            }
         }
     }
 }

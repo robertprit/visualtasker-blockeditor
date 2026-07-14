@@ -103,7 +103,7 @@ class BlockEditorController(
         get() = if (disposed.get()) {
             ""
         } else {
-            generateDraft(reportFailure = true) ?: lastValidDraft
+            generateDraft(reportFailure = false) ?: lastValidDraft
         }
 
     val isDisposed: Boolean
@@ -321,7 +321,11 @@ class BlockEditorController(
             FieldKind.NUMBER -> rawValue.toDoubleOrNull()?.let { FieldValue.Number(it) }
                 ?: FieldValue.Number(0.0)
             FieldKind.BOOLEAN -> FieldValue.Bool(rawValue.equals("true", ignoreCase = true))
-            FieldKind.TEXT, FieldKind.CHOICE -> FieldValue.Text(rawValue)
+            FieldKind.CHOICE -> {
+                if (fieldDef.options.none { it.value == rawValue }) return
+                FieldValue.Text(rawValue)
+            }
+            FieldKind.TEXT -> FieldValue.Text(rawValue)
         }
         onAction(WorkspaceAction.UpdateField(blockId, fieldKey, parsed))
     }

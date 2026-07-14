@@ -103,6 +103,22 @@ class EmscriptGeneratorTest {
         assertEquals("WAIT 500\nOUTPUT \"hello\"\nSET count = 3", script)
     }
 
+    @Test fun sanitizesVariableNamesAcceptedByEditor() {
+        val script = generator.generate(
+            de.visualtasker.blockeditor.ir.IrScript(
+                "safe",
+                listOf(
+                    de.visualtasker.blockeditor.ir.IrStatement.SetVariable("1 user name", "3"),
+                    de.visualtasker.blockeditor.ir.IrStatement.While(
+                        de.visualtasker.blockeditor.ir.IrExpression.GetVariable("1 user name"),
+                        emptyList(),
+                    ),
+                ),
+            ),
+        )
+        assertEquals("SET _1_user_name = 3\nWHILE _1_user_name\nEND WHILE", script)
+    }
+
     @Test fun rejectsUnsupportedSemanticExpressionsDeterministically() {
         val failure = assertThrows(IllegalStateException::class.java) {
             generator.generate(
