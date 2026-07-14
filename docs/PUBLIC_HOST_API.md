@@ -54,6 +54,12 @@ Transitive modules (via `blockeditor-compose`):
 - `blockeditor-ir`
 - `blockeditor-emscript`
 
+`blockeditor-emscript` exposes the host-neutral `WorkspaceCodeGenerator` functional
+interface. `BlockEditorController` uses one injected instance for initial and debounced
+drafts, code preview, and explicit regeneration. The bundled `EmscriptGenerator` is a
+strict demo subset, not a full EMScript v0.1 implementation; unsupported expressions fail
+deterministically instead of emitting invented syntax.
+
 The `app` module is demo-only and must not be consumed by Studio.
 
 ### Composite build example
@@ -141,6 +147,10 @@ class BlockEditorController(
     callbacks: BlockEditorHostCallbacks = BlockEditorHostCallbacks.NoOp,
     ...
 ) : BlockEditorControllerState, AutoCloseable
+
+fun interface WorkspaceCodeGenerator {
+    fun generate(document: WorkspaceDocument): String
+}
 
 // Convenience factory for hosts that want the minimal EVENT_START workspace:
 BlockEditorController.starter(callbacks = BlockEditorHostCallbacks.NoOp)

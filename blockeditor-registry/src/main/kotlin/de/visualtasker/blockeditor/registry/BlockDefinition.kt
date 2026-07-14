@@ -14,14 +14,35 @@ enum class FieldKind {
     TEXT,
     NUMBER,
     BOOLEAN,
+    CHOICE,
 }
+
+data class FieldOption(
+    val value: String,
+    val label: String,
+)
 
 data class FieldDefinition(
     val key: String,
     val label: String,
     val kind: FieldKind = FieldKind.TEXT,
     val defaultValue: String = "",
-)
+    val options: List<FieldOption> = emptyList(),
+) {
+    init {
+        if (kind == FieldKind.CHOICE) {
+            require(options.isNotEmpty()) { "CHOICE field $key requires options" }
+            require(options.map(FieldOption::value).distinct().size == options.size) {
+                "CHOICE field $key requires unique option values"
+            }
+            require(defaultValue in options.map(FieldOption::value)) {
+                "CHOICE field $key default must be an option value"
+            }
+        } else {
+            require(options.isEmpty()) { "Only CHOICE fields may declare options" }
+        }
+    }
+}
 
 data class ValueInputDefinition(
     val name: String,
@@ -46,6 +67,9 @@ data class BlockDefinition(
     val statementInputs: List<StatementInputDefinition> = emptyList(),
     val isReporter: Boolean = false,
     val inputsInline: Boolean = false,
+    val paletteVisible: Boolean = true,
+    val deprecated: Boolean = false,
+    val paletteOrder: Int = 0,
 )
 
 interface BlockRegistry {
@@ -59,7 +83,7 @@ fun BlockDefinition.createNode(blockId: BlockId): BlockNode {
             FieldKind.NUMBER -> field.defaultValue.toDoubleOrNull()?.let { FieldValue.Number(it) }
                 ?: FieldValue.Number(0.0)
             FieldKind.BOOLEAN -> FieldValue.Bool(field.defaultValue.equals("true", ignoreCase = true))
-            FieldKind.TEXT -> FieldValue.Text(field.defaultValue)
+            FieldKind.TEXT, FieldKind.CHOICE -> FieldValue.Text(field.defaultValue)
         }
     }
     return BlockNode(

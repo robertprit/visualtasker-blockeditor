@@ -2,9 +2,16 @@ package de.visualtasker.blockeditor.compose.host
 
 import de.visualtasker.blockeditor.domain.Offset2
 import de.visualtasker.blockeditor.domain.WorkspaceAction
+import de.visualtasker.blockeditor.emscript.WorkspaceCodeGenerator
 import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
+import de.visualtasker.blockeditor.registry.BlockDefinition
+import de.visualtasker.blockeditor.registry.CompositeBlockRegistry
+import de.visualtasker.blockeditor.registry.FieldDefinition
+import de.visualtasker.blockeditor.registry.FieldKind
+import de.visualtasker.blockeditor.registry.FieldOption
+import de.visualtasker.blockeditor.registry.StaticBlockRegistry
 import de.visualtasker.blockeditor.validation.ValidationError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -33,7 +40,7 @@ class BlockEditorControllerTest {
         assertEquals(1, callbacks.validationBatches.size)
         assertEquals(1, callbacks.emscriptDrafts.size)
         assertEquals(0, callbacks.emscriptGenerationFailures.size)
-        assertTrue(callbacks.emscriptDrafts.single().contains("# Script:"))
+        assertEquals("", callbacks.emscriptDrafts.single())
 
         controller.close()
     }
@@ -203,7 +210,7 @@ class BlockEditorControllerTest {
             callbacks = callbacks,
             coroutineScope = CoroutineScope(SupervisorJob() + dispatcher),
             debounceMillis = 50L,
-            generateEmscript = { doc ->
+            workspaceCodeGenerator = WorkspaceCodeGenerator { doc ->
                 if (shouldFail) error("generator boom")
                 "# Script: ${doc.id}\nLOG \"ok\""
             },
@@ -245,7 +252,7 @@ class BlockEditorControllerTest {
             callbacks = callbacks,
             coroutineScope = CoroutineScope(SupervisorJob() + dispatcher),
             debounceMillis = 50L,
-            generateEmscript = {
+            workspaceCodeGenerator = WorkspaceCodeGenerator {
                 if (shouldFail) error("debounce failure")
                 "# Script: workspace\nLOG \"after-failure\""
             }
@@ -279,7 +286,7 @@ class BlockEditorControllerTest {
             callbacks = callbacks,
             coroutineScope = CoroutineScope(SupervisorJob() + dispatcher),
             debounceMillis = 50L,
-            generateEmscript = { error("always fail") },
+            workspaceCodeGenerator = WorkspaceCodeGenerator { error("always fail") },
         )
         callbacks.clear()
 
@@ -290,6 +297,102 @@ class BlockEditorControllerTest {
 
         assertEquals(0, callbacks.emscriptGenerationFailures.size)
         assertEquals(1, callbacks.documentChanges.size)
+    }
+
+    @Test
+    fun injectedGeneratorDrivesInitialPreviewDebounceAndExplicitRegeneration() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val callbacks = RecordingCallbacks()
+        var calls = 0
+        val generator = WorkspaceCodeGenerator { "generated-${++calls}" }
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.starter(),
+            callbacks = callbacks,
+            workspaceCodeGenerator = generator,
+            coroutineScope = CoroutineScope(SupervisorJob() + dispatcher),
+            debounceMillis = 20L,
+        )
+
+        assertEquals(listOf("generated-1"), callbacks.emscriptDrafts)
+        assertEquals("generated-2", controller.codePreview)
+        assertEquals("generated-3", controller.regenerateCode())
+        assertEquals("generated-3", callbacks.emscriptDrafts.last())
+
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
+        advanceTimeBy(20L)
+        runCurrent()
+        assertEquals("generated-4", callbacks.emscriptDrafts.last())
+        controller.close()
+    }
+
+    @Test
+    fun previewFailureRetainsPreviousValidDraftAndReportsFailure() {
+        val callbacks = RecordingCallbacks()
+        var fail = false
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.starter(),
+            callbacks = callbacks,
+            workspaceCodeGenerator = WorkspaceCodeGenerator {
+                if (fail) error("preview failed") else "valid-draft"
+            },
+        )
+        fail = true
+
+        assertEquals("valid-draft", controller.codePreview)
+        assertEquals(0, callbacks.emscriptGenerationFailures.size)
+        assertEquals(listOf("valid-draft"), callbacks.emscriptDrafts)
+        controller.close()
+    }
+
+    @Test fun invalidChoiceValueIsRejectedWithoutDocumentChange() {
+        val choice = BlockDefinition(
+            "choice",
+            "Choice",
+            "test",
+            true,
+            true,
+            fields = listOf(
+                FieldDefinition(
+                    key = "mode",
+                    label = "Mode",
+                    kind = FieldKind.CHOICE,
+                    defaultValue = "a",
+                    options = listOf(FieldOption("a", "A"), FieldOption("b", "B")),
+                ),
+            ),
+        )
+        val callbacks = RecordingCallbacks()
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+            callbacks = callbacks,
+            registry = CompositeBlockRegistry(StaticBlockRegistry(listOf(choice))),
+        )
+        callbacks.clear()
+
+        controller.addBlockFromPalette(choice)
+        controller.onTap(Offset2(96f, 120f))
+        callbacks.clear()
+
+        controller.updateBlockField("mode", "invalid")
+        assertEquals(0, callbacks.documentChanges.size)
+
+        controller.updateBlockField("mode", "b")
+        assertEquals(1, callbacks.documentChanges.size)
+        controller.close()
+    }
+
+    @Test fun hiddenDefinitionsAreExcludedFromPaletteButRemainInRegistry() {
+        val hidden = BlockDefinition("hidden", "Hidden", "test", true, true, paletteVisible = false)
+        val visible = BlockDefinition("visible", "Visible", "test", true, true, paletteOrder = 5)
+        val registry = CompositeBlockRegistry(StaticBlockRegistry(listOf(hidden, visible)))
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+            registry = registry,
+        )
+        controller.onCategoryClick("test")
+        assertEquals(listOf("visible"), controller.definitionsForExpandedCategory().map(BlockDefinition::id))
+        assertEquals("hidden", registry.getDefinition("hidden")?.id)
+        controller.close()
     }
 
     private class RecordingCallbacks : BlockEditorHostCallbacks {

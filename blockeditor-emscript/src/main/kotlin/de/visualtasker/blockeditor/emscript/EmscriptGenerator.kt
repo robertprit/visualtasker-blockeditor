@@ -9,12 +9,14 @@ import de.visualtasker.blockeditor.domain.WorkspaceDocument
 class EmscriptGenerator(
     private val irGenerator: IrGenerator = IrGenerator(),
     private val indent: String = "  ",
-) {
-    fun generate(document: WorkspaceDocument, scriptName: String = document.id): String =
+) : WorkspaceCodeGenerator {
+    override fun generate(document: WorkspaceDocument): String =
+        generate(document, document.id)
+
+    fun generate(document: WorkspaceDocument, scriptName: String): String =
         generate(irGenerator.generate(document, scriptName))
 
     fun generate(script: IrScript): String = buildString {
-        appendLine("# Script: ${script.name}")
         script.statements.forEach { appendStatement(it, 0) }
     }.trimEnd()
 
@@ -22,20 +24,24 @@ class EmscriptGenerator(
         when (statement) {
             is IrStatement.ClickText -> appendLine(depth, "CLICK \"${escape(statement.text)}\"")
             is IrStatement.Wait -> appendLine(depth, "WAIT ${statement.milliseconds}")
-            is IrStatement.Log -> appendLine(depth, "LOG \"${escape(statement.message)}\"")
-            is IrStatement.SetVariable -> appendLine(
-                depth,
-                "SET \"${escape(statement.name)}\" \"${escape(statement.value)}\"",
-            )
+            is IrStatement.Log -> appendLine(depth, "OUTPUT \"${escape(statement.message)}\"")
+            is IrStatement.SetVariable -> {
+                val name = sanitizeIdentifier(statement.name, "variable")
+                require(isSafeScalarExpression(statement.value)) {
+                    "Unsupported demo SET expression: ${statement.value}"
+                }
+                appendLine(depth, "SET $name = ${statement.value}")
+            }
             is IrStatement.Repeat -> {
-                appendLine(depth, "REPEAT ${statement.times}")
+                require(statement.times >= 0) { "LOOP count must not be negative" }
+                appendLine(depth, "LOOP ${statement.times}")
                 statement.body.forEach { appendStatement(it, depth + 1) }
-                appendLine(depth, "END")
+                appendLine(depth, "END LOOP")
             }
             is IrStatement.While -> {
                 appendLine(depth, "WHILE ${emitExpression(statement.condition)}")
                 statement.body.forEach { appendStatement(it, depth + 1) }
-                appendLine(depth, "END")
+                appendLine(depth, "END WHILE")
             }
             is IrStatement.If -> {
                 appendLine(depth, "IF ${emitExpression(statement.condition)}")
@@ -48,29 +54,19 @@ class EmscriptGenerator(
                     appendLine(depth, "ELSE")
                     statement.elseBranch.forEach { appendStatement(it, depth + 1) }
                 }
-                appendLine(depth, "END")
+                appendLine(depth, "END IF")
             }
         }
     }
 
     private fun emitExpression(expression: IrExpression): String = when (expression) {
-        is IrExpression.ScreenContains -> "SCREEN_CONTAINS \"${escape(expression.text)}\""
+        is IrExpression.ScreenContains -> unsupportedExpression("screenContains")
         is IrExpression.And -> "(${emitExpression(expression.left)} AND ${emitExpression(expression.right)})"
         is IrExpression.Or -> "(${emitExpression(expression.left)} OR ${emitExpression(expression.right)})"
-        is IrExpression.GetVariable -> "VAR \"${escape(expression.name)}\""
+        is IrExpression.GetVariable -> sanitizeIdentifier(expression.name, "variable reference")
         is IrExpression.LiteralBoolean -> if (expression.value) "TRUE" else "FALSE"
-        is IrExpression.LiteralText -> "\"${escape(expression.value)}\""
-        is IrExpression.Operate -> {
-            val op = expression.operator.lowercase()
-            val a = emitExpression(expression.a)
-            val b = emitExpression(expression.b)
-            val c = expression.c?.let { emitExpression(it) }
-            if (c != null) {
-                "OP $op $a $b $c"
-            } else {
-                "OP $op $a $b"
-            }
-        }
+        is IrExpression.LiteralText -> unsupportedExpression("text condition")
+        is IrExpression.Operate -> unsupportedExpression("operate:${expression.operator}")
     }
 
     private fun StringBuilder.appendLine(depth: Int, line: String) {
@@ -82,4 +78,30 @@ class EmscriptGenerator(
     private fun escape(value: String): String = value
         .replace("\\", "\\\\")
         .replace("\"", "\\\"")
+
+    private fun sanitizeIdentifier(value: String, role: String): String {
+        val trimmed = value.trim()
+        require(trimmed.isNotEmpty()) { "Invalid $role: $value" }
+        val sanitized = buildString {
+            trimmed.forEachIndexed { index, char ->
+                val safe = when {
+                    char == '_' || char.isLetterOrDigit() -> char
+                    else -> '_'
+                }
+                if (index == 0 && safe.isDigit()) append('_')
+                append(safe)
+            }
+        }
+        require(sanitized.any { it == '_' || it.isLetter() }) { "Invalid $role: $value" }
+        return sanitized
+    }
+
+    private fun isSafeScalarExpression(value: String): Boolean =
+        value.matches(Regex("-?\\d+(?:\\.\\d+)?")) ||
+            value.equals("true", ignoreCase = true) ||
+            value.equals("false", ignoreCase = true) ||
+            value.matches(Regex("[A-Za-z_][A-Za-z0-9_]*"))
+
+    private fun unsupportedExpression(kind: String): Nothing =
+        error("Unsupported demo EMScript expression: $kind")
 }
