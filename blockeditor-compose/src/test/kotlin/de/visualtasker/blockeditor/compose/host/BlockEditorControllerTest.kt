@@ -37,7 +37,7 @@ class BlockEditorControllerTest {
         assertEquals(1, callbacks.validationBatches.size)
         assertEquals(1, callbacks.emscriptDrafts.size)
         assertEquals(0, callbacks.emscriptGenerationFailures.size)
-        assertTrue(callbacks.emscriptDrafts.single().contains("# Script:"))
+        assertEquals("", callbacks.emscriptDrafts.single())
 
         controller.close()
     }

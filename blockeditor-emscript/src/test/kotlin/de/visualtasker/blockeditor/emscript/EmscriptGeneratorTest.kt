@@ -8,6 +8,8 @@ import de.visualtasker.blockeditor.registry.SampleWorkspaceFactory
 import de.visualtasker.blockeditor.registry.createNode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class EmscriptGeneratorTest {
@@ -20,8 +22,10 @@ class EmscriptGeneratorTest {
         val second = generator.generate(document)
         assertEquals(first, second)
         assertTrue(first.contains("CLICK \"OK\""))
-        assertTrue(first.contains("REPEAT 3"))
-        assertTrue(first.contains("END"))
+        assertTrue(first.contains("LOOP 3"))
+        assertTrue(first.contains("END LOOP"))
+        assertFalse(first.contains("# Script"))
+        assertFalse(first.contains("\nEND\n"))
     }
 
     @Test
@@ -82,6 +86,37 @@ class EmscriptGeneratorTest {
         assertTrue(script.contains("IF FALSE"))
         assertTrue(script.contains("ELSEIF FALSE"))
         assertTrue(script.contains("ELSE"))
-        assertTrue(script.contains("END"))
+        assertTrue(script.contains("END IF"))
+    }
+
+    @Test fun emitsContractShapedWaitOutputAndSetSubset() {
+        val script = generator.generate(
+            de.visualtasker.blockeditor.ir.IrScript(
+                "safe",
+                listOf(
+                    de.visualtasker.blockeditor.ir.IrStatement.Wait(500),
+                    de.visualtasker.blockeditor.ir.IrStatement.Log("hello"),
+                    de.visualtasker.blockeditor.ir.IrStatement.SetVariable("count", "3"),
+                ),
+            ),
+        )
+        assertEquals("WAIT 500\nOUTPUT \"hello\"\nSET count = 3", script)
+    }
+
+    @Test fun rejectsUnsupportedSemanticExpressionsDeterministically() {
+        val failure = assertThrows(IllegalStateException::class.java) {
+            generator.generate(
+                de.visualtasker.blockeditor.ir.IrScript(
+                    "unsupported",
+                    listOf(
+                        de.visualtasker.blockeditor.ir.IrStatement.While(
+                            de.visualtasker.blockeditor.ir.IrExpression.ScreenContains("x"),
+                            emptyList(),
+                        ),
+                    ),
+                ),
+            )
+        }
+        assertTrue(failure.message!!.contains("Unsupported demo EMScript expression"))
     }
 }
