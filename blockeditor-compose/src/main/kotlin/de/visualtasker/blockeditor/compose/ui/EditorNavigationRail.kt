@@ -3,8 +3,6 @@ package de.visualtasker.blockeditor.compose.ui
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -132,7 +130,7 @@ fun EditorNavigationRail(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoryPalettePanel(
     category: String?,
@@ -210,9 +208,9 @@ fun CategoryPalettePanel(
                     ),
                 )
             }
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            CompatibleWrappingRow(
+                horizontalSpacing = 8.dp,
+                verticalSpacing = 8.dp,
                 modifier = Modifier.padding(top = 4.dp),
             ) {
                 definitions.forEach { definition ->
