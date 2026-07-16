@@ -2,8 +2,6 @@ package de.visualtasker.blockeditor.compose.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
@@ -27,7 +25,7 @@ import de.visualtasker.blockeditor.registry.BlockDesignBlueprint
 import de.visualtasker.blockeditor.registry.FieldDefinition
 import de.visualtasker.blockeditor.registry.FieldKind
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BlockDesignFactorySheet(
     visible: Boolean,
@@ -70,7 +68,7 @@ fun BlockDesignFactorySheet(
                 singleLine = true,
             )
             Text("Kategorie", style = MaterialTheme.typography.labelLarge)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CompatibleWrappingRow(horizontalSpacing = 8.dp) {
                 BlockCategories.all.forEach { meta ->
                     FilterChip(
                         selected = category == meta.id,
