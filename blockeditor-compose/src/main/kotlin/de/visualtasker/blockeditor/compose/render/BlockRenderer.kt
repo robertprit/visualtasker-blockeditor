@@ -195,6 +195,8 @@ internal fun DrawScope.drawBlock(
             labelX,
             (headerHeight - textLayout.size.height) / 2f,
         )
+        val drawableTextHeight = size.height - topLeft.y - textTopLeft.y
+        if (!hasDrawableTextArea(drawableTextWidth, drawableTextHeight)) return@translate
         drawText(
             textMeasurer = textMeasurer,
             text = displayLabel,
@@ -206,6 +208,8 @@ internal fun DrawScope.drawBlock(
 
 internal fun drawableLabelWidth(requestedWidth: Float, canvasRemainingWidth: Float): Float =
     minOf(requestedWidth, canvasRemainingWidth).coerceAtLeast(0f)
+
+internal fun hasDrawableTextArea(width: Float, height: Float): Boolean = width > 0f && height > 0f
 
 private fun truncateLabel(
     label: String,
