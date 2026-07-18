@@ -7,16 +7,17 @@ import org.junit.Test
 class BlockRendererTest {
     @Test
     fun `zero-width label space is not drawn`() {
-        assertFalse(hasDrawableLabelSpace(0f))
+        assertFalse(drawableLabelWidth(0f, 100f) > 0f)
     }
 
     @Test
-    fun `negative label space is not drawn`() {
-        assertFalse(hasDrawableLabelSpace(-1f))
+    fun `label beyond narrow canvas is not drawn`() {
+        assertFalse(drawableLabelWidth(100f, -1f) > 0f)
     }
 
     @Test
-    fun `positive label space remains drawable`() {
-        assertTrue(hasDrawableLabelSpace(1f))
+    fun `positive label space is bounded by canvas`() {
+        assertTrue(drawableLabelWidth(100f, 12f) > 0f)
+        org.junit.Assert.assertEquals(12f, drawableLabelWidth(100f, 12f))
     }
 }

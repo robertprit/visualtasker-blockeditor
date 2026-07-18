@@ -184,8 +184,12 @@ internal fun DrawScope.drawBlock(
         } else {
             (width - labelX - LayoutConstants.SLOT_PADDING).coerceAtLeast(0f)
         }
-        if (!hasDrawableLabelSpace(maxTextWidth)) return@translate
-        val displayLabel = truncateLabel(label, maxTextWidth, textMeasurer, textStyle)
+        val drawableTextWidth = drawableLabelWidth(
+            requestedWidth = maxTextWidth,
+            canvasRemainingWidth = size.width - topLeft.x - labelX,
+        )
+        if (drawableTextWidth <= 0f) return@translate
+        val displayLabel = truncateLabel(label, drawableTextWidth, textMeasurer, textStyle)
         val textLayout = textMeasurer.measure(displayLabel, textStyle)
         val textTopLeft = Offset(
             labelX,
@@ -200,7 +204,8 @@ internal fun DrawScope.drawBlock(
     }
 }
 
-internal fun hasDrawableLabelSpace(maxTextWidth: Float): Boolean = maxTextWidth > 0f
+internal fun drawableLabelWidth(requestedWidth: Float, canvasRemainingWidth: Float): Float =
+    minOf(requestedWidth, canvasRemainingWidth).coerceAtLeast(0f)
 
 private fun truncateLabel(
     label: String,
