@@ -25,6 +25,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import de.visualtasker.blockeditor.compose.layers.EditorCanvasLayer
+import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
 import de.visualtasker.blockeditor.compose.theme.defaultBlockEditorColors
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoSnapshot
 import de.visualtasker.blockeditor.compose.viewmodel.DragRenderState
@@ -68,6 +69,7 @@ fun BlockEditorScaffold(
     onPointerMove: (Offset2) -> Unit,
     onPointerUp: (Offset2) -> Unit,
     onFieldChange: (String, String) -> Unit,
+    visualPathProvider: BlockVisualPathProvider = BlockVisualPathProvider.Legacy,
     modifier: Modifier = Modifier,
 ) {
     val colors = defaultBlockEditorColors()
@@ -144,6 +146,7 @@ fun BlockEditorScaffold(
                     viewport = viewport,
                     dragRender = dragRender,
                     selectedBlockIds = selectedBlockIds,
+                    visualPathProvider = visualPathProvider,
                 )
                 if (!showBottomPanel) {
                     FloatingActionButton(

@@ -38,14 +38,21 @@ internal object BlockPathCache {
         return "$type:$kind:${size.width.toInt()}:${size.height.toInt()}:$branches"
     }
 
+    fun shape(definition: BlockDefinition?): BlockVisualShape = when {
+        definition?.inputsInline == true -> BlockVisualShape.InlineReporter
+        definition?.isReporter == true -> BlockVisualShape.Reporter
+        definition?.statementInputs?.isNotEmpty() == true -> BlockVisualShape.Container
+        else -> BlockVisualShape.Statement
+    }
+
     private fun buildPath(
         definition: BlockDefinition?,
         size: Size,
         branchDividerYs: List<Float>,
-    ): Path = when {
-        definition?.inputsInline == true -> BlockShapes.inlineReporterPath(size)
-        definition?.isReporter == true -> BlockShapes.reporterPath(size)
-        definition?.statementInputs?.isNotEmpty() == true -> {
+    ): Path = when (shape(definition)) {
+        BlockVisualShape.InlineReporter -> BlockShapes.inlineReporterPath(size)
+        BlockVisualShape.Reporter -> BlockShapes.reporterPath(size)
+        BlockVisualShape.Container -> {
             val dividers = branchDividerYs.ifEmpty {
                 ContainerBranchLayout.branchDividerYs(definition)
             }
@@ -56,6 +63,6 @@ internal object BlockPathCache {
                 dividers,
             )
         }
-        else -> BlockShapes.statementPath(size)
+        BlockVisualShape.Statement -> BlockShapes.statementPath(size)
     }
 }

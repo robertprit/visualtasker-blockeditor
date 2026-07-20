@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
 import de.visualtasker.blockeditor.compose.ui.BlockEditorScaffold
+import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
 
 /**
  * Public Compose entry point for host embedding.
@@ -13,6 +14,7 @@ fun BlockEditorHost(
     controller: BlockEditorController,
     uiConfig: BlockEditorHostUiConfig = BlockEditorHostUiConfig(),
     modifier: Modifier = Modifier,
+    visualPathProvider: BlockVisualPathProvider = BlockVisualPathProvider.Legacy,
 ) {
     DisposableEffect(controller) {
         onDispose { controller.close() }
@@ -47,6 +49,7 @@ fun BlockEditorHost(
         onPointerMove = controller::onPointerMove,
         onPointerUp = controller::onPointerUp,
         onFieldChange = controller::updateBlockField,
+        visualPathProvider = visualPathProvider,
         modifier = modifier,
     )
 }

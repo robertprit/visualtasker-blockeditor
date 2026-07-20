@@ -164,8 +164,16 @@ fun BlockEditorHost(
     controller: BlockEditorController,
     uiConfig: BlockEditorHostUiConfig = BlockEditorHostUiConfig(),
     modifier: Modifier = Modifier,
+    visualPathProvider: BlockVisualPathProvider = BlockVisualPathProvider.Legacy,
 )
 ```
+
+`BlockVisualPathProvider` is an optional presentation-only Compose hook. A provider may
+return a path for the already measured target size or explicitly request the legacy
+Blockeditor path. Empty paths and provider failures also use the legacy fallback. The
+request does not expose workspace mutation, history, hit primitives, docking anchors or
+snap candidates; those remain owned by the existing domain, layout and interaction
+layers.
 
 `BlockEditorScreen` and `BlockEditorViewModel` are demo-internal. Do not use them as the
 public host entry point.
