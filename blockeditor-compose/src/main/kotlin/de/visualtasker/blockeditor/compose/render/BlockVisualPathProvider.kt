@@ -1,5 +1,6 @@
 package de.visualtasker.blockeditor.compose.render
 
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Path
 import de.visualtasker.blockeditor.registry.BlockDefinition
@@ -43,9 +44,15 @@ internal fun resolveBlockVisualPath(
     provider: BlockVisualPathProvider,
 ): Path {
     val legacy = BlockPathCache.path(definition, size, branchDividerYs)
+    if (provider === BlockVisualPathProvider.Legacy) return legacy
+
+    val shape = BlockPathCache.shape(definition)
+    if (shape != BlockVisualShape.Reporter && shape != BlockVisualShape.InlineReporter) {
+        return legacy
+    }
     val request = BlockVisualPathRequest(
         definition = definition,
-        shape = BlockPathCache.shape(definition),
+        shape = shape,
         targetSize = size,
         branchDividerYs = branchDividerYs.toList(),
     )
@@ -55,7 +62,14 @@ internal fun resolveBlockVisualPath(
         BlockVisualPathResult.UseLegacy
     }
     return when (result) {
-        is BlockVisualPathResult.Success -> result.path.takeUnless(Path::isEmpty) ?: legacy
+        is BlockVisualPathResult.Success -> result.path
+            .takeUnless(Path::isEmpty)
+            ?.let(::copyPath)
+            ?: legacy
         BlockVisualPathResult.UseLegacy -> legacy
     }
+}
+
+private fun copyPath(source: Path): Path = Path().apply {
+    addPath(source, Offset.Zero)
 }

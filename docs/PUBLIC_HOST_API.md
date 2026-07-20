@@ -169,11 +169,14 @@ fun BlockEditorHost(
 ```
 
 `BlockVisualPathProvider` is an optional presentation-only Compose hook. A provider may
-return a path for the already measured target size or explicitly request the legacy
-Blockeditor path. Empty paths and provider failures also use the legacy fallback. The
-request does not expose workspace mutation, history, hit primitives, docking anchors or
-snap candidates; those remain owned by the existing domain, layout and interaction
-layers.
+return a Reporter or inline-Reporter silhouette for the already measured target size or
+explicitly request the legacy Blockeditor path. Statement, Container, IF, Loop and dynamic
+Container blocks remain on the legacy renderer. Empty paths and provider failures also use
+the legacy fallback. The default provider returns the cached legacy path without creating a
+request. Custom-provider paths are defensively copied before rendering and are not cached by
+the renderer. The request does not expose workspace mutation, history, hit primitives,
+docking anchors or snap candidates; those remain owned by the existing domain, layout and
+interaction layers.
 
 `BlockEditorScreen` and `BlockEditorViewModel` are demo-internal. Do not use them as the
 public host entry point.

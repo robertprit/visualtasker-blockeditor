@@ -39,8 +39,8 @@ fun EditorCanvasLayer(
     dragRender: DragRenderState?,
     selectedBlockIds: Set<BlockId> = emptySet(),
     registry: BlockRegistry = DefaultBlockRegistry,
-    visualPathProvider: BlockVisualPathProvider = BlockVisualPathProvider.Legacy,
     modifier: Modifier = Modifier,
+    visualPathProvider: BlockVisualPathProvider = BlockVisualPathProvider.Legacy,
 ) {
     val colors = remember { defaultBlockEditorColors() }
     val textMeasurer = rememberTextMeasurer()

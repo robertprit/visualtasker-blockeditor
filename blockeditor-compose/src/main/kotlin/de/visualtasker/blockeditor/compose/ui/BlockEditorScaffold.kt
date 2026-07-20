@@ -69,8 +69,8 @@ fun BlockEditorScaffold(
     onPointerMove: (Offset2) -> Unit,
     onPointerUp: (Offset2) -> Unit,
     onFieldChange: (String, String) -> Unit,
-    visualPathProvider: BlockVisualPathProvider = BlockVisualPathProvider.Legacy,
     modifier: Modifier = Modifier,
+    visualPathProvider: BlockVisualPathProvider = BlockVisualPathProvider.Legacy,
 ) {
     val colors = defaultBlockEditorColors()
     val onTapState = rememberUpdatedState(onTap)
