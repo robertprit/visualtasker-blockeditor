@@ -99,10 +99,18 @@ class BlockVisualPathProviderTest {
             emptyList(),
             provider,
         )
+        val inlineStatementDefinition = statementDefinition(inputsInline = true)
+        val inlineStatement = resolveBlockVisualPath(
+            inlineStatementDefinition,
+            Size(120f, 44f),
+            emptyList(),
+            provider,
+        )
 
         assertEquals(0, calls)
         assertSame(BlockPathCache.path(statementDefinition(), Size(120f, 44f)), statement)
         assertSame(BlockPathCache.path(containerDefinition, Size(120f, 88f)), container)
+        assertSame(BlockPathCache.path(inlineStatementDefinition, Size(120f, 44f)), inlineStatement)
     }
 
     @Test
@@ -136,6 +144,10 @@ class BlockVisualPathProviderTest {
                 BlockVisualShape.InlineReporter,
         )
         assertTrue(
+            BlockPathCache.shape(statementDefinition(inputsInline = true)) ==
+                BlockVisualShape.Statement,
+        )
+        assertTrue(
             BlockPathCache.shape(
                 statementDefinition().copy(
                     statementInputs = listOf(
@@ -144,6 +156,54 @@ class BlockVisualPathProviderTest {
                 ),
             ) == BlockVisualShape.Container,
         )
+    }
+
+    @Test
+    fun `provider definition mutations cannot reach registry definition`() {
+        val mutableStatementInputs = mutableListOf(
+            de.visualtasker.blockeditor.registry.StatementInputDefinition("DO", "do"),
+        )
+        val definition = statementDefinition(isReporter = true).copy(
+            statementInputs = mutableStatementInputs,
+        )
+        var received: BlockDefinition? = null
+
+        resolveBlockVisualPath(
+            definition,
+            Size(120f, 44f),
+            emptyList(),
+            BlockVisualPathProvider { request ->
+                received = request.definition
+                BlockVisualPathResult.UseLegacy
+            },
+        )
+        mutableStatementInputs.clear()
+
+        assertNotSame(definition, received)
+        assertEquals(1, received?.statementInputs?.size)
+    }
+
+    @Test
+    fun `public compose entry points retain legacy jvm overloads`() {
+        assertLegacyAndProviderOverloads(
+            "de.visualtasker.blockeditor.compose.host.BlockEditorHostKt",
+            "BlockEditorHost",
+        )
+        assertLegacyAndProviderOverloads(
+            "de.visualtasker.blockeditor.compose.ui.BlockEditorScaffoldKt",
+            "BlockEditorScaffold",
+        )
+        assertLegacyAndProviderOverloads(
+            "de.visualtasker.blockeditor.compose.layers.EditorCanvasLayerKt",
+            "EditorCanvasLayer",
+        )
+    }
+
+    private fun assertLegacyAndProviderOverloads(className: String, methodName: String) {
+        val overloads = Class.forName(className).declaredMethods.filter { it.name == methodName }
+
+        assertTrue(overloads.any { BlockVisualPathProvider::class.java !in it.parameterTypes })
+        assertTrue(overloads.any { BlockVisualPathProvider::class.java in it.parameterTypes })
     }
 
     private fun statementDefinition(

@@ -40,7 +40,29 @@ fun EditorCanvasLayer(
     selectedBlockIds: Set<BlockId> = emptySet(),
     registry: BlockRegistry = DefaultBlockRegistry,
     modifier: Modifier = Modifier,
-    visualPathProvider: BlockVisualPathProvider = BlockVisualPathProvider.Legacy,
+) {
+    EditorCanvasLayer(
+        document,
+        layoutCache,
+        viewport,
+        dragRender,
+        selectedBlockIds,
+        registry,
+        modifier,
+        BlockVisualPathProvider.Legacy,
+    )
+}
+
+@Composable
+fun EditorCanvasLayer(
+    document: WorkspaceDocument,
+    layoutCache: LayoutCache,
+    viewport: ViewportState,
+    dragRender: DragRenderState?,
+    selectedBlockIds: Set<BlockId> = emptySet(),
+    registry: BlockRegistry = DefaultBlockRegistry,
+    modifier: Modifier = Modifier,
+    visualPathProvider: BlockVisualPathProvider,
 ) {
     val colors = remember { defaultBlockEditorColors() }
     val textMeasurer = rememberTextMeasurer()

@@ -14,7 +14,17 @@ fun BlockEditorHost(
     controller: BlockEditorController,
     uiConfig: BlockEditorHostUiConfig = BlockEditorHostUiConfig(),
     modifier: Modifier = Modifier,
-    visualPathProvider: BlockVisualPathProvider = BlockVisualPathProvider.Legacy,
+) {
+    BlockEditorHost(controller, uiConfig, modifier, BlockVisualPathProvider.Legacy)
+}
+
+/** Public Compose entry point with an optional host-owned presentation path provider. */
+@Composable
+fun BlockEditorHost(
+    controller: BlockEditorController,
+    uiConfig: BlockEditorHostUiConfig = BlockEditorHostUiConfig(),
+    modifier: Modifier = Modifier,
+    visualPathProvider: BlockVisualPathProvider,
 ) {
     DisposableEffect(controller) {
         onDispose { controller.close() }

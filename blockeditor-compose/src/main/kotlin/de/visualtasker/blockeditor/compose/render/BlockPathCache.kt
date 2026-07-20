@@ -39,7 +39,7 @@ internal object BlockPathCache {
     }
 
     fun shape(definition: BlockDefinition?): BlockVisualShape = when {
-        definition?.inputsInline == true -> BlockVisualShape.InlineReporter
+        definition?.isReporter == true && definition.inputsInline -> BlockVisualShape.InlineReporter
         definition?.isReporter == true -> BlockVisualShape.Reporter
         definition?.statementInputs?.isNotEmpty() == true -> BlockVisualShape.Container
         else -> BlockVisualShape.Statement
@@ -49,10 +49,10 @@ internal object BlockPathCache {
         definition: BlockDefinition?,
         size: Size,
         branchDividerYs: List<Float>,
-    ): Path = when (shape(definition)) {
-        BlockVisualShape.InlineReporter -> BlockShapes.inlineReporterPath(size)
-        BlockVisualShape.Reporter -> BlockShapes.reporterPath(size)
-        BlockVisualShape.Container -> {
+    ): Path = when {
+        definition?.inputsInline == true -> BlockShapes.inlineReporterPath(size)
+        definition?.isReporter == true -> BlockShapes.reporterPath(size)
+        definition?.statementInputs?.isNotEmpty() == true -> {
             val dividers = branchDividerYs.ifEmpty {
                 ContainerBranchLayout.branchDividerYs(definition)
             }
@@ -63,6 +63,6 @@ internal object BlockPathCache {
                 dividers,
             )
         }
-        BlockVisualShape.Statement -> BlockShapes.statementPath(size)
+        else -> BlockShapes.statementPath(size)
     }
 }

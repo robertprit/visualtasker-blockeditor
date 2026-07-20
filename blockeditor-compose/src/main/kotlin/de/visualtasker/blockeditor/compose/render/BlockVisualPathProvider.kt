@@ -51,7 +51,7 @@ internal fun resolveBlockVisualPath(
         return legacy
     }
     val request = BlockVisualPathRequest(
-        definition = definition,
+        definition = definition?.presentationSnapshot(),
         shape = shape,
         targetSize = size,
         branchDividerYs = branchDividerYs.toList(),
@@ -73,3 +73,9 @@ internal fun resolveBlockVisualPath(
 private fun copyPath(source: Path): Path = Path().apply {
     addPath(source, Offset.Zero)
 }
+
+private fun BlockDefinition.presentationSnapshot(): BlockDefinition = copy(
+    fields = fields.map { field -> field.copy(options = field.options.toList()) },
+    valueInputs = valueInputs.map { input -> input.copy(accepts = input.accepts.toSet()) },
+    statementInputs = statementInputs.toList(),
+)
