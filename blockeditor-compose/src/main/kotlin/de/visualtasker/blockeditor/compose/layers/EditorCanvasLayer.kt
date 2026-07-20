@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.text.rememberTextMeasurer
 import de.visualtasker.blockeditor.compose.render.drawBlock
+import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
 import de.visualtasker.blockeditor.compose.theme.defaultBlockEditorColors
 import de.visualtasker.blockeditor.domain.BlockId
 import de.visualtasker.blockeditor.compose.viewmodel.DragRenderState
@@ -39,6 +40,29 @@ fun EditorCanvasLayer(
     selectedBlockIds: Set<BlockId> = emptySet(),
     registry: BlockRegistry = DefaultBlockRegistry,
     modifier: Modifier = Modifier,
+) {
+    EditorCanvasLayer(
+        document,
+        layoutCache,
+        viewport,
+        dragRender,
+        selectedBlockIds,
+        registry,
+        modifier,
+        BlockVisualPathProvider.Legacy,
+    )
+}
+
+@Composable
+fun EditorCanvasLayer(
+    document: WorkspaceDocument,
+    layoutCache: LayoutCache,
+    viewport: ViewportState,
+    dragRender: DragRenderState?,
+    selectedBlockIds: Set<BlockId> = emptySet(),
+    registry: BlockRegistry = DefaultBlockRegistry,
+    modifier: Modifier = Modifier,
+    visualPathProvider: BlockVisualPathProvider,
 ) {
     val colors = remember { defaultBlockEditorColors() }
     val textMeasurer = rememberTextMeasurer()
@@ -83,6 +107,7 @@ fun EditorCanvasLayer(
                             branchDividerYs = branchDividers,
                             branchSections = branchSections,
                             inlineReporterLayout = inlineLayout,
+                            visualPathProvider = visualPathProvider,
                         )
                         if (layout.blockId in selectedBlockIds) {
                             drawRect(
@@ -133,6 +158,7 @@ fun EditorCanvasLayer(
                                 branchDividerYs = branchDividers,
                                 branchSections = branchSections,
                                 inlineReporterLayout = inlineLayout,
+                                visualPathProvider = visualPathProvider,
                             )
                         }
                 }

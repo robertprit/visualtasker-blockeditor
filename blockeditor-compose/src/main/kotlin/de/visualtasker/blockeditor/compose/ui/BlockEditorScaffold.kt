@@ -25,6 +25,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import de.visualtasker.blockeditor.compose.layers.EditorCanvasLayer
+import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
 import de.visualtasker.blockeditor.compose.theme.defaultBlockEditorColors
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoSnapshot
 import de.visualtasker.blockeditor.compose.viewmodel.DragRenderState
@@ -69,6 +70,73 @@ fun BlockEditorScaffold(
     onPointerUp: (Offset2) -> Unit,
     onFieldChange: (String, String) -> Unit,
     modifier: Modifier = Modifier,
+) {
+    BlockEditorScaffold(
+        document = document,
+        layoutCache = layoutCache,
+        viewport = viewport,
+        dragRender = dragRender,
+        selectedBlockIds = selectedBlockIds,
+        codePreview = codePreview,
+        blockInfo = blockInfo,
+        showBottomPanel = showBottomPanel,
+        expandedCategory = expandedCategory,
+        definitionsForCategory = definitionsForCategory,
+        showBlockFactory = showBlockFactory,
+        onCategoryClick = onCategoryClick,
+        onDismissCategory = onDismissCategory,
+        onAddBlock = onAddBlock,
+        onCreateVariable = onCreateVariable,
+        onToggleBottomPanel = onToggleBottomPanel,
+        onOpenBlockFactory = onOpenBlockFactory,
+        onDismissBlockFactory = onDismissBlockFactory,
+        onCreateCustomBlock = onCreateCustomBlock,
+        onClearWorkspace = onClearWorkspace,
+        onViewportChange = onViewportChange,
+        onCanvasSizeChange = onCanvasSizeChange,
+        onTap = onTap,
+        onDoubleTap = onDoubleTap,
+        onLongPressDragStart = onLongPressDragStart,
+        onPointerMove = onPointerMove,
+        onPointerUp = onPointerUp,
+        onFieldChange = onFieldChange,
+        modifier = modifier,
+        visualPathProvider = BlockVisualPathProvider.Legacy,
+    )
+}
+
+@Composable
+fun BlockEditorScaffold(
+    document: WorkspaceDocument,
+    layoutCache: LayoutCache,
+    viewport: ViewportState,
+    dragRender: DragRenderState?,
+    selectedBlockIds: Set<BlockId>,
+    codePreview: String,
+    blockInfo: BlockInfoSnapshot?,
+    showBottomPanel: Boolean,
+    expandedCategory: String?,
+    definitionsForCategory: List<BlockDefinition>,
+    showBlockFactory: Boolean,
+    onCategoryClick: (String) -> Unit,
+    onDismissCategory: () -> Unit,
+    onAddBlock: (BlockDefinition) -> Unit,
+    onCreateVariable: (String, String) -> Unit,
+    onToggleBottomPanel: () -> Unit,
+    onOpenBlockFactory: () -> Unit,
+    onDismissBlockFactory: () -> Unit,
+    onCreateCustomBlock: (BlockDesignBlueprint) -> Unit,
+    onClearWorkspace: () -> Unit,
+    onViewportChange: (ViewportState) -> Unit,
+    onCanvasSizeChange: (Offset2) -> Unit,
+    onTap: (Offset2) -> Unit,
+    onDoubleTap: (Offset2) -> Unit,
+    onLongPressDragStart: (Offset2) -> Boolean,
+    onPointerMove: (Offset2) -> Unit,
+    onPointerUp: (Offset2) -> Unit,
+    onFieldChange: (String, String) -> Unit,
+    modifier: Modifier = Modifier,
+    visualPathProvider: BlockVisualPathProvider,
 ) {
     val colors = defaultBlockEditorColors()
     val onTapState = rememberUpdatedState(onTap)
@@ -144,6 +212,7 @@ fun BlockEditorScaffold(
                     viewport = viewport,
                     dragRender = dragRender,
                     selectedBlockIds = selectedBlockIds,
+                    visualPathProvider = visualPathProvider,
                 )
                 if (!showBottomPanel) {
                     FloatingActionButton(

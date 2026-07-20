@@ -38,6 +38,13 @@ internal object BlockPathCache {
         return "$type:$kind:${size.width.toInt()}:${size.height.toInt()}:$branches"
     }
 
+    fun shape(definition: BlockDefinition?): BlockVisualShape = when {
+        definition?.isReporter == true && definition.inputsInline -> BlockVisualShape.InlineReporter
+        definition?.isReporter == true -> BlockVisualShape.Reporter
+        definition?.statementInputs?.isNotEmpty() == true -> BlockVisualShape.Container
+        else -> BlockVisualShape.Statement
+    }
+
     private fun buildPath(
         definition: BlockDefinition?,
         size: Size,

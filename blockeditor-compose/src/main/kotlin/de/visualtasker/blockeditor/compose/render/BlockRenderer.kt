@@ -37,10 +37,16 @@ internal fun DrawScope.drawBlock(
     branchDividerYs: List<Float> = emptyList(),
     branchSections: List<BranchSectionLayout> = emptyList(),
     inlineReporterLayout: InlineReporterLayout? = null,
+    visualPathProvider: BlockVisualPathProvider = BlockVisualPathProvider.Legacy,
 ) {
     val category = definition?.category ?: "unknown"
     val fillColor = blockEditorColors(category)
-    val path = BlockPathCache.path(definition, Size(width, height), branchDividerYs)
+    val path = resolveBlockVisualPath(
+        definition = definition,
+        size = Size(width, height),
+        branchDividerYs = branchDividerYs,
+        provider = visualPathProvider,
+    )
     translate(topLeft.x, topLeft.y) {
         drawPath(path, fillColor, style = Fill)
         drawPath(path, colors.blockStroke, style = Stroke(width = 2f))
