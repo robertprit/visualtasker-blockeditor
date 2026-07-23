@@ -151,6 +151,37 @@ class BlockEditorControllerTest {
     }
 
     @Test
+    fun replaceWorkspaceDocumentDefersImportedRootFocusUntilCanvasSizeIsKnown() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        val imported = WorkspaceBootstrap.starter()
+        val rootId = imported.rootBlocks.single()
+
+        controller.replaceWorkspaceDocument(
+            newDocument = imported,
+            focusBlockId = rootId,
+            selectFocusedBlock = true,
+        )
+
+        assertEquals(setOf(rootId), controller.selectedBlockIds)
+        assertEquals(ViewportState(), controller.viewport)
+
+        controller.onCanvasSizeChange(Offset2(480f, 360f))
+
+        assertEquals(setOf(rootId), controller.selectedBlockIds)
+        val rootLayout = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == rootId }
+        val left = rootLayout.subtreeBounds.x * controller.viewport.scale + controller.viewport.panX
+        val top = rootLayout.subtreeBounds.y * controller.viewport.scale + controller.viewport.panY
+        val right = rootLayout.subtreeBounds.right * controller.viewport.scale + controller.viewport.panX
+        val bottom = rootLayout.subtreeBounds.bottom * controller.viewport.scale + controller.viewport.panY
+        assertTrue(left <= 480f && top <= 360f && right >= 0f && bottom >= 0f)
+        assertNotEquals(ViewportState(), controller.viewport)
+
+        controller.close()
+    }
+
+    @Test
     fun selectedBlockDeletePreservesNextChainAndUndoRestoresIt() {
         val controller = BlockEditorController(
             initialDocument = WorkspaceBootstrap.empty(),

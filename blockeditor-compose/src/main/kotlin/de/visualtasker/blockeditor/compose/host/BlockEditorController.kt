@@ -90,6 +90,8 @@ class BlockEditorController(
 
     private var selectedBlockId by mutableStateOf<BlockId?>(null)
     private var workspaceState: WorkspaceState = WorkspaceState(initialDocument)
+    private var pendingFocusBlockId: BlockId? = null
+    private var pendingFocusSelect: Boolean = false
 
     override var selectedBlockIds by mutableStateOf<Set<BlockId>>(emptySet())
         private set
@@ -221,7 +223,13 @@ class BlockEditorController(
     fun onCanvasSizeChange(size: Offset2) {
         if (disposed.get()) return
         canvasSize = size
-        fitWorkspaceToCanvas(force = true)
+        val pending = pendingFocusBlockId
+        if (pending != null && focusBlockInCanvas(pending, selectFocusedBlock = pendingFocusSelect)) {
+            pendingFocusBlockId = null
+            pendingFocusSelect = false
+        } else {
+            fitWorkspaceToCanvas(force = true)
+        }
     }
 
     fun fitWorkspaceToCanvas(
@@ -448,9 +456,12 @@ class BlockEditorController(
         clearSelection()
         applyPersistentDocumentChange(newDocument, recordHistory = recordHistory)
         val focused = focusBlockId?.takeIf { it in document.blocks } ?: return
-        fitWorkspaceToCanvas(force = true)
-        if (selectFocusedBlock) {
-            selectSingle(focused)
+        if (!focusBlockInCanvas(focused, selectFocusedBlock)) {
+            if (selectFocusedBlock) {
+                selectSingle(focused)
+            }
+            pendingFocusBlockId = focused
+            pendingFocusSelect = selectFocusedBlock
         }
     }
 
@@ -642,6 +653,32 @@ class BlockEditorController(
                 zoomFactor = factor,
             ),
         )
+    }
+
+    private fun focusBlockInCanvas(
+        blockId: BlockId,
+        selectFocusedBlock: Boolean,
+        margin: Float = 32f,
+    ): Boolean {
+        val size = canvasSize ?: return false
+        if (size.x <= 0f || size.y <= 0f) return false
+        val layout = layoutCache.flatIndex.visibleBlocks.find { it.blockId == blockId }
+            ?: return false
+        val bounds = layout.subtreeBounds
+        val contentWidth = max(1f, bounds.width)
+        val contentHeight = max(1f, bounds.height)
+        val availableWidth = max(1f, size.x - margin * 2f)
+        val availableHeight = max(1f, size.y - margin * 2f)
+        val scale = min(availableWidth / contentWidth, availableHeight / contentHeight)
+            .coerceIn(0.5f, 1.25f)
+        val panX = (size.x - contentWidth * scale) / 2f - bounds.x * scale
+        val panY = (size.y - contentHeight * scale) / 2f - bounds.y * scale
+        if (!panX.isFinite() || !panY.isFinite() || !scale.isFinite()) return false
+        viewport = ViewportState(panX = panX, panY = panY, scale = scale)
+        if (selectFocusedBlock) {
+            selectSingle(blockId)
+        }
+        return true
     }
 
     private fun de.visualtasker.blockeditor.domain.Rect.isVisibleIn(
