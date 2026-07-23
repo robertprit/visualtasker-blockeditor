@@ -2,6 +2,15 @@
 
 > A native Kotlin/Jetpack Compose block editor built specifically for VisualTasker Studio.
 
+## License
+
+VisualTasker Blockeditor is prepared for standalone publication under the
+Apache License, Version 2.0. See [LICENSE](LICENSE).
+
+Public-readiness notes live in [docs/PUBLIC_READINESS.md](docs/PUBLIC_READINESS.md).
+Third-party and NOTICE status lives in
+[docs/THIRD_PARTY_LICENSES.md](docs/THIRD_PARTY_LICENSES.md).
+
 ---
 
 # Why another block editor?
