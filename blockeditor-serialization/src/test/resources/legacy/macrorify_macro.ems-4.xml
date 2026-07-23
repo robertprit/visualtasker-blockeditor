@@ -1,0 +1,26 @@
+<xml xmlns="https://developers.google.com/blockly/xml">
+  <block type="em_on_start" id="start">
+    <statement name="DO">
+      <block type="em_scan_element_tree" id="scan">
+        <next>
+          <block type="em_click_text" id="click-login">
+            <value name="TEXT">
+              <shadow type="em_text" id="login-text">
+                <field name="TEXT">Login</field>
+              </shadow>
+            </value>
+            <next>
+              <block type="em_screenshot" id="screenshot">
+                <value name="PATH">
+                  <shadow type="em_text" id="screenshot-path">
+                    <field name="TEXT">/sdcard/screen.png</field>
+                  </shadow>
+                </value>
+              </block>
+            </next>
+          </block>
+        </next>
+      </block>
+    </statement>
+  </block>
+</xml>
