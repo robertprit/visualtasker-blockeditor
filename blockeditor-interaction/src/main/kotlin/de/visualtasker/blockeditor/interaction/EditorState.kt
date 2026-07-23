@@ -37,6 +37,27 @@ data class DragSession(
     val originalAnchors: List<ConnectionAnchor>,
 )
 
+class DragRuntimeState(
+    initialOffset: Offset2 = Offset2(0f, 0f),
+    initialSnapCandidate: SnapCandidate? = null,
+) {
+    var dragOffset: Offset2 = initialOffset
+        private set
+
+    var snapCandidate: SnapCandidate? = initialSnapCandidate
+        private set
+
+    fun update(
+        offset: Offset2,
+        candidate: SnapCandidate?,
+    ): Boolean {
+        val changed = dragOffset != offset || snapCandidate != candidate
+        dragOffset = offset
+        snapCandidate = candidate
+        return changed
+    }
+}
+
 data class TransientEditorState(
     val viewport: ViewportState = ViewportState(),
     val dragSession: DragSession? = null,

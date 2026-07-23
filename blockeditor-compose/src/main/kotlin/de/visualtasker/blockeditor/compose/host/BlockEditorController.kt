@@ -13,7 +13,11 @@ import de.visualtasker.blockeditor.domain.WorkspaceAction
 import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.domain.WorkspaceGraph
 import de.visualtasker.blockeditor.domain.WorkspaceReducer
+import de.visualtasker.blockeditor.domain.WorkspaceState
 import de.visualtasker.blockeditor.domain.asString
+import de.visualtasker.blockeditor.domain.allConnections
+import de.visualtasker.blockeditor.domain.rootOffset
+import de.visualtasker.blockeditor.domain.withConnectionUpdated
 import de.visualtasker.blockeditor.domain.withRootOffset
 import de.visualtasker.blockeditor.emscript.EmscriptGenerator
 import de.visualtasker.blockeditor.emscript.WorkspaceCodeGenerator
@@ -51,6 +55,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Host-independent block editor controller.
@@ -83,6 +89,7 @@ class BlockEditorController(
     private var canvasSize by mutableStateOf<Offset2?>(null)
 
     private var selectedBlockId by mutableStateOf<BlockId?>(null)
+    private var workspaceState: WorkspaceState = WorkspaceState(initialDocument)
 
     override var selectedBlockIds by mutableStateOf<Set<BlockId>>(emptySet())
         private set
@@ -109,6 +116,12 @@ class BlockEditorController(
     val isDisposed: Boolean
         get() = disposed.get()
 
+    val historySize: Int
+        get() = workspaceState.history.undoStack.size
+
+    val redoSize: Int
+        get() = workspaceState.history.redoStack.size
+
     init {
         syncVariableReporters(initialDocument.variables)
         emitInitialDerivedOutputs()
@@ -117,7 +130,7 @@ class BlockEditorController(
     fun onAction(action: WorkspaceAction) {
         if (disposed.get()) return
         val reduced = WorkspaceReducer.reduce(document, action, registry.asFactory())
-        applyPersistentDocumentChange(reduced)
+        applyPersistentDocumentChange(reduced, previousDocument = document)
     }
 
     fun onTap(screenPoint: Offset2) {
@@ -168,6 +181,7 @@ class BlockEditorController(
             document = render.previewDocument,
         )
         val session = updated.dragSession ?: return
+        render.runtimeState.update(session.dragOffset, updated.activeSnapCandidate)
         dragRender = render.copy(
             session = session,
             snapCandidate = updated.activeSnapCandidate,
@@ -196,16 +210,80 @@ class BlockEditorController(
     fun onViewportChange(newViewport: ViewportState) {
         if (disposed.get()) return
         val previousScale = viewport.scale
-        viewport = if (newViewport.scale != previousScale) {
+        val candidate = if (newViewport.scale != previousScale) {
             constrainStartBlockVisible(newViewport)
         } else {
             newViewport
         }
+        viewport = constrainWorkspaceVisible(candidate)
     }
 
     fun onCanvasSizeChange(size: Offset2) {
         if (disposed.get()) return
         canvasSize = size
+        fitWorkspaceToCanvas(force = true)
+    }
+
+    fun fitWorkspaceToCanvas(
+        margin: Float = 32f,
+        force: Boolean = false,
+    ) {
+        if (disposed.get()) return
+        val size = canvasSize ?: return
+        if (size.x <= 0f || size.y <= 0f) return
+        val blocks = layoutCache.flatIndex.visibleBlocks
+        if (blocks.isEmpty()) return
+        if (!force && blocks.any { it.subtreeBounds.isVisibleIn(viewport, size, margin) }) return
+        val left = blocks.minOf { it.subtreeBounds.x }
+        val top = blocks.minOf { it.subtreeBounds.y }
+        val right = blocks.maxOf { it.subtreeBounds.right }
+        val bottom = blocks.maxOf { it.subtreeBounds.bottom }
+        val contentWidth = max(1f, right - left)
+        val contentHeight = max(1f, bottom - top)
+        val availableWidth = max(1f, size.x - margin * 2f)
+        val availableHeight = max(1f, size.y - margin * 2f)
+        val scale = min(availableWidth / contentWidth, availableHeight / contentHeight)
+            .coerceIn(0.5f, 1.25f)
+        val panX = (size.x - contentWidth * scale) / 2f - left * scale
+        val panY = (size.y - contentHeight * scale) / 2f - top * scale
+        if (!panX.isFinite() || !panY.isFinite() || !scale.isFinite()) return
+        viewport = ViewportState(panX = panX, panY = panY, scale = scale)
+    }
+
+    fun zoomIn() {
+        zoomBy(1.2f)
+    }
+
+    fun zoomOut() {
+        zoomBy(1f / 1.2f)
+    }
+
+    fun undo(): Boolean {
+        if (disposed.get()) return false
+        val state = workspaceState.undo() ?: return false
+        applyWorkspaceState(state)
+        return true
+    }
+
+    fun redo(): Boolean {
+        if (disposed.get()) return false
+        val state = workspaceState.redo() ?: return false
+        applyWorkspaceState(state)
+        return true
+    }
+
+    fun deleteSelectedBlock(): Boolean {
+        if (disposed.get()) return false
+        val selected = selectedBlockId ?: return false
+        if (selected !in document.blocks) {
+            clearSelection()
+            return false
+        }
+        dragRender = null
+        clearSelection()
+        val updated = deleteSingleBlockPreservingChain(document, selected)
+        applyPersistentDocumentChange(updated, previousDocument = document)
+        return true
     }
 
     fun onCategoryClick(category: String) {
@@ -359,6 +437,16 @@ class BlockEditorController(
         viewport = ViewportState()
     }
 
+    fun replaceWorkspaceDocument(
+        newDocument: WorkspaceDocument,
+        recordHistory: Boolean = true,
+    ) {
+        if (disposed.get()) return
+        dragRender = null
+        clearSelection()
+        applyPersistentDocumentChange(newDocument, recordHistory = recordHistory)
+    }
+
     override fun close() {
         if (!disposed.compareAndSet(false, true)) return
         debounceJob?.cancel()
@@ -366,13 +454,225 @@ class BlockEditorController(
         coroutineScope.cancel()
     }
 
-    private fun applyPersistentDocumentChange(newDocument: WorkspaceDocument) {
+    private fun applyPersistentDocumentChange(
+        newDocument: WorkspaceDocument,
+        previousDocument: WorkspaceDocument? = null,
+        recordHistory: Boolean = true,
+    ) {
         if (disposed.get()) return
+        if (newDocument == document) return
+        val nextState = if (recordHistory) {
+            previousDocument?.let { baseline ->
+                workspaceState.copy(document = baseline).record(newDocument)
+            } ?: workspaceState.record(newDocument)
+        } else {
+            workspaceState.replaceWithoutHistory(newDocument)
+        }
+        applyWorkspaceState(nextState)
+    }
+
+    private fun applyWorkspaceState(nextState: WorkspaceState) {
+        if (disposed.get()) return
+        workspaceState = nextState
+        val newDocument = nextState.document
         document = newDocument
         syncVariableReporters(newDocument.variables)
         layoutCache = layoutEngine.build(newDocument)
+        fitWorkspaceToCanvas()
         callbacks.onWorkspaceDocumentChanged(WorkspaceSerializer.serialize(newDocument))
         scheduleDerivedOutputs()
+    }
+
+    private fun deleteSingleBlockPreservingChain(
+        source: WorkspaceDocument,
+        blockId: BlockId,
+    ): WorkspaceDocument {
+        val block = source.blocks[blockId] ?: return source
+        val previousId = WorkspaceGraph.previousChain(source, blockId)
+        val nextId = WorkspaceGraph.nextChain(source, blockId)
+        val directStatementSlot = if (previousId == null) {
+            WorkspaceGraph.slotContaining(source, blockId)?.takeIf { (parentId, slotName) ->
+                WorkspaceGraph.statementStackHead(source, parentId, slotName) == blockId
+            }
+        } else {
+            null
+        }
+        val nestedToRemove = collectOwnedNestedBlocks(source, blockId)
+        val toRemove = nestedToRemove + blockId
+        var blocks = source.blocks.toMutableMap()
+        var promotedRootId: BlockId? = null
+
+        toRemove.forEach { removedId ->
+            source.blocks[removedId]?.allConnections().orEmpty().forEach { connection ->
+                val partnerId = connection.connectedTo ?: return@forEach
+                val (partnerBlockId, _) = WorkspaceGraph.findConnection(source, partnerId) ?: return@forEach
+                if (partnerBlockId !in toRemove) {
+                    blocks[partnerBlockId] = blocks[partnerBlockId]
+                        ?.withConnectionUpdated(partnerId) { it.copy(connectedTo = null) }
+                        ?: return@forEach
+                }
+            }
+        }
+
+        val roots = source.rootBlocks.toMutableList()
+        when {
+            previousId != null -> {
+                val previousNext = source.blocks[previousId]?.next?.id
+                val nextPrevious = nextId?.let { source.blocks[it]?.previous?.id }
+                if (previousNext != null) {
+                    blocks[previousId]?.let { previous ->
+                        blocks[previousId] = previous.withConnectionUpdated(previousNext) {
+                            it.copy(connectedTo = nextPrevious)
+                        }
+                    }
+                }
+                if (nextId != null && nextPrevious != null) {
+                    blocks[nextId]?.let { next ->
+                        blocks[nextId] = next.withConnectionUpdated(nextPrevious) {
+                            it.copy(connectedTo = previousNext)
+                        }
+                    }
+                }
+            }
+            directStatementSlot != null -> {
+                val (parentId, slotName) = directStatementSlot
+                val slotConnection = source.blocks[parentId]
+                    ?.statementInputs
+                    ?.find { it.name == slotName }
+                    ?.connection
+                    ?.id
+                val nextPrevious = nextId?.let { source.blocks[it]?.previous?.id }
+                if (slotConnection != null) {
+                    blocks[parentId]?.let { parent ->
+                        blocks[parentId] = parent.withConnectionUpdated(slotConnection) {
+                            it.copy(connectedTo = nextPrevious)
+                        }
+                    }
+                }
+                if (nextId != null && nextPrevious != null) {
+                    blocks[nextId]?.let { next ->
+                        blocks[nextId] = next.withConnectionUpdated(nextPrevious) {
+                            it.copy(connectedTo = slotConnection)
+                        }
+                    }
+                    roots.remove(nextId)
+                }
+            }
+            nextId != null -> {
+                val nextPrevious = source.blocks[nextId]?.previous?.id
+                if (nextPrevious != null) {
+                    blocks[nextId]?.let { next ->
+                        blocks[nextId] = next.withConnectionUpdated(nextPrevious) {
+                            it.copy(connectedTo = null)
+                        }
+                    }
+                }
+                val selectedRootIndex = roots.indexOf(blockId)
+                if (selectedRootIndex >= 0) {
+                    roots[selectedRootIndex] = nextId
+                    promotedRootId = nextId
+                } else if (nextId !in roots) {
+                    roots += nextId
+                    promotedRootId = nextId
+                }
+            }
+        }
+
+        toRemove.forEach(blocks::remove)
+        val reduced = source.copy(
+            version = source.version + 1,
+            blocks = blocks,
+            rootPositions = source.rootPositions - toRemove,
+        )
+        val withNextRootPosition = promotedRootId?.let { id ->
+            source.rootOffset(blockId)?.let { offset ->
+                reduced.withRootOffset(id, offset.x, offset.y)
+            }
+        } ?: reduced
+        return withNextRootPosition.copy(
+            rootBlocks = WorkspaceGraph.pruneRootBlocks(
+                withNextRootPosition,
+                roots.filter { it !in toRemove },
+            ),
+            rootPositions = withNextRootPosition.rootPositions.filterKeys {
+                it in roots.filter { root -> root !in toRemove }
+            },
+        )
+    }
+
+    private fun collectOwnedNestedBlocks(
+        source: WorkspaceDocument,
+        blockId: BlockId,
+    ): Set<BlockId> {
+        val result = mutableSetOf<BlockId>()
+        fun walk(id: BlockId) {
+            val block = source.blocks[id] ?: return
+            block.statementInputs.forEach { slot ->
+                WorkspaceGraph.statementStack(source, id, slot.name).forEach { childId ->
+                    if (result.add(childId)) walk(childId)
+                }
+            }
+            block.valueInputs.forEach { input ->
+                val connected = input.connection.connectedTo ?: return@forEach
+                val (childId, connection) = WorkspaceGraph.findConnection(source, connected) ?: return@forEach
+                if (connection.kind == de.visualtasker.blockeditor.domain.ConnectionKind.Output && result.add(childId)) {
+                    walk(childId)
+                }
+            }
+        }
+        walk(blockId)
+        return result
+    }
+
+    private fun zoomBy(factor: Float) {
+        if (disposed.get()) return
+        val size = canvasSize ?: return
+        val centroid = Offset2(size.x / 2f, size.y / 2f)
+        onViewportChange(
+            viewport.withTransform(
+                centroid = centroid,
+                panDelta = Offset2(0f, 0f),
+                zoomFactor = factor,
+            ),
+        )
+    }
+
+    private fun de.visualtasker.blockeditor.domain.Rect.isVisibleIn(
+        viewport: ViewportState,
+        canvasSize: Offset2,
+        margin: Float,
+    ): Boolean {
+        val left = x * viewport.scale + viewport.panX
+        val top = y * viewport.scale + viewport.panY
+        val right = this.right * viewport.scale + viewport.panX
+        val bottom = this.bottom * viewport.scale + viewport.panY
+        return right >= margin &&
+            bottom >= margin &&
+            left <= canvasSize.x - margin &&
+            top <= canvasSize.y - margin
+    }
+
+    private fun constrainWorkspaceVisible(
+        candidate: ViewportState,
+        margin: Float = 32f,
+    ): ViewportState {
+        val size = canvasSize ?: return candidate
+        if (size.x <= 0f || size.y <= 0f) return candidate
+        val blocks = layoutCache.flatIndex.visibleBlocks
+        if (blocks.isEmpty()) return candidate
+        if (blocks.any { it.subtreeBounds.isVisibleIn(candidate, size, margin) }) return candidate
+
+        val left = blocks.minOf { it.subtreeBounds.x }
+        val top = blocks.minOf { it.subtreeBounds.y }
+        val right = blocks.maxOf { it.subtreeBounds.right }
+        val bottom = blocks.maxOf { it.subtreeBounds.bottom }
+        val contentWidth = max(1f, right - left)
+        val contentHeight = max(1f, bottom - top)
+        val scale = candidate.scale
+        val panX = (size.x - contentWidth * scale) / 2f - left * scale
+        val panY = (size.y - contentHeight * scale) / 2f - top * scale
+        if (!panX.isFinite() || !panY.isFinite()) return candidate
+        return candidate.copy(panX = panX, panY = panY)
     }
 
     private fun emitInitialDerivedOutputs() {
@@ -488,11 +788,8 @@ class BlockEditorController(
                         WorkspaceGraph.pruneRootBlocks(layoutDoc, layoutDoc.rootBlocks + blockId)
                     }
                     layoutDoc = layoutDoc.copy(
-                        blocks = layoutDoc.blocks + (
-                            blockId to liftedRoot.withRootOffset(rootBounds.x, rootBounds.y)
-                            ),
                         rootBlocks = roots,
-                    )
+                    ).withRootOffset(blockId, rootBounds.x, rootBounds.y)
                 }
             }
             val snapDoc = DragLayoutPreview.snapDocument(

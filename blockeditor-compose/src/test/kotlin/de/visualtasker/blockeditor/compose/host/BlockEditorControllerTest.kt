@@ -2,6 +2,7 @@ package de.visualtasker.blockeditor.compose.host
 
 import de.visualtasker.blockeditor.domain.Offset2
 import de.visualtasker.blockeditor.domain.WorkspaceAction
+import de.visualtasker.blockeditor.domain.rootOffset
 import de.visualtasker.blockeditor.emscript.WorkspaceCodeGenerator
 import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.registry.BlockTypes
@@ -29,10 +30,114 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class BlockEditorControllerTest {
     @Test
+    fun selectedBlockDeleteUsesWorkspaceActionAndEmitsPersistentChange() {
+        val callbacks = RecordingCallbacks()
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+            callbacks = callbacks,
+        )
+        callbacks.clear()
+        controller.onAction(
+            WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 96f, 120f),
+        )
+        callbacks.clear()
+        val blockId = controller.document.rootBlocks.single()
+
+        controller.onTap(Offset2(108f, 132f))
+        val deleted = controller.deleteSelectedBlock()
+
+        assertTrue(deleted)
+        assertFalse(blockId in controller.document.blocks)
+        assertTrue(controller.selectedBlockIds.isEmpty())
+        assertEquals(1, callbacks.documentChanges.size)
+
+        controller.close()
+    }
+
+    @Test
+    fun undoAndRedoRestorePersistentWorkspaceActions() {
+        val callbacks = RecordingCallbacks()
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+            callbacks = callbacks,
+        )
+        callbacks.clear()
+
+        controller.onAction(
+            WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 96f, 120f),
+        )
+        assertEquals(1, controller.document.blocks.size)
+
+        assertTrue(controller.undo())
+        assertEquals(0, controller.document.blocks.size)
+        assertTrue(controller.redo())
+        assertEquals(1, controller.document.blocks.size)
+        assertEquals(3, callbacks.documentChanges.size)
+
+        controller.close()
+    }
+
+    @Test
+    fun replaceWorkspaceDocumentCreatesSingleUndoablePersistentChange() {
+        val callbacks = RecordingCallbacks()
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+            callbacks = callbacks,
+        )
+        callbacks.clear()
+        val imported = WorkspaceBootstrap.starter()
+
+        controller.replaceWorkspaceDocument(imported)
+
+        assertEquals(imported, controller.document)
+        assertEquals(1, controller.historySize)
+        assertEquals(1, callbacks.documentChanges.size)
+
+        assertTrue(controller.undo())
+        assertEquals(WorkspaceBootstrap.empty(), controller.document)
+        assertTrue(controller.redo())
+        assertEquals(imported, controller.document)
+
+        controller.close()
+    }
+
+    @Test
+    fun selectedBlockDeletePreservesNextChainAndUndoRestoresIt() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 96f, 120f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 220f))
+        val first = controller.document.rootBlocks[0]
+        val second = controller.document.rootBlocks[1]
+        controller.onAction(
+            WorkspaceAction.Connect(
+                controller.document.blocks[first]!!.next!!.id,
+                controller.document.blocks[second]!!.previous!!.id,
+            ),
+        )
+
+        controller.onTap(Offset2(108f, 132f))
+        assertTrue(controller.deleteSelectedBlock())
+
+        assertFalse(first in controller.document.blocks)
+        assertTrue(second in controller.document.blocks)
+        assertEquals(listOf(second), controller.document.rootBlocks)
+        assertEquals(null, controller.document.blocks[second]!!.previous!!.connectedTo)
+
+        assertTrue(controller.undo())
+        assertTrue(first in controller.document.blocks)
+        assertTrue(second in controller.document.blocks)
+        assertEquals(first, controller.document.rootBlocks.single())
+
+        controller.close()
+    }
+
+    @Test
     fun initialState_emitsValidationAndEmscriptOnly() {
         val callbacks = RecordingCallbacks()
         val controller = BlockEditorController(
-            initialDocument = WorkspaceBootstrap.starter(),
+            initialDocument = WorkspaceBootstrap.empty(),
             callbacks = callbacks,
         )
 
@@ -77,7 +182,7 @@ class BlockEditorControllerTest {
     fun transientViewportChange_doesNotEmitPersistentOutput() {
         val callbacks = RecordingCallbacks()
         val controller = BlockEditorController(
-            initialDocument = WorkspaceBootstrap.starter(),
+            initialDocument = WorkspaceBootstrap.empty(),
             callbacks = callbacks,
         )
         callbacks.clear()
@@ -89,6 +194,63 @@ class BlockEditorControllerTest {
         assertEquals(0, callbacks.documentChanges.size)
         assertEquals(0, callbacks.validationBatches.size)
         assertEquals(0, callbacks.emscriptDrafts.size)
+
+        controller.close()
+    }
+
+    @Test
+    fun fitWorkspaceToCanvasKeepsLoadedBlocksInsidePanelViewport() {
+        val callbacks = RecordingCallbacks()
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+            callbacks = callbacks,
+        )
+        controller.onAction(
+            WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 1800f, 1200f),
+        )
+
+        controller.onCanvasSizeChange(Offset2(480f, 360f))
+
+        val viewport = controller.viewport
+        controller.layoutCache.flatIndex.visibleBlocks.forEach { block ->
+            val bounds = block.subtreeBounds
+            val left = bounds.x * viewport.scale + viewport.panX
+            val top = bounds.y * viewport.scale + viewport.panY
+            val right = bounds.right * viewport.scale + viewport.panX
+            val bottom = bounds.bottom * viewport.scale + viewport.panY
+            assertTrue(left <= 480f)
+            assertTrue(top <= 360f)
+            assertTrue(right >= 0f)
+            assertTrue(bottom >= 0f)
+        }
+
+        controller.close()
+    }
+
+    @Test
+    fun viewportPanCannotMoveEveryLoadedBlockOutsidePanelViewport() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+            callbacks = RecordingCallbacks(),
+        )
+        controller.onAction(
+            WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 1800f, 1200f),
+        )
+        controller.onCanvasSizeChange(Offset2(480f, 360f))
+
+        controller.onViewportChange(controller.viewport.copy(panX = -5000f, panY = -5000f))
+
+        val viewport = controller.viewport
+        assertTrue(
+            controller.layoutCache.flatIndex.visibleBlocks.any { block ->
+                val bounds = block.subtreeBounds
+                val left = bounds.x * viewport.scale + viewport.panX
+                val top = bounds.y * viewport.scale + viewport.panY
+                val right = bounds.right * viewport.scale + viewport.panX
+                val bottom = bounds.bottom * viewport.scale + viewport.panY
+                left <= 480f && top <= 360f && right >= 0f && bottom >= 0f
+            },
+        )
 
         controller.close()
     }
@@ -108,6 +270,44 @@ class BlockEditorControllerTest {
         assertEquals(0, callbacks.documentChanges.size)
         assertEquals(0, callbacks.validationBatches.size)
         assertEquals(0, callbacks.emscriptDrafts.size)
+
+        controller.close()
+    }
+
+    @Test
+    fun rootDragMoveIsTransientAndDropCreatesSingleHistoryEntry() {
+        val callbacks = RecordingCallbacks()
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+            callbacks = callbacks,
+        )
+        callbacks.clear()
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
+        val rootId = controller.document.rootBlocks.single()
+        val initialHistorySize = controller.historySize
+        val initialPosition = controller.document.rootOffset(rootId)
+        callbacks.clear()
+
+        assertTrue(controller.onLongPressDragStart(Offset2(108f, 132f)))
+        val runtimeState = controller.dragRender!!.runtimeState
+        controller.onPointerMove(Offset2(140f, 150f))
+        controller.onPointerMove(Offset2(160f, 172f))
+
+        assertEquals(initialHistorySize, controller.historySize)
+        assertEquals(0, callbacks.documentChanges.size)
+        assertEquals(runtimeState, controller.dragRender!!.runtimeState)
+        assertNotEquals(Offset2(0f, 0f), runtimeState.dragOffset)
+
+        controller.onPointerUp(Offset2(160f, 172f))
+
+        assertEquals(initialHistorySize + 1, controller.historySize)
+        assertEquals(1, callbacks.documentChanges.size)
+        assertNotEquals(initialPosition, controller.document.rootOffset(rootId))
+
+        assertTrue(controller.undo())
+        assertEquals(initialPosition, controller.document.rootOffset(rootId))
+        assertTrue(controller.redo())
+        assertNotEquals(initialPosition, controller.document.rootOffset(rootId))
 
         controller.close()
     }
