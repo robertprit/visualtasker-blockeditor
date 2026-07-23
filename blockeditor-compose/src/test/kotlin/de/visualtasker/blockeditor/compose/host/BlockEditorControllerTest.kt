@@ -3,6 +3,8 @@ package de.visualtasker.blockeditor.compose.host
 import de.visualtasker.blockeditor.domain.Offset2
 import de.visualtasker.blockeditor.domain.WorkspaceAction
 import de.visualtasker.blockeditor.domain.rootOffset
+import de.visualtasker.blockeditor.compose.theme.darkBlockEditorColors
+import de.visualtasker.blockeditor.compose.theme.lightBlockEditorColors
 import de.visualtasker.blockeditor.emscript.WorkspaceCodeGenerator
 import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.registry.BlockTypes
@@ -29,6 +31,22 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class BlockEditorControllerTest {
+    @Test
+    fun hostSoundEffectsAreOptInByDefault() {
+        assertFalse(BlockEditorHostUiConfig().soundEffectsEnabled)
+        assertFalse(BlockEditorHostUiConfig().hapticFeedbackEnabled)
+    }
+
+    @Test
+    fun unsupportedBlockColorsRemainVisibleInLightAndDark() {
+        listOf(lightBlockEditorColors(), darkBlockEditorColors()).forEach { colors ->
+            assertNotEquals(colors.workspaceBackground, colors.unsupportedFill)
+            assertNotEquals(colors.workspaceBackground, colors.gridDot)
+            assertNotEquals(colors.unsupportedFill, colors.unsupportedStroke)
+            assertNotEquals(colors.unsupportedFill, colors.unsupportedText)
+        }
+    }
+
     @Test
     fun selectedBlockDeleteUsesWorkspaceActionAndEmitsPersistentChange() {
         val callbacks = RecordingCallbacks()

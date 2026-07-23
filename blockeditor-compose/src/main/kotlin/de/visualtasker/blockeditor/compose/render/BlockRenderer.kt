@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -40,7 +41,11 @@ internal fun DrawScope.drawBlock(
     visualPathProvider: BlockVisualPathProvider = BlockVisualPathProvider.Legacy,
 ) {
     val category = definition?.category ?: "unknown"
-    val fillColor = blockEditorColors(category)
+    val unsupported = definition == null
+    val fillColor = if (unsupported) colors.unsupportedFill else blockEditorColors(category)
+    val strokeColor = if (unsupported) colors.unsupportedStroke else colors.blockStroke
+    val textColor = if (unsupported) colors.unsupportedText else colors.blockText
+    val strokePathEffect = if (unsupported) PathEffect.dashPathEffect(floatArrayOf(12f, 8f)) else null
     val path = resolveBlockVisualPath(
         definition = definition,
         size = Size(width, height),
@@ -49,14 +54,14 @@ internal fun DrawScope.drawBlock(
     )
     translate(topLeft.x, topLeft.y) {
         drawPath(path, fillColor, style = Fill)
-        drawPath(path, colors.blockStroke, style = Stroke(width = 2f))
+        drawPath(path, strokeColor, style = Stroke(width = 2f, pathEffect = strokePathEffect))
         branchDividerYs.forEach { dividerY ->
             val stem = BlockShapes.branchStemTabPath(dividerY)
             drawPath(stem, fillColor, style = Fill)
-            drawPath(stem, colors.blockStroke, style = Stroke(width = 2f))
+            drawPath(stem, strokeColor, style = Stroke(width = 2f, pathEffect = strokePathEffect))
         }
         val sectionLabelStyle = TextStyle(
-            color = colors.blockText.copy(alpha = 0.85f),
+            color = textColor.copy(alpha = 0.85f),
             fontSize = 11.sp,
         )
         branchSections.forEach { section ->
@@ -75,7 +80,7 @@ internal fun DrawScope.drawBlock(
             )
             if (section.kind == BranchSectionKind.BranchDivider) {
                 drawLine(
-                    color = colors.blockStroke.copy(alpha = 0.7f),
+                    color = strokeColor.copy(alpha = 0.7f),
                     start = Offset(bounds.x, bounds.y + bounds.height / 2f),
                     end = Offset(bounds.x + bounds.width, bounds.y + bounds.height / 2f),
                     strokeWidth = 2f,
@@ -92,14 +97,14 @@ internal fun DrawScope.drawBlock(
                 val dockX = bounds.right - LayoutConstants.REPORTER_WIDTH - LayoutConstants.SLOT_PADDING
                 val dockY = bounds.y + (bounds.height - LayoutConstants.REPORTER_HEIGHT) / 2f
                 drawRoundRect(
-                    color = Color(0xFF263238),
+                    color = strokeColor,
                     topLeft = Offset(dockX, dockY),
                     size = Size(LayoutConstants.REPORTER_WIDTH, LayoutConstants.REPORTER_HEIGHT),
                     cornerRadius = CornerRadius(6f, 6f),
                     style = Stroke(width = 2f),
                 )
                 drawCircle(
-                    color = colors.blockStroke,
+                    color = strokeColor,
                     radius = LayoutConstants.ANCHOR_RADIUS * 0.55f,
                     center = Offset(dockX, dockY + LayoutConstants.REPORTER_HEIGHT / 2f),
                     style = Stroke(width = 2f),
@@ -107,14 +112,14 @@ internal fun DrawScope.drawBlock(
             }
         }
         val blockType = definition?.id ?: block.type
-        val label = definition?.label ?: blockType.substringAfterLast('.')
+        val label = definition?.label ?: "Unsupported: ${blockType.substringAfterLast('.')}"
         val isReporter = definition?.isReporter == true
         val isInlineReporter = definition?.inputsInline == true
 
         if (isInlineReporter && inlineReporterLayout != null) {
             val operator = block.fields["operator"]?.asString() ?: "add"
             val operatorStyle = TextStyle(
-                color = colors.blockText,
+                color = textColor,
                 fontSize = 13.sp,
             )
             val operatorLayout = textMeasurer.measure(operator, operatorStyle)
@@ -136,7 +141,7 @@ internal fun DrawScope.drawBlock(
                         ?.connection?.connectedTo != null
                     if (!connected) {
                         drawRoundRect(
-                            color = Color(0xFF263238),
+                            color = strokeColor,
                             topLeft = Offset(slot.x, slot.y),
                             size = Size(slot.width, slot.height),
                             cornerRadius = CornerRadius(6f, 6f),
@@ -154,7 +159,7 @@ internal fun DrawScope.drawBlock(
         if (isVariableReporter) {
             val displayName = block.fields["variable"]?.asString()?.takeIf { it.isNotBlank() } ?: label
             val textStyle = TextStyle(
-                color = colors.blockText,
+                color = textColor,
                 fontSize = 13.sp,
             )
             val textLayout = textMeasurer.measure(displayName, textStyle)
@@ -172,14 +177,14 @@ internal fun DrawScope.drawBlock(
 
         val iconSize = if (isReporter) 18f else 22f
         val textStyle = TextStyle(
-            color = colors.blockText,
+            color = textColor,
             fontSize = if (isReporter) 12.sp else 14.sp,
         )
         val iconTopLeft = Offset(LayoutConstants.SLOT_PADDING, LayoutConstants.SLOT_PADDING)
         drawBlockTypeIcon(
             type = blockType,
             topLeft = iconTopLeft,
-            tint = colors.blockText,
+            tint = textColor,
             size = iconSize,
         )
         val labelX = iconTopLeft.x + iconSize + 8f

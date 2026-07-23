@@ -14,6 +14,7 @@ import de.visualtasker.blockeditor.domain.WorkspaceReducer
 import de.visualtasker.blockeditor.domain.withRootOffset
 import de.visualtasker.blockeditor.interaction.DragLayoutPreview
 import de.visualtasker.blockeditor.interaction.DragOperations
+import de.visualtasker.blockeditor.interaction.DragRuntimeState
 import de.visualtasker.blockeditor.interaction.DragSession
 import de.visualtasker.blockeditor.interaction.HitResult
 import de.visualtasker.blockeditor.interaction.HitTest
@@ -73,6 +74,7 @@ data class DragRenderState(
     val staticLayoutCache: LayoutCache,
     /** Volles Layout für Drag-Positionen der gezogenen Blöcke (gleiche Topologie wie static). */
     val dragLayoutCache: LayoutCache,
+    val runtimeState: DragRuntimeState = DragRuntimeState(),
 )
 
 class BlockEditorViewModel(
@@ -177,6 +179,7 @@ class BlockEditorViewModel(
             document = render.previewDocument,
         )
         val session = updated.dragSession ?: return
+        render.runtimeState.update(session.dragOffset, updated.activeSnapCandidate)
         val previousSnap = render.snapCandidate?.targetConnectionId
         val nextSnap = updated.activeSnapCandidate?.targetConnectionId
         if (previousSnap != nextSnap) {
@@ -230,6 +233,30 @@ class BlockEditorViewModel(
         canvasSize = size
     }
 
+    fun fitWorkspaceToCanvas() {
+        viewport = ViewportState()
+    }
+
+    fun zoomIn() {
+        viewport = viewport.withTransform(
+            centroid = canvasSize?.let { Offset2(it.x / 2f, it.y / 2f) } ?: Offset2(0f, 0f),
+            panDelta = Offset2(0f, 0f),
+            zoomFactor = 1.2f,
+        )
+    }
+
+    fun zoomOut() {
+        viewport = viewport.withTransform(
+            centroid = canvasSize?.let { Offset2(it.x / 2f, it.y / 2f) } ?: Offset2(0f, 0f),
+            panDelta = Offset2(0f, 0f),
+            zoomFactor = 1f / 1.2f,
+        )
+    }
+
+    fun undo(): Boolean = false
+
+    fun redo(): Boolean = false
+
     private fun constrainStartBlockVisible(candidate: ViewportState): ViewportState {
         val size = canvasSize ?: return candidate
         val startId = document.rootBlocks.firstOrNull {
@@ -249,6 +276,12 @@ class BlockEditorViewModel(
         val selected = selectedBlockId ?: return
         onAction(WorkspaceAction.DeleteBlock(selected))
         clearSelection()
+    }
+
+    fun deleteSelectedBlock(): Boolean {
+        val selected = selectedBlockId ?: return false
+        deleteSelected()
+        return true
     }
 
     fun onCategoryClick(category: String) {
@@ -465,11 +498,8 @@ class BlockEditorViewModel(
                         WorkspaceGraph.pruneRootBlocks(layoutDoc, layoutDoc.rootBlocks + blockId)
                     }
                     layoutDoc = layoutDoc.copy(
-                        blocks = layoutDoc.blocks + (
-                            blockId to liftedRoot.withRootOffset(rootBounds.x, rootBounds.y)
-                            ),
                         rootBlocks = roots,
-                    )
+                    ).withRootOffset(blockId, rootBounds.x, rootBounds.y)
                 }
             }
             val snapDoc = DragLayoutPreview.snapDocument(

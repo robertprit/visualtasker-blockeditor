@@ -8,12 +8,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.rememberTextMeasurer
 import de.visualtasker.blockeditor.compose.render.drawBlock
 import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
+import de.visualtasker.blockeditor.compose.theme.BlockEditorColors
 import de.visualtasker.blockeditor.compose.theme.defaultBlockEditorColors
 import de.visualtasker.blockeditor.domain.BlockId
 import de.visualtasker.blockeditor.compose.viewmodel.DragRenderState
@@ -40,6 +43,8 @@ fun EditorCanvasLayer(
     selectedBlockIds: Set<BlockId> = emptySet(),
     registry: BlockRegistry = DefaultBlockRegistry,
     modifier: Modifier = Modifier,
+    colors: BlockEditorColors = defaultBlockEditorColors(),
+    gridVisible: Boolean = true,
 ) {
     EditorCanvasLayer(
         document,
@@ -49,6 +54,8 @@ fun EditorCanvasLayer(
         selectedBlockIds,
         registry,
         modifier,
+        colors,
+        gridVisible,
         BlockVisualPathProvider.Legacy,
     )
 }
@@ -62,9 +69,10 @@ fun EditorCanvasLayer(
     selectedBlockIds: Set<BlockId> = emptySet(),
     registry: BlockRegistry = DefaultBlockRegistry,
     modifier: Modifier = Modifier,
+    colors: BlockEditorColors = defaultBlockEditorColors(),
+    gridVisible: Boolean = true,
     visualPathProvider: BlockVisualPathProvider,
 ) {
-    val colors = remember { defaultBlockEditorColors() }
     val textMeasurer = rememberTextMeasurer()
     val draggedIds = dragRender?.session?.includedBlocks.orEmpty()
     val movesWithDrag: (BlockId) -> Boolean = { blockId ->
@@ -79,6 +87,9 @@ fun EditorCanvasLayer(
     val snapTargetId = dragRender?.snapCandidate?.targetConnectionId
 
     Canvas(modifier = modifier.fillMaxSize()) {
+        if (gridVisible) {
+            drawBlockEditorDotGrid(viewport, colors)
+        }
         translate(viewport.panX, viewport.panY) {
             scale(viewport.scale, viewport.scale, pivot = Offset.Zero) {
                 staticLayout.flatIndex.visibleBlocks
@@ -184,4 +195,30 @@ fun EditorCanvasLayer(
             }
         }
     }
+}
+
+private fun DrawScope.drawBlockEditorDotGrid(
+    viewport: ViewportState,
+    colors: BlockEditorColors,
+) {
+    val baseSpacing = 24.dp.toPx()
+    val spacing = (baseSpacing * viewport.scale).coerceIn(12.dp.toPx(), 48.dp.toPx())
+    val radius = 1.25.dp.toPx()
+    val startX = positiveModulo(viewport.panX, spacing)
+    val startY = positiveModulo(viewport.panY, spacing)
+    var x = startX
+    while (x <= size.width) {
+        var y = startY
+        while (y <= size.height) {
+            drawCircle(colors.gridDot, radius, Offset(x, y))
+            y += spacing
+        }
+        x += spacing
+    }
+}
+
+private fun positiveModulo(value: Float, mod: Float): Float {
+    if (mod <= 0f || !value.isFinite() || !mod.isFinite()) return 0f
+    val remainder = value % mod
+    return if (remainder < 0f) remainder + mod else remainder
 }

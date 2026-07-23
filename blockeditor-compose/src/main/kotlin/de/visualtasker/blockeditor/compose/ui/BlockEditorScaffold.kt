@@ -1,19 +1,42 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package de.visualtasker.blockeditor.compose.ui
 
+import android.media.AudioManager
+import android.media.ToneGenerator
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material.icons.filled.ZoomOut
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,8 +44,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.unit.dp
 import de.visualtasker.blockeditor.compose.layers.EditorCanvasLayer
 import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
@@ -38,6 +71,10 @@ import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockDesignBlueprint
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import android.view.SoundEffectConstants
+
+internal val BlockEditorToolbarTouchTargetDp = 48.dp
+internal val BlockEditorTrashDropTargetSizeDp = 96.dp
 
 @Composable
 fun BlockEditorScaffold(
@@ -61,6 +98,12 @@ fun BlockEditorScaffold(
     onDismissBlockFactory: () -> Unit,
     onCreateCustomBlock: (BlockDesignBlueprint) -> Unit,
     onClearWorkspace: () -> Unit,
+    onFitWorkspace: () -> Unit,
+    onUndo: () -> Boolean,
+    onRedo: () -> Boolean,
+    onZoomIn: () -> Unit,
+    onZoomOut: () -> Unit,
+    onDeleteSelectedBlock: () -> Boolean,
     onViewportChange: (ViewportState) -> Unit,
     onCanvasSizeChange: (Offset2) -> Unit,
     onTap: (Offset2) -> Unit,
@@ -70,6 +113,8 @@ fun BlockEditorScaffold(
     onPointerUp: (Offset2) -> Unit,
     onFieldChange: (String, String) -> Unit,
     modifier: Modifier = Modifier,
+    soundEffectsEnabled: Boolean = false,
+    hapticFeedbackEnabled: Boolean = false,
 ) {
     BlockEditorScaffold(
         document = document,
@@ -92,6 +137,12 @@ fun BlockEditorScaffold(
         onDismissBlockFactory = onDismissBlockFactory,
         onCreateCustomBlock = onCreateCustomBlock,
         onClearWorkspace = onClearWorkspace,
+        onFitWorkspace = onFitWorkspace,
+        onUndo = onUndo,
+        onRedo = onRedo,
+        onZoomIn = onZoomIn,
+        onZoomOut = onZoomOut,
+        onDeleteSelectedBlock = onDeleteSelectedBlock,
         onViewportChange = onViewportChange,
         onCanvasSizeChange = onCanvasSizeChange,
         onTap = onTap,
@@ -101,6 +152,8 @@ fun BlockEditorScaffold(
         onPointerUp = onPointerUp,
         onFieldChange = onFieldChange,
         modifier = modifier,
+        soundEffectsEnabled = soundEffectsEnabled,
+        hapticFeedbackEnabled = hapticFeedbackEnabled,
         visualPathProvider = BlockVisualPathProvider.Legacy,
     )
 }
@@ -127,6 +180,12 @@ fun BlockEditorScaffold(
     onDismissBlockFactory: () -> Unit,
     onCreateCustomBlock: (BlockDesignBlueprint) -> Unit,
     onClearWorkspace: () -> Unit,
+    onFitWorkspace: () -> Unit,
+    onUndo: () -> Boolean,
+    onRedo: () -> Boolean,
+    onZoomIn: () -> Unit,
+    onZoomOut: () -> Unit,
+    onDeleteSelectedBlock: () -> Boolean,
     onViewportChange: (ViewportState) -> Unit,
     onCanvasSizeChange: (Offset2) -> Unit,
     onTap: (Offset2) -> Unit,
@@ -136,9 +195,22 @@ fun BlockEditorScaffold(
     onPointerUp: (Offset2) -> Unit,
     onFieldChange: (String, String) -> Unit,
     modifier: Modifier = Modifier,
+    soundEffectsEnabled: Boolean = false,
+    hapticFeedbackEnabled: Boolean = false,
     visualPathProvider: BlockVisualPathProvider,
 ) {
-    val colors = defaultBlockEditorColors()
+    val scheme = MaterialTheme.colorScheme
+    val colors = defaultBlockEditorColors().copy(
+        workspaceBackground = scheme.surfaceContainerLowest,
+        gridDot = scheme.outlineVariant.copy(alpha = 0.42f),
+        snapHighlight = scheme.primary.copy(alpha = 0.35f),
+        blockStroke = scheme.outline,
+        blockText = scheme.onSurface,
+        slotBackground = scheme.surfaceContainerHigh.copy(alpha = 0.65f),
+        unsupportedFill = scheme.errorContainer,
+        unsupportedStroke = scheme.error,
+        unsupportedText = scheme.onErrorContainer,
+    )
     val onTapState = rememberUpdatedState(onTap)
     val onDoubleTapState = rememberUpdatedState(onDoubleTap)
     val onLongPressDragStartState = rememberUpdatedState(onLongPressDragStart)
@@ -147,7 +219,17 @@ fun BlockEditorScaffold(
     val onViewport = rememberUpdatedState(onViewportChange)
     val onCanvasSize = rememberUpdatedState(onCanvasSizeChange)
     val viewportState = rememberUpdatedState(viewport)
+    val platformView = LocalView.current
+    val haptic = LocalHapticFeedback.current
+    val density = LocalDensity.current
+    val trashSizePx = with(density) { BlockEditorTrashDropTargetSizeDp.toPx() }
+    val trashMarginPx = with(density) { 16.dp.toPx() }
     var blockDragActive by remember { mutableStateOf(false) }
+    var latestDragPoint by remember { mutableStateOf<Offset2?>(null) }
+    var canvasSize by remember { mutableStateOf(Offset2(0f, 0f)) }
+    var gridVisible by remember { mutableStateOf(true) }
+    val deleteCandidate = blockDragActive &&
+        latestDragPoint?.let { isInTrashZone(it, canvasSize, trashSizePx, trashMarginPx) } == true
 
     Row(modifier = modifier.fillMaxSize()) {
         EditorNavigationRail(
@@ -178,7 +260,8 @@ fun BlockEditorScaffold(
                     .fillMaxWidth()
                     .background(colors.workspaceBackground)
                     .onSizeChanged { size ->
-                        onCanvasSize.value(Offset2(size.width.toFloat(), size.height.toFloat()))
+                        canvasSize = Offset2(size.width.toFloat(), size.height.toFloat())
+                        onCanvasSize.value(canvasSize)
                     }
                     .pointerInput(Unit) {
                         coroutineScope {
@@ -200,10 +283,40 @@ fun BlockEditorScaffold(
                     .workspacePointerGestures(
                         onTap = { onTapState.value(it) },
                         onDoubleTap = { onDoubleTapState.value(it) },
-                        onLongPressDragStart = { onLongPressDragStartState.value(it) },
-                        onDrag = { onMove.value(it) },
-                        onDragEnd = { onUp.value(it) },
-                        onBlockDragActiveChange = { blockDragActive = it },
+                        onLongPressDragStart = {
+                            latestDragPoint = it
+                            onLongPressDragStartState.value(it).also { started ->
+                                if (started && hapticFeedbackEnabled) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                }
+                            }
+                        },
+                        onDrag = {
+                            latestDragPoint = it
+                            onMove.value(it)
+                        },
+                        onDragEnd = {
+                            latestDragPoint = it
+                            val deleteByTrash = isInTrashZone(it, canvasSize, trashSizePx, trashMarginPx)
+                            if (deleteByTrash) {
+                                if (onDeleteSelectedBlock()) {
+                                    playEditorSound(platformView, soundEffectsEnabled)
+                                    if (hapticFeedbackEnabled) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }
+                                }
+                            } else {
+                                onUp.value(it)
+                                playEditorSound(platformView, soundEffectsEnabled)
+                                if (hapticFeedbackEnabled) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                }
+                            }
+                        },
+                        onBlockDragActiveChange = {
+                            blockDragActive = it
+                            if (!it) latestDragPoint = null
+                        },
                     ),
             ) {
                 EditorCanvasLayer(
@@ -212,8 +325,39 @@ fun BlockEditorScaffold(
                     viewport = viewport,
                     dragRender = dragRender,
                     selectedBlockIds = selectedBlockIds,
+                    colors = colors,
+                    gridVisible = gridVisible,
                     visualPathProvider = visualPathProvider,
                 )
+                BlockEditorIconBar(
+                    selectedBlockAvailable = selectedBlockIds.isNotEmpty(),
+                    gridVisible = gridVisible,
+                    onFitWorkspace = onFitWorkspace,
+                    onUndo = onUndo,
+                    onRedo = onRedo,
+                    onZoomIn = onZoomIn,
+                    onZoomOut = onZoomOut,
+                    onToggleGrid = { gridVisible = !gridVisible },
+                    onDeleteSelectedBlock = {
+                        if (onDeleteSelectedBlock()) {
+                            playEditorSound(platformView, soundEffectsEnabled)
+                            if (hapticFeedbackEnabled) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp),
+                )
+                if (blockDragActive) {
+                    TrashDropTarget(
+                        active = deleteCandidate,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp),
+                    )
+                }
                 if (!showBottomPanel) {
                     FloatingActionButton(
                         onClick = onToggleBottomPanel,
@@ -243,4 +387,169 @@ fun BlockEditorScaffold(
         onDismiss = onDismissBlockFactory,
         onCreate = onCreateCustomBlock,
     )
+}
+
+@Composable
+private fun TrashDropTarget(
+    active: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        modifier = modifier
+            .size(BlockEditorTrashDropTargetSizeDp)
+            .border(
+                width = 2.dp,
+                color = if (active) scheme.error else scheme.outline,
+                shape = CircleShape,
+            )
+            .semantics {
+                contentDescription = if (active) {
+                    "Papierkorb aktiv"
+                } else {
+                    "Zum Löschen hier ablegen"
+                }
+            },
+        shape = CircleShape,
+        color = if (active) scheme.errorContainer else scheme.surfaceContainerHigh,
+        contentColor = if (active) scheme.onErrorContainer else scheme.onSurfaceVariant,
+        tonalElevation = if (active) 6.dp else 2.dp,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Filled.Delete,
+                contentDescription = null,
+                modifier = Modifier.size(36.dp),
+            )
+        }
+    }
+}
+
+private fun isInTrashZone(
+    point: Offset2,
+    canvasSize: Offset2,
+    trashSizePx: Float,
+    marginPx: Float,
+): Boolean {
+    if (canvasSize.x <= 0f || canvasSize.y <= 0f) return false
+    val left = canvasSize.x - trashSizePx - marginPx
+    val top = canvasSize.y - trashSizePx - marginPx
+    val right = canvasSize.x - marginPx
+    val bottom = canvasSize.y - marginPx
+    return point.x in left..right && point.y in top..bottom
+}
+
+private fun playEditorSound(
+    platformView: android.view.View,
+    enabled: Boolean,
+) {
+    if (!enabled) return
+    platformView.playSoundEffect(SoundEffectConstants.CLICK)
+    runCatching {
+        val tone = ToneGenerator(AudioManager.STREAM_SYSTEM, 32)
+        tone.startTone(ToneGenerator.TONE_PROP_BEEP, 35)
+        platformView.postDelayed({ tone.release() }, 80L)
+    }
+}
+
+@Composable
+private fun BlockEditorIconBar(
+    selectedBlockAvailable: Boolean,
+    gridVisible: Boolean,
+    onFitWorkspace: () -> Unit,
+    onUndo: () -> Boolean,
+    onRedo: () -> Boolean,
+    onZoomIn: () -> Unit,
+    onZoomOut: () -> Unit,
+    onToggleGrid: () -> Unit,
+    onDeleteSelectedBlock: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 2.dp,
+    ) {
+        Row(Modifier.padding(horizontal = 4.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            BlockEditorToolbarIconButton(
+                description = "Rückgängig",
+                icon = Icons.AutoMirrored.Filled.Undo,
+                onClick = { onUndo() },
+            )
+            BlockEditorToolbarIconButton(
+                description = "Wiederholen",
+                icon = Icons.AutoMirrored.Filled.Redo,
+                onClick = { onRedo() },
+            )
+            BlockEditorToolbarIconButton(
+                description = "Verkleinern",
+                icon = Icons.Filled.ZoomOut,
+                onClick = onZoomOut,
+            )
+            BlockEditorToolbarIconButton(
+                description = "Vergrößern",
+                icon = Icons.Filled.ZoomIn,
+                onClick = onZoomIn,
+            )
+            BlockEditorToolbarIconButton(
+                description = "Workspace einpassen",
+                icon = Icons.Filled.CenterFocusStrong,
+                onClick = onFitWorkspace,
+            )
+            BlockEditorToolbarIconButton(
+                description = "Raster umschalten",
+                icon = Icons.Filled.GridOn,
+                selected = gridVisible,
+                onClick = onToggleGrid,
+            )
+            BlockEditorToolbarIconButton(
+                description = "Ausgewählten Block löschen",
+                icon = Icons.Filled.Delete,
+                enabled = selectedBlockAvailable,
+                danger = true,
+                onClick = onDeleteSelectedBlock,
+            )
+        }
+    }
+}
+
+@Composable
+private fun BlockEditorToolbarIconButton(
+    description: String,
+    icon: ImageVector,
+    selected: Boolean = false,
+    enabled: Boolean = true,
+    danger: Boolean = false,
+    onClick: () -> Unit,
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = { PlainTooltip { Text(description) } },
+        state = rememberTooltipState(),
+    ) {
+        IconButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier.size(BlockEditorToolbarTouchTargetDp).semantics {
+                contentDescription = description
+                this.selected = selected
+            },
+            colors = IconButtonDefaults.iconButtonColors(
+                containerColor = when {
+                    selected -> MaterialTheme.colorScheme.secondaryContainer
+                    else -> Color.Transparent
+                },
+                contentColor = when {
+                    selected -> MaterialTheme.colorScheme.onSecondaryContainer
+                    danger -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            ),
+        ) {
+            Icon(icon, contentDescription = null)
+        }
+    }
 }
