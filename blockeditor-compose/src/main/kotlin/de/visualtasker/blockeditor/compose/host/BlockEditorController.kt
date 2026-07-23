@@ -440,11 +440,18 @@ class BlockEditorController(
     fun replaceWorkspaceDocument(
         newDocument: WorkspaceDocument,
         recordHistory: Boolean = true,
+        focusBlockId: BlockId? = newDocument.rootBlocks.firstOrNull(),
+        selectFocusedBlock: Boolean = false,
     ) {
         if (disposed.get()) return
         dragRender = null
         clearSelection()
         applyPersistentDocumentChange(newDocument, recordHistory = recordHistory)
+        val focused = focusBlockId?.takeIf { it in document.blocks } ?: return
+        fitWorkspaceToCanvas(force = true)
+        if (selectFocusedBlock) {
+            selectSingle(focused)
+        }
     }
 
     override fun close() {

@@ -120,6 +120,37 @@ class BlockEditorControllerTest {
     }
 
     @Test
+    fun replaceWorkspaceDocumentCanFocusAndSelectImportedRootBlock() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        val imported = WorkspaceBootstrap.starter()
+        val rootId = imported.rootBlocks.single()
+
+        controller.onCanvasSizeChange(Offset2(480f, 360f))
+        controller.replaceWorkspaceDocument(
+            newDocument = imported,
+            focusBlockId = rootId,
+            selectFocusedBlock = true,
+        )
+
+        assertEquals(setOf(rootId), controller.selectedBlockIds)
+        assertEquals(imported.blocks.keys, controller.layoutCache.flatIndex.visibleBlocks.map { it.blockId }.toSet())
+        assertTrue(
+            controller.layoutCache.flatIndex.visibleBlocks.any { block ->
+                val bounds = block.subtreeBounds
+                val left = bounds.x * controller.viewport.scale + controller.viewport.panX
+                val top = bounds.y * controller.viewport.scale + controller.viewport.panY
+                val right = bounds.right * controller.viewport.scale + controller.viewport.panX
+                val bottom = bounds.bottom * controller.viewport.scale + controller.viewport.panY
+                block.blockId == rootId && left <= 480f && top <= 360f && right >= 0f && bottom >= 0f
+            },
+        )
+
+        controller.close()
+    }
+
+    @Test
     fun selectedBlockDeletePreservesNextChainAndUndoRestoresIt() {
         val controller = BlockEditorController(
             initialDocument = WorkspaceBootstrap.empty(),
