@@ -33,6 +33,15 @@ class StaticBlockRegistryTest {
         assertNotNull(registry.getDefinition("hidden")!!.createNode(de.visualtasker.blockeditor.domain.BlockId("block")))
     }
 
+    @Test fun emscriptCategoryIsVisibleBetweenActionAndControl() {
+        assertEquals(
+            listOf(BlockCategories.ACTION, BlockCategories.EMSCRIPT, BlockCategories.CONTROL),
+            BlockCategories.all.map { it.id }
+                .filter { it in setOf(BlockCategories.ACTION, BlockCategories.EMSCRIPT, BlockCategories.CONTROL) },
+        )
+        assertEquals("EMScript", BlockCategories.metaFor(BlockCategories.EMSCRIPT).label)
+    }
+
     @Test fun validatesChoiceOptionsAndDefaults() {
         val valid = FieldDefinition(
             key = "target",

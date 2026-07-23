@@ -3,6 +3,7 @@ package de.visualtasker.blockeditor.registry
 object BlockCategories {
     const val EVENT = "event"
     const val ACTION = "action"
+    const val EMSCRIPT = "emscript"
     const val CONTROL = "control"
     const val LOGIC = "logic"
     const val DEBUG = "debug"
@@ -18,6 +19,7 @@ object BlockCategories {
     val all: List<CategoryMeta> = listOf(
         CategoryMeta(EVENT, "Event", 0xFFFFC107),
         CategoryMeta(ACTION, "Action", 0xFF42A5F5),
+        CategoryMeta(EMSCRIPT, "EMScript", 0xFF5E97F6),
         CategoryMeta(CONTROL, "Control", 0xFFFF7043),
         CategoryMeta(LOGIC, "Logic", 0xFF66BB6A),
         CategoryMeta(DEBUG, "Debug", 0xFFAB47BC),
