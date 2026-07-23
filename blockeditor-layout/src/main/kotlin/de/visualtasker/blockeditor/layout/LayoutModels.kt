@@ -76,6 +76,30 @@ data class InlineReporterLayout(
     val zIndex: Int,
 )
 
+data class MeasuredBlockLayout(
+    val blockId: BlockId,
+    val width: Float,
+    val height: Float,
+    val collapsed: Boolean,
+)
+
+data class MeasuredLayoutTree(
+    val documentVersion: Long,
+    val blocks: Map<BlockId, MeasuredBlockLayout>,
+)
+
+data class PlacedBlockLayout(
+    val blockId: BlockId,
+    val bounds: Rect,
+    val subtreeBounds: Rect,
+    val zIndex: Int,
+)
+
+data class PlacedLayoutTree(
+    val documentVersion: Long,
+    val blocks: Map<BlockId, PlacedBlockLayout>,
+)
+
 data class FlatLayoutIndex(
     val visibleBlocks: List<BlockLayout>,
     val hitPrimitives: List<HitPrimitive>,
@@ -90,4 +114,6 @@ data class FlatLayoutIndex(
 data class LayoutCache(
     val documentVersion: Long,
     val flatIndex: FlatLayoutIndex,
+    val measuredLayoutTree: MeasuredLayoutTree = MeasuredLayoutTree(documentVersion, emptyMap()),
+    val placedLayoutTree: PlacedLayoutTree = PlacedLayoutTree(documentVersion, emptyMap()),
 )

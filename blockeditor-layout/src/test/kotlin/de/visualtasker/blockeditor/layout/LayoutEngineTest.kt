@@ -34,6 +34,22 @@ class LayoutEngineTest {
     }
 
     @Test
+    fun layoutCache_exposesMeasureAndPlacePassArtifacts() {
+        val document = SampleWorkspaceFactory.create()
+        val cache = engine.build(document)
+        val rootId = document.rootBlocks.single()
+
+        assertEquals(document.version, cache.measuredLayoutTree.documentVersion)
+        assertEquals(document.version, cache.placedLayoutTree.documentVersion)
+        assertTrue(cache.measuredLayoutTree.blocks.containsKey(rootId))
+        assertTrue(cache.placedLayoutTree.blocks.containsKey(rootId))
+        assertEquals(
+            cache.flatIndex.visibleBlocks.first { it.blockId == rootId }.bounds,
+            cache.placedLayoutTree.blocks[rootId]!!.bounds,
+        )
+    }
+
+    @Test
     fun repeatContainer_growsWithBodyStack() {
         val empty = layoutRepeat(emptyList())
         val one = layoutRepeat(listOf("a"))

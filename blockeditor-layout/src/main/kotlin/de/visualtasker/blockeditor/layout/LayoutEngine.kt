@@ -18,6 +18,7 @@ class LayoutEngine(
     private val anchorIndex = SpatialIndex<ConnectionAnchor>()
 
     fun build(document: WorkspaceDocument): LayoutCache {
+        val measuredLayoutTree = LayoutMeasurePass(registry).measure(document)
         val visibleBlocks = mutableListOf<BlockLayout>()
         val hitPrimitives = mutableListOf<HitPrimitive>()
         val connectionAnchors = mutableListOf<ConnectionAnchor>()
@@ -109,8 +110,8 @@ class LayoutEngine(
         }
 
         WorkspaceGraph.topLevelRoots(document).forEach { rootId ->
-            val block = document.blocks[rootId] ?: return@forEach
-            val offset = block.rootOffset() ?: de.visualtasker.blockeditor.domain.Offset2(0f, 0f)
+            if (document.blocks[rootId] == null) return@forEach
+            val offset = document.rootOffset(rootId) ?: de.visualtasker.blockeditor.domain.Offset2(0f, 0f)
             var currentId = rootId
             var currentY = offset.y
             while (true) {
@@ -138,6 +139,20 @@ class LayoutEngine(
                 inlineReporterLayouts = inlineReporterLayouts,
                 hitIndex = hitIndex,
                 anchorIndex = anchorIndex,
+            ),
+            measuredLayoutTree = measuredLayoutTree,
+            placedLayoutTree = LayoutPlacePass.fromFlatIndex(
+                document = document,
+                flatIndex = FlatLayoutIndex(
+                    visibleBlocks = visibleBlocks,
+                    hitPrimitives = hitPrimitives,
+                    connectionAnchors = connectionAnchors,
+                    statementSlots = statementSlots,
+                    branchSections = branchSections,
+                    inlineReporterLayouts = inlineReporterLayouts,
+                    hitIndex = hitIndex,
+                    anchorIndex = anchorIndex,
+                ),
             ),
         )
     }
