@@ -59,6 +59,42 @@ class WorkspaceReducerTest {
     }
 
     @Test
+    fun rootPositions_arePersistentDocumentState() {
+        var document = WorkspaceDocument(id = "root-position-test")
+        document = reduce(document, WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 12f, 34f))
+        val blockId = document.rootBlocks.single()
+
+        assertEquals(Offset2(12f, 34f), document.rootOffset(blockId))
+        assertFalse(document.blocks[blockId]!!.metadata.containsKey(META_ROOT_X))
+        assertFalse(document.blocks[blockId]!!.metadata.containsKey(META_ROOT_Y))
+
+        document = reduce(document, WorkspaceAction.MoveRoot(blockId, 56f, 78f))
+
+        assertEquals(Offset2(56f, 78f), document.rootOffset(blockId))
+        assertEquals(WorkspacePoint(56f, 78f), document.rootPositions[blockId])
+    }
+
+    @Test
+    fun connect_prunesPositionForBlockThatStopsBeingRoot() {
+        var document = WorkspaceDocument(id = "root-prune-test")
+        document = reduce(document, WorkspaceAction.InstantiateBlock(BlockTypes.EVENT_START, 0f, 0f))
+        val startId = document.rootBlocks.single()
+        document = reduce(document, WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 0f, 80f))
+        val waitId = document.rootBlocks.last()
+
+        document = reduce(
+            document,
+            WorkspaceAction.Connect(
+                document.blocks[startId]!!.next!!.id,
+                document.blocks[waitId]!!.previous!!.id,
+            ),
+        )
+
+        assertFalse(waitId in document.rootBlocks)
+        assertFalse(document.rootPositions.containsKey(waitId))
+    }
+
+    @Test
     fun connect_insertsBlockIntoMiddleOfChain() {
         val document = SampleWorkspaceFactory.createDemo()
         val chain = SampleWorkspaceFactory.mainChain(document)

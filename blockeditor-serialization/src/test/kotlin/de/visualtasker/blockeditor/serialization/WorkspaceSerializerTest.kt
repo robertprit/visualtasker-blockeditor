@@ -1,14 +1,19 @@
 package de.visualtasker.blockeditor.serialization
 
 import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.blockeditor.domain.Offset2
 import de.visualtasker.blockeditor.domain.WorkspaceAction
 import de.visualtasker.blockeditor.domain.WorkspaceDocument
+import de.visualtasker.blockeditor.domain.WorkspacePoint
 import de.visualtasker.blockeditor.domain.WorkspaceReducer
+import de.visualtasker.blockeditor.domain.rootOffset
+import de.visualtasker.blockeditor.domain.withRootOffset
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
 import de.visualtasker.blockeditor.registry.SampleWorkspaceFactory
 import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
 import de.visualtasker.blockeditor.registry.asFactory
+import de.visualtasker.blockeditor.registry.createNode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -43,6 +48,44 @@ class WorkspaceSerializerTest {
         val restored = WorkspaceSerializer.deserialize(first)
         val second = WorkspaceSerializer.serialize(restored)
         assertEquals(first, second)
+    }
+
+    @Test
+    fun rootPositions_roundTripAsDocumentState() {
+        var document = WorkspaceBootstrap.empty()
+        document = WorkspaceReducer.reduce(
+            document,
+            WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 42f, 84f),
+            DefaultBlockRegistry.asFactory(),
+        )
+        val rootId = document.rootBlocks.single()
+
+        val json = WorkspaceSerializer.serialize(document)
+        val restored = WorkspaceSerializer.deserialize(json)
+
+        assertTrue(json.contains("\"rootPositions\""))
+        assertEquals(WorkspacePoint(42f, 84f), restored.rootPositions[rootId])
+        assertEquals(document.rootOffset(rootId), restored.rootOffset(rootId))
+    }
+
+    @Test
+    fun legacyRootMetadata_deserializesIntoRootPositions() {
+        val blockId = BlockId("legacy-root")
+        val block = DefaultBlockRegistry.getDefinition(BlockTypes.ACTION_WAIT)!!
+            .createNode(blockId)
+            .withRootOffset(11f, 22f)
+        val legacyJson = WorkspaceSerializer.serialize(
+            WorkspaceDocument(
+                id = "legacy-root-position",
+                blocks = mapOf(blockId to block),
+                rootBlocks = listOf(blockId),
+            ),
+        ).replace(""""rootPositions":[],""", "")
+
+        val restored = WorkspaceSerializer.deserialize(legacyJson)
+
+        assertEquals(WorkspacePoint(11f, 22f), restored.rootPositions[blockId])
+        assertEquals(Offset2(11f, 22f), restored.rootOffset(blockId))
     }
 
     @Test

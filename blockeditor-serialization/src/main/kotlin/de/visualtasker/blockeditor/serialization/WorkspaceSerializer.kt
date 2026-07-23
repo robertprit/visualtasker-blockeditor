@@ -12,6 +12,8 @@ import de.visualtasker.blockeditor.domain.VariableDefinition
 import de.visualtasker.blockeditor.domain.VariableRegistry
 import de.visualtasker.blockeditor.domain.VariableScope
 import de.visualtasker.blockeditor.domain.WorkspaceDocument
+import de.visualtasker.blockeditor.domain.WorkspacePoint
+import de.visualtasker.blockeditor.domain.rootOffset
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
@@ -26,6 +28,7 @@ private data class WorkspaceDocumentDto(
     val version: Long = 0L,
     val blocks: List<BlockEntryDto> = emptyList(),
     val rootBlocks: List<String> = emptyList(),
+    val rootPositions: List<RootPositionDto> = emptyList(),
     val variables: List<VariableEntryDto> = emptyList(),
 )
 
@@ -96,6 +99,13 @@ private data class VariableEntryDto(
 )
 
 @Serializable
+private data class RootPositionDto(
+    val blockId: String,
+    val x: Float,
+    val y: Float,
+)
+
+@Serializable
 private data class VariableDefinitionDto(
     val name: String,
     val type: String,
@@ -142,6 +152,9 @@ object WorkspaceSerializer {
             .sortedBy { it.key.value }
             .map { BlockEntryDto(it.key.value, it.value.toDto(it.key.value)) },
         rootBlocks = rootBlocks.map { it.value },
+        rootPositions = rootPositions.entries
+            .sortedBy { it.key.value }
+            .map { RootPositionDto(it.key.value, it.value.x, it.value.y) },
         variables = variables.variables.entries
             .sortedBy { it.key }
             .map { VariableEntryDto(it.key, it.value.toDto()) },
@@ -190,15 +203,30 @@ object WorkspaceSerializer {
         defaultValue = defaultValue,
     )
 
-    private fun WorkspaceDocumentDto.toDomain(): WorkspaceDocument = WorkspaceDocument(
-        id = id,
-        version = version,
-        blocks = blocks.associate { BlockId(it.id) to it.node.toDomain(BlockId(it.id)) },
-        rootBlocks = rootBlocks.map { BlockId(it) },
-        variables = VariableRegistry(
-            variables = variables.associate { it.id to it.definition.toDomain(it.id) },
-        ),
-    )
+    private fun WorkspaceDocumentDto.toDomain(): WorkspaceDocument {
+        val domainBlocks = blocks.associate { BlockId(it.id) to it.node.toDomain(BlockId(it.id)) }
+        val domainRoots = rootBlocks.map { BlockId(it) }
+        val legacyPositions = domainRoots.mapNotNull { blockId ->
+            domainBlocks[blockId]?.rootOffset()?.let { blockId to WorkspacePoint(it.x, it.y) }
+        }.toMap()
+        val explicitPositions = rootPositions.mapNotNull { position ->
+            if (position.x.isFinite() && position.y.isFinite()) {
+                BlockId(position.blockId) to WorkspacePoint(position.x, position.y)
+            } else {
+                null
+            }
+        }.toMap()
+        return WorkspaceDocument(
+            id = id,
+            version = version,
+            blocks = domainBlocks,
+            rootBlocks = domainRoots,
+            rootPositions = (legacyPositions + explicitPositions).filterKeys { it in domainRoots },
+            variables = VariableRegistry(
+                variables = variables.associate { it.id to it.definition.toDomain(it.id) },
+            ),
+        )
+    }
 
     private fun BlockNodeDto.toDomain(blockId: BlockId): BlockNode = BlockNode(
         id = blockId,

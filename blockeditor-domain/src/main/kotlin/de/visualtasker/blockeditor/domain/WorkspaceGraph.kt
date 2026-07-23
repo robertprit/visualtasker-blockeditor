@@ -192,9 +192,9 @@ object WorkspaceGraph {
             compareBy<BlockId> { id ->
                 if (document.blocks[id]?.type == SCRIPT_START_TYPE) 0 else 1
             }.thenBy { id ->
-                document.blocks[id]?.rootOffset()?.y ?: Float.MAX_VALUE
+                document.rootOffset(id)?.y ?: Float.MAX_VALUE
             }.thenBy { id ->
-                document.blocks[id]?.rootOffset()?.x ?: Float.MAX_VALUE
+                document.rootOffset(id)?.x ?: Float.MAX_VALUE
             }.thenBy { id ->
                 id.value
             },

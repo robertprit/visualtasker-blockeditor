@@ -28,10 +28,13 @@ object WorkspaceReducer {
     }
 
     private fun bump(document: WorkspaceDocument): WorkspaceDocument =
-        document.copy(
+        WorkspaceGraph.topLevelRoots(document).let { roots ->
+            document.copy(
             version = document.version + 1,
-            rootBlocks = WorkspaceGraph.topLevelRoots(document),
-        )
+                rootBlocks = roots,
+                rootPositions = document.rootPositions.filterKeys { it in roots },
+            )
+        }
 
     private fun instantiateBlock(
         document: WorkspaceDocument,
@@ -40,14 +43,14 @@ object WorkspaceReducer {
     ): WorkspaceDocument {
         val id = newBlockId()
         val block = factory.create(action.definitionId, id) ?: return document
-        val positioned = block.withRootOffset(action.x, action.y)
+        val withBlock = document.copy(blocks = document.blocks + (id to block))
         return bump(
-            document.copy(
-                blocks = document.blocks + (id to positioned),
+            withBlock.copy(
                 rootBlocks = WorkspaceGraph.pruneRootBlocks(
-                    document.copy(blocks = document.blocks + (id to positioned)),
+                    withBlock,
                     document.rootBlocks + id,
                 ),
+                rootPositions = withBlock.rootPositions + (id to WorkspacePoint(action.x, action.y)),
             ),
         )
     }
@@ -62,6 +65,7 @@ object WorkspaceReducer {
             updated.copy(
                 blocks = updated.blocks - toRemove,
                 rootBlocks = updated.rootBlocks.filter { it !in toRemove },
+                rootPositions = updated.rootPositions - toRemove,
             ),
         )
     }
@@ -228,9 +232,6 @@ object WorkspaceReducer {
                 blocks = link(blocks, sourceBlockId, source, target)
                 blocks = link(blocks, targetBlockId, target, source)
                 roots.remove(sourceBlockId)
-                blocks[sourceBlockId] = blocks[sourceBlockId]!!.copy(
-                    metadata = blocks[sourceBlockId]!!.metadata - META_ROOT_X - META_ROOT_Y,
-                )
             }
             sourceConn.kind == ConnectionKind.StatementInput && targetConn.kind == ConnectionKind.Previous -> {
                 val formerStackHeadId = partnerBlockId(document, sourceConn.connectedTo, ConnectionKind.Previous)
@@ -253,12 +254,11 @@ object WorkspaceReducer {
             else -> return document
         }
 
-        return bump(
-            document.copy(
-                blocks = blocks,
-                rootBlocks = WorkspaceGraph.pruneRootBlocks(document.copy(blocks = blocks), roots),
-            ),
+        val linkedDocument = document.copy(
+            blocks = blocks,
+            rootBlocks = WorkspaceGraph.pruneRootBlocks(document.copy(blocks = blocks), roots),
         )
+        return bump(linkedDocument)
     }
 
     private fun partnerBlockId(
@@ -355,9 +355,8 @@ object WorkspaceReducer {
     }
 
     private fun moveRoot(document: WorkspaceDocument, blockId: BlockId, x: Float, y: Float): WorkspaceDocument {
-        val block = document.blocks[blockId] ?: return document
-        val updated = block.withRootOffset(x, y)
-        val moved = document.copy(blocks = document.blocks + (blockId to updated))
+        if (blockId !in document.blocks) return document
+        val moved = document.withRootOffset(blockId, x, y)
         val roots = WorkspaceGraph.pruneRootBlocks(
             moved,
             if (blockId in document.rootBlocks) document.rootBlocks else document.rootBlocks + blockId,
