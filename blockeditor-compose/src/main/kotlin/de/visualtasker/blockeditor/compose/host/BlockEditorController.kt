@@ -66,7 +66,7 @@ import kotlin.math.min
 class BlockEditorController(
     initialDocument: WorkspaceDocument,
     private val callbacks: BlockEditorHostCallbacks = BlockEditorHostCallbacks.NoOp,
-    private val registry: CompositeBlockRegistry = CompositeBlockRegistry(),
+    override val registry: CompositeBlockRegistry = CompositeBlockRegistry(),
     private val layoutEngine: LayoutEngine = LayoutEngine(registry),
     private val snapEngine: SnapEngine = SnapEngine(),
     private val workspaceCodeGenerator: WorkspaceCodeGenerator = EmscriptGenerator(IrGenerator(registry)),

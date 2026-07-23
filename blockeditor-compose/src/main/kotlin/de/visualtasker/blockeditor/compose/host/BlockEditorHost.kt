@@ -33,6 +33,7 @@ fun BlockEditorHost(
     BlockEditorScaffold(
         document = controller.document,
         layoutCache = controller.layoutCache,
+        registry = controller.registry,
         viewport = controller.viewport,
         dragRender = controller.dragRender,
         selectedBlockIds = controller.selectedBlockIds,

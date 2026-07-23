@@ -69,6 +69,8 @@ import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.layout.LayoutCache
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockDesignBlueprint
+import de.visualtasker.blockeditor.registry.BlockRegistry
+import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import android.view.SoundEffectConstants
@@ -80,6 +82,7 @@ internal val BlockEditorTrashDropTargetSizeDp = 96.dp
 fun BlockEditorScaffold(
     document: WorkspaceDocument,
     layoutCache: LayoutCache,
+    registry: BlockRegistry = DefaultBlockRegistry,
     viewport: ViewportState,
     dragRender: DragRenderState?,
     selectedBlockIds: Set<BlockId>,
@@ -119,6 +122,7 @@ fun BlockEditorScaffold(
     BlockEditorScaffold(
         document = document,
         layoutCache = layoutCache,
+        registry = registry,
         viewport = viewport,
         dragRender = dragRender,
         selectedBlockIds = selectedBlockIds,
@@ -162,6 +166,7 @@ fun BlockEditorScaffold(
 fun BlockEditorScaffold(
     document: WorkspaceDocument,
     layoutCache: LayoutCache,
+    registry: BlockRegistry = DefaultBlockRegistry,
     viewport: ViewportState,
     dragRender: DragRenderState?,
     selectedBlockIds: Set<BlockId>,
@@ -322,6 +327,7 @@ fun BlockEditorScaffold(
                 EditorCanvasLayer(
                     document = document,
                     layoutCache = layoutCache,
+                    registry = registry,
                     viewport = viewport,
                     dragRender = dragRender,
                     selectedBlockIds = selectedBlockIds,

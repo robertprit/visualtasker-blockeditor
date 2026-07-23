@@ -9,6 +9,7 @@ import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.layout.LayoutCache
 import de.visualtasker.blockeditor.registry.BlockDefinition
+import de.visualtasker.blockeditor.registry.BlockRegistry
 
 /**
  * Read-only editor surface state exposed to [BlockEditorHost].
@@ -23,6 +24,7 @@ interface BlockEditorControllerState {
     val expandedCategory: String?
     val showBlockFactory: Boolean
     val codePreview: String
+    val registry: BlockRegistry
 
     fun selectedBlockInfo(): BlockInfoSnapshot?
     fun definitionsForExpandedCategory(): List<BlockDefinition>
