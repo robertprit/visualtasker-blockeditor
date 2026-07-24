@@ -52,6 +52,7 @@ fun BlockEditorHost(
         onDismissBlockFactory = controller::dismissBlockFactory,
         onCreateCustomBlock = controller::createCustomBlock,
         onClearWorkspace = if (uiConfig.allowClearWorkspace) controller::clearWorkspace else ({ }),
+        showBottomPanelToggle = uiConfig.showBottomPanelToggle,
         onFitWorkspace = { controller.fitWorkspaceToCanvas(force = true) },
         onUndo = controller::undo,
         onRedo = controller::redo,

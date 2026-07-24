@@ -112,7 +112,7 @@ internal fun DrawScope.drawBlock(
             }
         }
         val blockType = definition?.id ?: block.type
-        val label = definition?.label ?: "Unsupported: ${blockType.substringAfterLast('.')}"
+        val label = block.displayLabel(definition?.label ?: "Unsupported: ${blockType.substringAfterLast('.')}")
         val isReporter = definition?.isReporter == true
         val isInlineReporter = definition?.inputsInline == true
 
@@ -180,6 +180,7 @@ internal fun DrawScope.drawBlock(
             color = textColor,
             fontSize = if (isReporter) 12.sp else 14.sp,
         )
+        val headerHeight = if (isReporter) height else LayoutConstants.HEADER_HEIGHT
         val iconTopLeft = Offset(LayoutConstants.SLOT_PADDING, LayoutConstants.SLOT_PADDING)
         drawBlockTypeIcon(
             type = blockType,
@@ -187,8 +188,10 @@ internal fun DrawScope.drawBlock(
             tint = textColor,
             size = iconSize,
         )
+        if (!isReporter) {
+            drawGroupDragIndicator(textColor.copy(alpha = 0.78f), LayoutConstants.SLOT_PADDING + iconSize / 2f, headerHeight)
+        }
         val labelX = iconTopLeft.x + iconSize + 8f
-        val headerHeight = if (isReporter) height else LayoutConstants.HEADER_HEIGHT
         val hasHeaderCondition = branchSections.any { it.kind == BranchSectionKind.HeaderCondition }
         val maxTextWidth = if (hasHeaderCondition) {
             (LayoutConstants.NESTED_INDENT - labelX - 4f).coerceAtLeast(0f)
@@ -216,6 +219,36 @@ internal fun DrawScope.drawBlock(
         )
     }
 }
+
+private fun DrawScope.drawGroupDragIndicator(
+    color: Color,
+    centerX: Float,
+    headerHeight: Float,
+) {
+    val top = (headerHeight / 2f) + 11f
+    repeat(3) { index ->
+        val y = top + index * 4.5f
+        drawLine(
+            color = color,
+            start = Offset(centerX - 7f, y),
+            end = Offset(centerX + 7f, y),
+            strokeWidth = 2f,
+        )
+    }
+}
+
+private fun BlockNode.displayLabel(fallback: String): String {
+    if (!isStartBlock()) return fallback
+    return fields["script"]?.asString()
+        ?.removeSuffix(".ems")
+        ?.takeIf { it.isNotBlank() }
+        ?: fallback
+}
+
+private fun BlockNode.isStartBlock(): Boolean =
+    type == BlockTypes.EVENT_START ||
+        type == "em_on_start" ||
+        metadata["macro.import.canonicalCommand"] == "EVENT.ON_START"
 
 internal fun drawableLabelWidth(requestedWidth: Float, canvasRemainingWidth: Float): Float =
     minOf(requestedWidth, canvasRemainingWidth).coerceAtLeast(0f)

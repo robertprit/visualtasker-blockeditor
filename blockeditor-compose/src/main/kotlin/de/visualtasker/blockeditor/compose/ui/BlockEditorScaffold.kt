@@ -101,6 +101,7 @@ fun BlockEditorScaffold(
     onDismissBlockFactory: () -> Unit,
     onCreateCustomBlock: (BlockDesignBlueprint) -> Unit,
     onClearWorkspace: () -> Unit,
+    showBottomPanelToggle: Boolean = true,
     onFitWorkspace: () -> Unit,
     onUndo: () -> Boolean,
     onRedo: () -> Boolean,
@@ -141,6 +142,7 @@ fun BlockEditorScaffold(
         onDismissBlockFactory = onDismissBlockFactory,
         onCreateCustomBlock = onCreateCustomBlock,
         onClearWorkspace = onClearWorkspace,
+        showBottomPanelToggle = showBottomPanelToggle,
         onFitWorkspace = onFitWorkspace,
         onUndo = onUndo,
         onRedo = onRedo,
@@ -185,6 +187,7 @@ fun BlockEditorScaffold(
     onDismissBlockFactory: () -> Unit,
     onCreateCustomBlock: (BlockDesignBlueprint) -> Unit,
     onClearWorkspace: () -> Unit,
+    showBottomPanelToggle: Boolean = true,
     onFitWorkspace: () -> Unit,
     onUndo: () -> Boolean,
     onRedo: () -> Boolean,
@@ -364,7 +367,7 @@ fun BlockEditorScaffold(
                             .padding(16.dp),
                     )
                 }
-                if (!showBottomPanel) {
+                if (!showBottomPanel && showBottomPanelToggle) {
                     FloatingActionButton(
                         onClick = onToggleBottomPanel,
                         modifier = Modifier

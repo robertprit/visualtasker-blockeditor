@@ -47,6 +47,13 @@ class LayoutEngine(
                 return zStart + 1
             }
 
+            if (definition.isDecorativeEventContainer()) {
+                return layoutDecorativeEventContainer(
+                    document, block, blockId, x, y, zStart,
+                    visibleBlocks, hitPrimitives, connectionAnchors,
+                ) { id, cx, cy, z -> layoutBlock(id, cx, cy, z) }
+            }
+
             if (definition?.statementInputs?.isNotEmpty() == true) {
                 return layoutContainer(
                     document, block, definition, blockId, x, y, zStart,
@@ -201,6 +208,83 @@ class LayoutEngine(
             LayoutConstants.REPORTER_HEIGHT
         } else {
             LayoutConstants.HEADER_HEIGHT
+        }
+    }
+
+    private fun layoutDecorativeEventContainer(
+        document: WorkspaceDocument,
+        block: BlockNode,
+        blockId: BlockId,
+        x: Float,
+        y: Float,
+        zStart: Int,
+        visibleBlocks: MutableList<BlockLayout>,
+        hitPrimitives: MutableList<HitPrimitive>,
+        connectionAnchors: MutableList<ConnectionAnchor>,
+        layoutChild: (BlockId, Float, Float, Int) -> Int,
+    ): Int {
+        val width = LayoutConstants.STANDARD_WIDTH
+        val childX = x + LayoutConstants.NESTED_INDENT
+        var childY = y + LayoutConstants.HEADER_HEIGHT + LayoutConstants.SLOT_PADDING
+        var bodyBottom = childY + LayoutConstants.STATEMENT_MIN_HEIGHT
+        var maxZ = zStart + 1
+
+        val boundsIndex = visibleBlocks.size
+        val initialBounds = Rect(x, y, width, LayoutConstants.HEADER_HEIGHT)
+        visibleBlocks += BlockLayout(blockId, initialBounds, initialBounds, zStart, collapsed = false)
+
+        var childId = WorkspaceGraph.nextChain(document, blockId)
+        while (childId != null) {
+            maxZ = layoutChild(childId, childX, childY, maxZ)
+            val childLayout = visibleBlocks.find { it.blockId == childId }
+            val childBottom = childLayout?.subtreeBounds?.bottom
+                ?: ((childLayout?.bounds?.bottom) ?: (childY + LayoutConstants.HEADER_HEIGHT))
+            bodyBottom = maxOf(bodyBottom, childBottom)
+            childY = childBottom + LayoutConstants.BLOCK_GAP
+            childId = WorkspaceGraph.nextChain(document, childId)
+        }
+
+        val totalHeight = (bodyBottom - y) + LayoutConstants.SLOT_PADDING + LayoutConstants.FOOTER_HEIGHT
+        val bounds = Rect(x, y, width, totalHeight)
+        val headerBounds = Rect(x, y, width, LayoutConstants.HEADER_HEIGHT)
+        visibleBlocks[boundsIndex] = BlockLayout(blockId, bounds, bounds, zStart, collapsed = false)
+        hitPrimitives += HitPrimitive(
+            id = "${blockId.value}:header",
+            blockId = blockId,
+            kind = HitKind.Header,
+            bounds = headerBounds,
+            zIndex = zStart,
+        )
+        hitPrimitives += HitPrimitive(
+            id = "${blockId.value}:body",
+            blockId = blockId,
+            kind = HitKind.BlockBody,
+            bounds = bounds,
+            zIndex = zStart,
+        )
+        addDecorativeEventAnchors(block, blockId, bounds, zStart, connectionAnchors)
+        updateSubtreeBounds(visibleBlocks, blockId, bounds, bounds.bottom)
+        return maxZ
+    }
+
+    private fun addDecorativeEventAnchors(
+        block: BlockNode,
+        blockId: BlockId,
+        bounds: Rect,
+        zIndex: Int,
+        out: MutableList<ConnectionAnchor>,
+    ) {
+        block.next?.let { conn ->
+            out += ConnectionAnchor(
+                connectionId = conn.id,
+                ownerBlockId = blockId,
+                kind = ConnectionKind.Next,
+                type = null,
+                x = bounds.x + LayoutConstants.NESTED_INDENT,
+                y = bounds.y + LayoutConstants.HEADER_HEIGHT + LayoutConstants.SLOT_PADDING / 2f,
+                radius = LayoutConstants.ANCHOR_RADIUS,
+                zIndex = zIndex,
+            )
         }
     }
 
@@ -621,6 +705,7 @@ class LayoutEngine(
             inlineSlotWidth(document, block, "Input2"),
         )
         definition?.isReporter == true -> LayoutConstants.REPORTER_WIDTH
+        definition.isDecorativeEventContainer() -> LayoutConstants.STANDARD_WIDTH
         definition?.statementInputs?.isNotEmpty() == true -> LayoutConstants.STANDARD_WIDTH
         else -> LayoutConstants.STANDARD_WIDTH
     }
@@ -649,5 +734,8 @@ class LayoutEngine(
 
     private companion object {
         fun LayoutConstants.VALUE_DOCK_GAP(index: Int): Float = OUTPUT_TAB + index * (REPORTER_WIDTH + 4f)
+
+        fun BlockDefinition?.isDecorativeEventContainer(): Boolean =
+            this?.id == "em_on_start" && statementInputs.isEmpty()
     }
 }

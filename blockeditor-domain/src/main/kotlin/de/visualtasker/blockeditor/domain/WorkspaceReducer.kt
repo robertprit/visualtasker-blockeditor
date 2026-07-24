@@ -105,13 +105,16 @@ object WorkspaceReducer {
         document: WorkspaceDocument,
         blockId: BlockId,
         includedBlocks: Set<BlockId>,
+        preserveRootNextChain: Boolean = false,
     ): WorkspaceDocument {
         var blocks = document.blocks.toMutableMap()
         if (blocks[blockId] == null) return document
 
         val chainAboveId = WorkspaceGraph.previousChain(document, blockId)
         val chainBelowId = WorkspaceGraph.nextChain(document, blockId)
-        val keepNextChain = chainBelowId != null && chainBelowId in includedBlocks
+        val keepNextChain = chainBelowId != null &&
+            (chainBelowId in includedBlocks || (preserveRootNextChain && chainAboveId == null))
+        val promotedBelowRoots = mutableListOf<BlockId>()
 
         blocks[blockId]?.previous?.connectedTo?.let {
             blocks = disconnectAt(blocks, blocks[blockId]!!.previous!!.id)
@@ -129,6 +132,12 @@ object WorkspaceReducer {
                 blocks = disconnectAt(blocks, blocks[blockId]!!.next!!.id)
             }
         }
+        if (chainAboveId == null && chainBelowId != null && !keepNextChain) {
+            blocks[blockId]?.next?.connectedTo?.let {
+                blocks = disconnectAt(blocks, blocks[blockId]!!.next!!.id)
+            }
+            promotedBelowRoots += chainBelowId
+        }
 
         WorkspaceGraph.slotContaining(document, blockId)?.let { (parentId, slotName) ->
             if (WorkspaceGraph.statementStackHead(document, parentId, slotName) == blockId) {
@@ -141,13 +150,13 @@ object WorkspaceReducer {
         val lifted = document.copy(blocks = blocks)
         val roots = WorkspaceGraph.pruneRootBlocks(
             lifted,
-            if (blockId in document.rootBlocks) document.rootBlocks else document.rootBlocks + blockId,
+            document.rootBlocks + blockId + promotedBelowRoots,
         )
         return lifted.copy(rootBlocks = roots)
     }
 
     private fun liftBlockInternal(document: WorkspaceDocument, blockId: BlockId): WorkspaceDocument =
-        liftDragGroupInternal(document, blockId, setOf(blockId))
+        liftDragGroupInternal(document, blockId, setOf(blockId), preserveRootNextChain = true)
 
     private fun detachBlockInternal(document: WorkspaceDocument, blockId: BlockId): WorkspaceDocument {
         var blocks = document.blocks.toMutableMap()

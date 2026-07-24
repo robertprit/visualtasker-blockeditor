@@ -6,6 +6,7 @@ import de.visualtasker.blockeditor.domain.rootOffset
 import de.visualtasker.blockeditor.compose.theme.darkBlockEditorColors
 import de.visualtasker.blockeditor.compose.theme.lightBlockEditorColors
 import de.visualtasker.blockeditor.emscript.WorkspaceCodeGenerator
+import de.visualtasker.blockeditor.interaction.DragPullMode
 import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
@@ -209,6 +210,71 @@ class BlockEditorControllerTest {
         assertTrue(first in controller.document.blocks)
         assertTrue(second in controller.document.blocks)
         assertEquals(first, controller.document.rootBlocks.single())
+
+        controller.close()
+    }
+
+    @Test
+    fun blockTouchZonesSeparateInfoPanelFromGroupAndSingleDrag() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 96f, 120f))
+        val blockId = controller.document.rootBlocks.single()
+        val bounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.bounds
+        val left = Offset2(bounds.x + bounds.width * 0.12f, bounds.y + 12f)
+        val center = Offset2(bounds.x + bounds.width * 0.50f, bounds.y + 12f)
+        val right = Offset2(bounds.x + bounds.width * 0.88f, bounds.y + 12f)
+
+        controller.onTap(left)
+        assertEquals(setOf(blockId), controller.selectedBlockIds)
+        assertEquals(null, controller.selectedBlockInfo())
+
+        controller.onTap(center)
+        assertEquals(blockId, controller.selectedBlockInfo()!!.blockId)
+        assertFalse(controller.onLongPressDragStart(center))
+
+        assertTrue(controller.onLongPressDragStart(left))
+        assertEquals(DragPullMode.StackBelow, controller.dragRender!!.session.pullMode)
+        controller.onPointerUp(left)
+
+        assertTrue(controller.onLongPressDragStart(right))
+        assertEquals(DragPullMode.Single, controller.dragRender!!.session.pullMode)
+        controller.onPointerUp(right)
+
+        controller.close()
+    }
+
+    @Test
+    fun trashDeleteUsesDragModeForStackOrSingleBlock() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 96f, 120f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 220f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.DEBUG_LOG, 96f, 320f))
+        val first = controller.document.rootBlocks[0]
+        val second = controller.document.rootBlocks[1]
+        val third = controller.document.rootBlocks[2]
+        controller.onAction(WorkspaceAction.Connect(controller.document.blocks[first]!!.next!!.id, controller.document.blocks[second]!!.previous!!.id))
+        controller.onAction(WorkspaceAction.Connect(controller.document.blocks[second]!!.next!!.id, controller.document.blocks[third]!!.previous!!.id))
+        val firstBounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == first }.bounds
+        val left = Offset2(firstBounds.x + firstBounds.width * 0.12f, firstBounds.y + firstBounds.height * 0.5f)
+        val right = Offset2(firstBounds.x + firstBounds.width * 0.88f, firstBounds.y + firstBounds.height * 0.5f)
+
+        assertTrue(controller.onLongPressDragStart(left))
+        assertEquals(DragPullMode.StackBelow, controller.dragRender!!.session.pullMode)
+        assertEquals(setOf(first, second, third), controller.dragRender!!.session.includedBlocks)
+        assertTrue(controller.deleteSelectedBlock())
+        assertTrue(controller.document.blocks.isEmpty())
+        assertTrue(controller.undo())
+
+        assertTrue(controller.onLongPressDragStart(right))
+        assertEquals(DragPullMode.Single, controller.dragRender!!.session.pullMode)
+        assertTrue(controller.deleteSelectedBlock())
+        assertFalse(first in controller.document.blocks)
+        assertTrue(second in controller.document.blocks)
+        assertTrue(third in controller.document.blocks)
 
         controller.close()
     }

@@ -156,6 +156,10 @@ class BlockVisualPathProviderTest {
                 ),
             ) == BlockVisualShape.Container,
         )
+        assertTrue(
+            BlockPathCache.shape(statementDefinition(id = "em_on_start", hasPrevious = false)) ==
+                BlockVisualShape.Container,
+        )
     }
 
     @Test
@@ -207,13 +211,15 @@ class BlockVisualPathProviderTest {
     }
 
     private fun statementDefinition(
+        id: String = "test",
+        hasPrevious: Boolean = true,
         isReporter: Boolean = false,
         inputsInline: Boolean = false,
     ) = BlockDefinition(
-        id = "test",
+        id = id,
         label = "Test",
         category = "test",
-        hasPrevious = true,
+        hasPrevious = hasPrevious,
         hasNext = true,
         isReporter = isReporter,
         inputsInline = inputsInline,

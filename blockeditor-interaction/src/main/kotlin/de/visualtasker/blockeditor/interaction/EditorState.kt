@@ -25,6 +25,12 @@ enum class DragPullMode {
     Single,
 }
 
+enum class BlockTouchZone {
+    LeftGroup,
+    CenterLabel,
+    RightSingle,
+}
+
 data class DragSession(
     val rootBlockId: BlockId,
     val includedBlocks: Set<BlockId>,

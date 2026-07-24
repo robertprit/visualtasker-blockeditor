@@ -10,8 +10,6 @@ import de.visualtasker.blockeditor.domain.WorkspaceGraph
 import de.visualtasker.blockeditor.domain.WorkspaceReducer
 import de.visualtasker.blockeditor.layout.LayoutCache
 
-private const val SCRIPT_START_TYPE = "event.start"
-
 object DragOperations {
     fun beginDrag(
         document: WorkspaceDocument,
@@ -23,11 +21,9 @@ object DragOperations {
     ): TransientEditorState {
         val workspacePointer = viewport.localToWorkspace(pointer)
         val layoutBounds = layoutCache.flatIndex.visibleBlocks.find { it.blockId == blockId }?.bounds
-        val block = document.blocks[blockId]
         val resolvedPullMode = when {
-            block?.type == SCRIPT_START_TYPE -> DragPullMode.StackBelow
             pullMode != null -> pullMode
-            else -> detectPullMode(layoutBounds, workspacePointer)
+            else -> pullModeForTouchZone(detectTouchZone(layoutBounds, workspacePointer))
         }
         val included = collectDragSubtree(document, blockId, resolvedPullMode)
         val layoutPosition = if (layoutBounds != null) {
@@ -52,10 +48,24 @@ object DragOperations {
         )
     }
 
-    fun detectPullMode(blockBounds: Rect?, workspacePointer: Offset2): DragPullMode {
-        if (blockBounds == null) return DragPullMode.StackBelow
-        val midX = blockBounds.x + blockBounds.width / 2f
-        return if (workspacePointer.x < midX) DragPullMode.StackBelow else DragPullMode.Single
+    fun detectPullMode(blockBounds: Rect?, workspacePointer: Offset2): DragPullMode =
+        pullModeForTouchZone(detectTouchZone(blockBounds, workspacePointer))
+
+    fun detectTouchZone(blockBounds: Rect?, workspacePointer: Offset2): BlockTouchZone {
+        if (blockBounds == null) return BlockTouchZone.LeftGroup
+        val localX = workspacePointer.x - blockBounds.x
+        val third = blockBounds.width / 3f
+        return when {
+            localX < third -> BlockTouchZone.LeftGroup
+            localX > third * 2f -> BlockTouchZone.RightSingle
+            else -> BlockTouchZone.CenterLabel
+        }
+    }
+
+    fun pullModeForTouchZone(zone: BlockTouchZone): DragPullMode = when (zone) {
+        BlockTouchZone.LeftGroup -> DragPullMode.StackBelow
+        BlockTouchZone.CenterLabel -> DragPullMode.Single
+        BlockTouchZone.RightSingle -> DragPullMode.Single
     }
 
     fun updateDrag(

@@ -2,6 +2,7 @@ package de.visualtasker.blockeditor.interaction
 
 import de.visualtasker.blockeditor.domain.BlockId
 import de.visualtasker.blockeditor.domain.Offset2
+import de.visualtasker.blockeditor.domain.Rect
 import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.domain.WorkspaceReducer
 import de.visualtasker.blockeditor.domain.withRootOffset
@@ -16,6 +17,17 @@ import org.junit.Test
 class DragOperationsTest {
     private val factory = DefaultBlockRegistry.asFactory()
     private val layoutEngine = LayoutEngine(DefaultBlockRegistry)
+
+    @Test
+    fun blockTouchZoneSplitsBlockIntoGroupLabelAndSingleAreas() {
+        val bounds = Rect(x = 90f, y = 40f, width = 300f, height = 80f)
+
+        assertEquals(BlockTouchZone.LeftGroup, DragOperations.detectTouchZone(bounds, Offset2(100f, 64f)))
+        assertEquals(BlockTouchZone.CenterLabel, DragOperations.detectTouchZone(bounds, Offset2(240f, 64f)))
+        assertEquals(BlockTouchZone.RightSingle, DragOperations.detectTouchZone(bounds, Offset2(380f, 64f)))
+        assertEquals(DragPullMode.StackBelow, DragOperations.detectPullMode(bounds, Offset2(100f, 64f)))
+        assertEquals(DragPullMode.Single, DragOperations.detectPullMode(bounds, Offset2(380f, 64f)))
+    }
 
     @Test
     fun dragMove_doesNotChangeDocumentVersion() {

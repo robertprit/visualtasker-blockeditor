@@ -35,6 +35,7 @@ object DefaultBlockRegistry : BlockRegistry {
             category = "event",
             hasPrevious = false,
             hasNext = true,
+            fields = listOf(FieldDefinition("script", "Script", defaultValue = "Script Start")),
         ),
         BlockDefinition(
             id = BlockTypes.ACTION_CLICK_TEXT,

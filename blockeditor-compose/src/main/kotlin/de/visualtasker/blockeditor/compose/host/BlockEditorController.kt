@@ -16,13 +16,16 @@ import de.visualtasker.blockeditor.domain.WorkspaceReducer
 import de.visualtasker.blockeditor.domain.WorkspaceState
 import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.domain.allConnections
+import de.visualtasker.blockeditor.domain.newBlockId
 import de.visualtasker.blockeditor.domain.rootOffset
 import de.visualtasker.blockeditor.domain.withConnectionUpdated
 import de.visualtasker.blockeditor.domain.withRootOffset
+import de.visualtasker.blockeditor.interaction.BlockTouchZone
 import de.visualtasker.blockeditor.emscript.EmscriptGenerator
 import de.visualtasker.blockeditor.emscript.WorkspaceCodeGenerator
 import de.visualtasker.blockeditor.interaction.DragLayoutPreview
 import de.visualtasker.blockeditor.interaction.DragOperations
+import de.visualtasker.blockeditor.interaction.DragPullMode
 import de.visualtasker.blockeditor.interaction.HitResult
 import de.visualtasker.blockeditor.interaction.HitTest
 import de.visualtasker.blockeditor.interaction.SnapEngine
@@ -42,6 +45,7 @@ import de.visualtasker.blockeditor.registry.FieldKind
 import de.visualtasker.blockeditor.registry.VariableReporterFactory
 import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
 import de.visualtasker.blockeditor.registry.asFactory
+import de.visualtasker.blockeditor.registry.createNode
 import de.visualtasker.blockeditor.serialization.WorkspaceSerializer
 import de.visualtasker.blockeditor.validation.Validator
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoField
@@ -89,6 +93,7 @@ class BlockEditorController(
     private var canvasSize by mutableStateOf<Offset2?>(null)
 
     private var selectedBlockId by mutableStateOf<BlockId?>(null)
+    private var infoPanelBlockId by mutableStateOf<BlockId?>(null)
     private var workspaceState: WorkspaceState = WorkspaceState(initialDocument)
     private var pendingFocusBlockId: BlockId? = null
     private var pendingFocusSelect: Boolean = false
@@ -137,33 +142,32 @@ class BlockEditorController(
 
     fun onTap(screenPoint: Offset2) {
         if (disposed.get()) return
-        val hit = hitAt(screenPoint)
-        when (val blockId = selectableBlockId(hit)) {
-            null -> clearSelection()
-            else -> selectSingle(blockId)
+        val zoneHit = blockTouchZoneAt(screenPoint)
+        if (zoneHit == null) {
+            clearSelection()
+            return
         }
+        val (blockId, zone) = zoneHit
+        selectSingle(blockId)
+        infoPanelBlockId = if (zone == BlockTouchZone.CenterLabel) blockId else null
     }
 
     fun onDoubleTap(screenPoint: Offset2) {
         if (disposed.get()) return
-        val hit = hitAt(screenPoint)
-        val blockId = selectableBlockId(hit) ?: return
-        selectedBlockIds = if (blockId in selectedBlockIds) {
-            selectedBlockIds - blockId
-        } else {
-            selectedBlockIds + blockId
-        }
-        selectedBlockId = blockId.takeIf { it in selectedBlockIds }
-        if (selectedBlockIds.isEmpty()) {
-            selectedBlockId = null
+        val (blockId, zone) = blockTouchZoneAt(screenPoint) ?: return
+        if (zone == BlockTouchZone.CenterLabel) {
+            duplicateBlock(blockId)
         }
     }
 
     fun onLongPressDragStart(screenPoint: Offset2): Boolean {
         if (disposed.get()) return false
-        val hit = hitAt(screenPoint)
-        if (hit !is HitResult.BlockHit) return false
-        return beginBlockDrag(screenPoint, hit.blockId)
+        val (blockId, zone) = blockTouchZoneAt(screenPoint) ?: return false
+        return when (zone) {
+            BlockTouchZone.LeftGroup -> beginBlockDrag(screenPoint, blockId, DragPullMode.StackBelow)
+            BlockTouchZone.RightSingle -> beginBlockDrag(screenPoint, blockId, DragPullMode.Single)
+            BlockTouchZone.CenterLabel -> false
+        }
     }
 
     fun onPointerMove(screenPoint: Offset2) {
@@ -282,6 +286,17 @@ class BlockEditorController(
 
     fun deleteSelectedBlock(): Boolean {
         if (disposed.get()) return false
+        val activeDrag = dragRender
+        if (activeDrag?.session?.pullMode == DragPullMode.StackBelow) {
+            val toDelete = activeDrag.session.includedBlocks.filter { it in document.blocks }
+            if (toDelete.isEmpty()) return false
+            dragRender = null
+            clearSelection()
+            val updated = deleteDragGroup(document, toDelete.toSet())
+            val changed = updated != document
+            applyPersistentDocumentChange(updated, previousDocument = document)
+            return changed
+        }
         val selected = selectedBlockId ?: return false
         if (selected !in document.blocks) {
             clearSelection()
@@ -356,7 +371,7 @@ class BlockEditorController(
 
     override fun selectedBlockInfo(): BlockInfoSnapshot? {
         if (disposed.get()) return null
-        val blockId = selectedBlockId ?: return null
+        val blockId = infoPanelBlockId ?: return null
         val block = document.blocks[blockId] ?: return null
         val definition = registry.getDefinition(block.type) ?: return null
         val category = BlockCategories.metaFor(definition.category)
@@ -618,6 +633,38 @@ class BlockEditorController(
         )
     }
 
+    private fun deleteDragGroup(
+        source: WorkspaceDocument,
+        blockIds: Set<BlockId>,
+    ): WorkspaceDocument {
+        if (blockIds.isEmpty()) return source
+        val toRemove = blockIds.filterTo(mutableSetOf()) { it in source.blocks }
+        if (toRemove.isEmpty()) return source
+        var blocks = source.blocks.toMutableMap()
+        toRemove.forEach { removedId ->
+            source.blocks[removedId]?.allConnections().orEmpty().forEach { connection ->
+                val partnerId = connection.connectedTo ?: return@forEach
+                val (partnerBlockId, _) = WorkspaceGraph.findConnection(source, partnerId) ?: return@forEach
+                if (partnerBlockId !in toRemove) {
+                    blocks[partnerBlockId] = blocks[partnerBlockId]
+                        ?.withConnectionUpdated(partnerId) { it.copy(connectedTo = null) }
+                        ?: return@forEach
+                }
+            }
+        }
+        toRemove.forEach(blocks::remove)
+        val reduced = source.copy(
+            version = source.version + 1,
+            blocks = blocks,
+            rootBlocks = source.rootBlocks.filter { it !in toRemove },
+            rootPositions = source.rootPositions - toRemove,
+        )
+        return reduced.copy(
+            rootBlocks = WorkspaceGraph.pruneRootBlocks(reduced, reduced.rootBlocks),
+            rootPositions = reduced.rootPositions.filterKeys { it in reduced.rootBlocks },
+        )
+    }
+
     private fun collectOwnedNestedBlocks(
         source: WorkspaceDocument,
         blockId: BlockId,
@@ -785,6 +832,20 @@ class BlockEditorController(
         return HitTest.hitTest(layoutCache.flatIndex, workspacePoint)
     }
 
+    private fun blockTouchZoneAt(screenPoint: Offset2): Pair<BlockId, BlockTouchZone>? {
+        val workspacePoint = viewport.localToWorkspace(screenPoint)
+        val hit = hitAt(screenPoint)
+        val hitBlockId = selectableBlockId(hit)
+        val fallbackBlock = layoutCache.flatIndex.visibleBlocks
+            .asSequence()
+            .sortedByDescending { it.zIndex }
+            .firstOrNull { it.bounds.contains(workspacePoint.x, workspacePoint.y) }
+        val blockId = hitBlockId ?: fallbackBlock?.blockId ?: return null
+        val bounds = layoutCache.flatIndex.visibleBlocks.find { it.blockId == blockId }?.bounds
+        val zone = DragOperations.detectTouchZone(bounds, workspacePoint)
+        return blockId to zone
+    }
+
     private fun selectableBlockId(hit: HitResult): BlockId? = when (hit) {
         is HitResult.BlockHit -> hit.blockId
         is HitResult.FieldHit -> hit.blockId
@@ -800,18 +861,48 @@ class BlockEditorController(
     private fun clearSelection() {
         selectedBlockIds = emptySet()
         selectedBlockId = null
+        infoPanelBlockId = null
     }
 
-    private fun beginBlockDrag(screenPoint: Offset2, blockId: BlockId): Boolean {
+    private fun duplicateBlock(blockId: BlockId): Boolean {
+        val block = document.blocks[blockId] ?: return false
+        val definition = registry.getDefinition(block.type) ?: return false
+        val duplicateId = newBlockId()
+        val duplicate = definition.createNode(duplicateId).copy(
+            fields = block.fields,
+            collapsed = block.collapsed,
+            metadata = block.metadata.filterKeys { key ->
+                !key.startsWith("macro.runtime.")
+            },
+        )
+        val sourceBounds = layoutCache.flatIndex.visibleBlocks.find { it.blockId == blockId }?.bounds
+        val x = (sourceBounds?.x ?: document.rootOffset(blockId)?.x ?: 96f) + 36f
+        val y = (sourceBounds?.y ?: document.rootOffset(blockId)?.y ?: 120f) + 36f
+        val withDuplicateBlock = document.copy(
+            version = document.version + 1,
+            blocks = document.blocks + (duplicateId to duplicate),
+        ).withRootOffset(duplicateId, x, y)
+        val updated = withDuplicateBlock.copy(
+            rootBlocks = WorkspaceGraph.pruneRootBlocks(withDuplicateBlock, withDuplicateBlock.rootBlocks + duplicateId),
+        )
+        applyPersistentDocumentChange(updated, previousDocument = document)
+        selectSingle(duplicateId)
+        infoPanelBlockId = duplicateId
+        return true
+    }
+
+    private fun beginBlockDrag(screenPoint: Offset2, blockId: BlockId, pullMode: DragPullMode? = null): Boolean {
         if (blockId !in selectedBlockIds) {
             selectSingle(blockId)
         }
+        infoPanelBlockId = null
         val transient = DragOperations.beginDrag(
             document = document,
             layoutCache = layoutCache,
             blockId = blockId,
             pointer = screenPoint,
             viewport = viewport,
+            pullMode = pullMode,
         )
         transient.dragSession?.let { session ->
             val preLiftLayout = layoutEngine.build(document)

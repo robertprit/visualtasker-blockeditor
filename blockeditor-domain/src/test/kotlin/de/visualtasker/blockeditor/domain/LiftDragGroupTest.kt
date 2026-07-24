@@ -34,4 +34,18 @@ class LiftDragGroupTest {
         assertNull(WorkspaceGraph.nextChain(lifted, clickId))
         assertEquals(repeatId, WorkspaceGraph.nextChain(lifted, chain[0]))
     }
+
+    @Test
+    fun liftDragGroup_singleRootBlockLeavesBelowStackAsRoot() {
+        val document = SampleWorkspaceFactory.createDemo()
+        val chain = SampleWorkspaceFactory.mainChain(document)
+        val startId = chain[0]
+        val clickId = chain[1]
+
+        val lifted = WorkspaceReducer.liftDragGroup(document, startId, setOf(startId))
+
+        assertNull(WorkspaceGraph.nextChain(lifted, startId))
+        assertNull(WorkspaceGraph.previousChain(lifted, clickId))
+        assertEquals(setOf(startId, clickId), lifted.rootBlocks.toSet())
+    }
 }
