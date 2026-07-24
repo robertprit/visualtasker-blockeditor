@@ -1,4 +1,5 @@
-<img width="240" height="360" alt="Screenshot_20260724_153242_VisualTasker Studio" src="https://github.com/user-attachments/assets/507c8169-4758-4991-8315-a2b7a98adfc8" />
+<img width="1100" height="480" alt="Screenshot_20260724_153834_VisualTasker Studio" src="https://github.com/user-attachments/assets/992b482c-9828-4696-a580-8689eacda2de" />
+
 # VisualTasker Logic Editor
 
 > A native Kotlin/Jetpack Compose block editor built specifically for VisualTasker Studio.
