@@ -15,6 +15,23 @@ enum class FieldKind {
     NUMBER,
     BOOLEAN,
     CHOICE,
+    VARIABLE_REF,
+    FILE_PATH,
+    IMAGE_TEMPLATE,
+    REGION,
+    TIMEOUT_MS,
+    RETRY_COUNT,
+    THRESHOLD,
+}
+
+enum class ParameterSourceKind {
+    MANUAL,
+    REPORTER,
+    VARIABLE,
+    PRESET,
+    FILE,
+    REGION_MANUAL,
+    REGION_REPORTER,
 }
 
 data class FieldOption(
@@ -28,6 +45,11 @@ data class FieldDefinition(
     val kind: FieldKind = FieldKind.TEXT,
     val defaultValue: String = "",
     val options: List<FieldOption> = emptyList(),
+    val required: Boolean = false,
+    val sourceOptions: List<ParameterSourceKind> = listOf(ParameterSourceKind.MANUAL),
+    val defaultSource: ParameterSourceKind = sourceOptions.first(),
+    val minValue: Double? = null,
+    val maxValue: Double? = null,
 ) {
     init {
         if (kind == FieldKind.CHOICE) {
@@ -40,6 +62,11 @@ data class FieldDefinition(
             }
         } else {
             require(options.isEmpty()) { "Only CHOICE fields may declare options" }
+        }
+        require(sourceOptions.isNotEmpty()) { "Field $key requires at least one source option" }
+        require(defaultSource in sourceOptions) { "Field $key default source must be a source option" }
+        if (minValue != null && maxValue != null) {
+            require(minValue <= maxValue) { "Field $key minValue must be <= maxValue" }
         }
     }
 }
@@ -80,10 +107,20 @@ interface BlockRegistry {
 fun BlockDefinition.createNode(blockId: BlockId): BlockNode {
     val defaults = fields.associate { field ->
         field.key to when (field.kind) {
-            FieldKind.NUMBER -> field.defaultValue.toDoubleOrNull()?.let { FieldValue.Number(it) }
+            FieldKind.NUMBER,
+            FieldKind.TIMEOUT_MS,
+            FieldKind.RETRY_COUNT,
+            FieldKind.THRESHOLD,
+            -> field.defaultValue.toDoubleOrNull()?.let { FieldValue.Number(it) }
                 ?: FieldValue.Number(0.0)
             FieldKind.BOOLEAN -> FieldValue.Bool(field.defaultValue.equals("true", ignoreCase = true))
-            FieldKind.TEXT, FieldKind.CHOICE -> FieldValue.Text(field.defaultValue)
+            FieldKind.TEXT,
+            FieldKind.CHOICE,
+            FieldKind.VARIABLE_REF,
+            FieldKind.FILE_PATH,
+            FieldKind.IMAGE_TEMPLATE,
+            FieldKind.REGION,
+            -> FieldValue.Text(field.defaultValue)
         }
     }
     return BlockNode(

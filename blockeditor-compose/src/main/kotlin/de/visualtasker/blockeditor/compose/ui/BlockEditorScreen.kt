@@ -45,6 +45,7 @@ fun BlockEditorScreen(
         onPointerMove = viewModel::onPointerMove,
         onPointerUp = viewModel::onPointerUp,
         onFieldChange = viewModel::updateBlockField,
+        onFieldSourceChange = viewModel::updateBlockFieldSource,
         modifier = modifier.fillMaxSize(),
     )
 }

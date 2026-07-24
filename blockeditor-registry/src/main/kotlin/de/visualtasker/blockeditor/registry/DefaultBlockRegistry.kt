@@ -4,6 +4,7 @@ object BlockTypes {
     const val EVENT_START = "event.start"
     const val ACTION_CLICK_TEXT = "action.clickText"
     const val ACTION_WAIT = "action.wait"
+    const val ACTION_FIND_TEMPLATE = "action.findTemplate"
     const val DEBUG_LOG = "debug.log"
     const val CONTROL_REPEAT = "control.repeat"
     const val CONTROL_WHILE = "control.while"
@@ -67,7 +68,75 @@ object DefaultBlockRegistry : BlockRegistry {
             category = "action",
             hasPrevious = true,
             hasNext = true,
-            fields = listOf(FieldDefinition("ms", "ms", FieldKind.NUMBER, "500")),
+            fields = listOf(
+                FieldDefinition(
+                    key = "ms",
+                    label = "ms",
+                    kind = FieldKind.TIMEOUT_MS,
+                    defaultValue = "500",
+                    required = true,
+                    minValue = 0.0,
+                ),
+            ),
+        ),
+        BlockDefinition(
+            id = BlockTypes.ACTION_FIND_TEMPLATE,
+            label = "Find Template",
+            category = "action",
+            hasPrevious = true,
+            hasNext = true,
+            fields = listOf(
+                FieldDefinition(
+                    key = "imagePath",
+                    label = "image",
+                    kind = FieldKind.IMAGE_TEMPLATE,
+                    defaultValue = "",
+                    required = true,
+                    sourceOptions = listOf(
+                        ParameterSourceKind.MANUAL,
+                        ParameterSourceKind.FILE,
+                        ParameterSourceKind.VARIABLE,
+                    ),
+                    defaultSource = ParameterSourceKind.FILE,
+                ),
+                FieldDefinition(
+                    key = "threshold",
+                    label = "threshold",
+                    kind = FieldKind.THRESHOLD,
+                    defaultValue = "0.82",
+                    required = true,
+                    minValue = 0.0,
+                    maxValue = 1.0,
+                ),
+                FieldDefinition(
+                    key = "timeoutMs",
+                    label = "timeout",
+                    kind = FieldKind.TIMEOUT_MS,
+                    defaultValue = "3000",
+                    required = true,
+                    minValue = 0.0,
+                ),
+                FieldDefinition(
+                    key = "retryCount",
+                    label = "retry",
+                    kind = FieldKind.RETRY_COUNT,
+                    defaultValue = "1",
+                    required = true,
+                    minValue = 0.0,
+                ),
+                FieldDefinition(
+                    key = "searchRegion",
+                    label = "region",
+                    kind = FieldKind.REGION,
+                    defaultValue = "",
+                    sourceOptions = listOf(
+                        ParameterSourceKind.REGION_MANUAL,
+                        ParameterSourceKind.REGION_REPORTER,
+                        ParameterSourceKind.VARIABLE,
+                    ),
+                    defaultSource = ParameterSourceKind.REGION_MANUAL,
+                ),
+            ),
         ),
         BlockDefinition(
             id = BlockTypes.DEBUG_LOG,

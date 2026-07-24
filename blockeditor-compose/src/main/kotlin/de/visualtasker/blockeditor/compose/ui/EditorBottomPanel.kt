@@ -37,14 +37,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoField
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoSnapshot
+import de.visualtasker.blockeditor.compose.viewmodel.label
 import de.visualtasker.blockeditor.domain.BlockId
 import de.visualtasker.blockeditor.registry.FieldKind
+import de.visualtasker.blockeditor.registry.ParameterSourceKind
 
 @Composable
 fun EditorBottomPanel(
     code: String,
     blockInfo: BlockInfoSnapshot?,
     onFieldChange: (String, String) -> Unit,
+    onFieldSourceChange: (String, String) -> Unit,
     onToggleVisible: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -83,6 +86,7 @@ fun EditorBottomPanel(
                 BlockInfoCard(
                     info = blockInfo,
                     onFieldChange = onFieldChange,
+                    onFieldSourceChange = onFieldSourceChange,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -110,6 +114,7 @@ fun EditorBottomPanel(
 fun BlockInfoCard(
     info: BlockInfoSnapshot?,
     onFieldChange: (String, String) -> Unit,
+    onFieldSourceChange: (String, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -136,7 +141,7 @@ fun BlockInfoCard(
         CategoryBadge(info.categoryLabel, accent)
         if (info.fields.isNotEmpty()) {
             Text(
-                text = "Felder",
+                text = "Parameter",
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(top = 4.dp),
             )
@@ -145,6 +150,7 @@ fun BlockInfoCard(
                     blockId = info.blockId,
                     field = field,
                     onFieldChange = onFieldChange,
+                    onFieldSourceChange = onFieldSourceChange,
                 )
             }
         }
@@ -157,6 +163,44 @@ fun BlockInfoCard(
 
 @Composable
 private fun BlockFieldEditor(
+    blockId: BlockId,
+    field: BlockInfoField,
+    onFieldChange: (String, String) -> Unit,
+    onFieldSourceChange: (String, String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (field.sourceOptions.size > 1) {
+            SourceFieldEditor(field, onFieldSourceChange)
+        } else {
+            Text(
+                text = sourceSummary(field),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (field.reporterAllowed || field.variableAllowed) {
+            Text(
+                text = buildList {
+                    if (field.reporterAllowed) add("Reporter erlaubt")
+                    if (field.variableAllowed) add("Variable erlaubt")
+                }.joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        ValueFieldEditor(blockId, field, onFieldChange)
+        field.diagnostic?.let { diagnostic ->
+            Text(
+                text = diagnostic,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ValueFieldEditor(
     blockId: BlockId,
     field: BlockInfoField,
     onFieldChange: (String, String) -> Unit,
@@ -180,7 +224,16 @@ private fun BlockFieldEditor(
             }
         }
         FieldKind.CHOICE -> ChoiceFieldEditor(field, onFieldChange)
-        FieldKind.NUMBER, FieldKind.TEXT -> {
+        FieldKind.NUMBER,
+        FieldKind.TEXT,
+        FieldKind.VARIABLE_REF,
+        FieldKind.FILE_PATH,
+        FieldKind.IMAGE_TEMPLATE,
+        FieldKind.REGION,
+        FieldKind.TIMEOUT_MS,
+        FieldKind.RETRY_COUNT,
+        FieldKind.THRESHOLD,
+        -> {
             var draft by remember(blockId, field.key) { mutableStateOf(field.value) }
             LaunchedEffect(blockId, field.key) {
                 draft = field.value
@@ -194,6 +247,7 @@ private fun BlockFieldEditor(
                 label = { Text(field.label) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                isError = field.diagnostic != null,
             )
         }
     }
@@ -238,6 +292,59 @@ private fun ChoiceFieldEditor(
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SourceFieldEditor(
+    field: BlockInfoField,
+    onFieldSourceChange: (String, String) -> Unit,
+) {
+    var expanded by remember(field.key, field.source) { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        OutlinedTextField(
+            value = field.source.label(),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("${field.label} Quelle") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth(),
+            singleLine = true,
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            field.sourceOptions.forEach { source ->
+                DropdownMenuItem(
+                    text = { Text(source.label()) },
+                    onClick = {
+                        expanded = false
+                        onFieldSourceChange(field.key, source.name)
+                    },
+                )
+            }
+        }
+    }
+}
+
+private fun sourceSummary(field: BlockInfoField): String {
+    val mode = when (field.source) {
+        ParameterSourceKind.MANUAL -> "manuell gesetzt"
+        ParameterSourceKind.REPORTER -> "durch Reporter gespeist"
+        ParameterSourceKind.VARIABLE -> "durch Variable gespeist"
+        ParameterSourceKind.PRESET -> "per Preset gesetzt"
+        ParameterSourceKind.FILE -> "per Datei/Image gesetzt"
+        ParameterSourceKind.REGION_MANUAL -> "Region manuell gesetzt"
+        ParameterSourceKind.REGION_REPORTER -> "Region per Reporter gespeist"
+    }
+    return "Quelle: $mode"
 }
 
 @Composable

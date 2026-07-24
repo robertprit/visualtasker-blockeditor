@@ -67,6 +67,7 @@ fun BlockEditorHost(
         onPointerMove = controller::onPointerMove,
         onPointerUp = controller::onPointerUp,
         onFieldChange = controller::updateBlockField,
+        onFieldSourceChange = controller::updateBlockFieldSource,
         soundEffectsEnabled = uiConfig.soundEffectsEnabled,
         hapticFeedbackEnabled = uiConfig.hapticFeedbackEnabled,
         visualPathProvider = visualPathProvider,

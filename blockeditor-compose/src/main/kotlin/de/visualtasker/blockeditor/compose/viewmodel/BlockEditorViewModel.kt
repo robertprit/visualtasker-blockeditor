@@ -38,20 +38,10 @@ import de.visualtasker.blockeditor.domain.FieldValue
 import de.visualtasker.blockeditor.domain.VariableDefinition
 import de.visualtasker.blockeditor.domain.VariableRegistry
 import de.visualtasker.blockeditor.domain.VariableScope
-import de.visualtasker.blockeditor.domain.asString
-import de.visualtasker.blockeditor.registry.FieldKind
-import de.visualtasker.blockeditor.registry.FieldOption
+import de.visualtasker.blockeditor.registry.ParameterSourceKind
 import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
 import de.visualtasker.blockeditor.registry.VariableReporterFactory
 import de.visualtasker.blockeditor.registry.asFactory
-
-data class BlockInfoField(
-    val key: String,
-    val label: String,
-    val kind: FieldKind,
-    val value: String,
-    val options: List<FieldOption> = emptyList(),
-)
 
 data class BlockInfoSnapshot(
     val blockId: BlockId,
@@ -360,15 +350,7 @@ class BlockEditorViewModel(
             label = definition.label,
             categoryLabel = category.label,
             categoryAccentArgb = category.accentArgb,
-            fields = definition.fields.map { field ->
-                BlockInfoField(
-                    key = field.key,
-                    label = field.label.ifEmpty { field.key },
-                    kind = field.kind,
-                    value = block.fields[field.key]?.asString() ?: field.defaultValue,
-                    options = field.options,
-                )
-            },
+            fields = (definition.fields + CommonBlockInfoFields).map { it.toBlockInfoField(block) },
             slotContext = slotContext,
             chainSummary = chainPart,
         )
@@ -377,14 +359,22 @@ class BlockEditorViewModel(
     fun updateBlockField(fieldKey: String, rawValue: String) {
         val blockId = selectedBlockId ?: return
         val block = document.blocks[blockId] ?: return
-        val fieldDef = registry.getDefinition(block.type)?.fields?.find { it.key == fieldKey } ?: return
-        val parsed = when (fieldDef.kind) {
-            FieldKind.NUMBER -> rawValue.toDoubleOrNull()?.let { FieldValue.Number(it) }
-                ?: FieldValue.Number(0.0)
-            FieldKind.BOOLEAN -> FieldValue.Bool(rawValue.equals("true", ignoreCase = true))
-            FieldKind.TEXT, FieldKind.CHOICE -> FieldValue.Text(rawValue)
-        }
+        val fieldDef = (registry.getDefinition(block.type)?.fields.orEmpty() + CommonBlockInfoFields)
+            .find { it.key == fieldKey }
+            ?: return
+        val parsed = fieldDef.parseInfoValue(rawValue) ?: return
         onAction(WorkspaceAction.UpdateField(blockId, fieldKey, parsed))
+    }
+
+    fun updateBlockFieldSource(fieldKey: String, rawSource: String) {
+        val blockId = selectedBlockId ?: return
+        val block = document.blocks[blockId] ?: return
+        val fieldDef = (registry.getDefinition(block.type)?.fields.orEmpty() + CommonBlockInfoFields)
+            .find { it.key == fieldKey }
+            ?: return
+        val source = ParameterSourceKind.entries.firstOrNull { it.name == rawSource } ?: return
+        if (source !in fieldDef.sourceOptions) return
+        onAction(WorkspaceAction.UpdateField(blockId, parameterSourceFieldKey(fieldKey), FieldValue.Text(source.name)))
     }
 
     fun openBlockFactory() {

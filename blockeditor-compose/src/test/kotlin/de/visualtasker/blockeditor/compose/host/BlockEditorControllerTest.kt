@@ -2,9 +2,12 @@ package de.visualtasker.blockeditor.compose.host
 
 import de.visualtasker.blockeditor.domain.Offset2
 import de.visualtasker.blockeditor.domain.WorkspaceAction
+import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.domain.rootOffset
+import de.visualtasker.blockeditor.compose.render.contrastTextColor
 import de.visualtasker.blockeditor.compose.theme.darkBlockEditorColors
 import de.visualtasker.blockeditor.compose.theme.lightBlockEditorColors
+import de.visualtasker.blockeditor.compose.viewmodel.parameterSourceFieldKey
 import de.visualtasker.blockeditor.emscript.WorkspaceCodeGenerator
 import de.visualtasker.blockeditor.interaction.DragPullMode
 import de.visualtasker.blockeditor.interaction.ViewportState
@@ -16,6 +19,7 @@ import de.visualtasker.blockeditor.registry.FieldDefinition
 import de.visualtasker.blockeditor.registry.FieldKind
 import de.visualtasker.blockeditor.registry.FieldOption
 import de.visualtasker.blockeditor.registry.StaticBlockRegistry
+import androidx.compose.ui.graphics.Color
 import de.visualtasker.blockeditor.validation.ValidationError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -46,6 +50,147 @@ class BlockEditorControllerTest {
             assertNotEquals(colors.unsupportedFill, colors.unsupportedStroke)
             assertNotEquals(colors.unsupportedFill, colors.unsupportedText)
         }
+    }
+
+    @Test
+    fun blockTextColorContrastsWithBlockFill() {
+        assertEquals(Color(0xFF111827), contrastTextColor(Color(0xFFFFC107)))
+        assertEquals(Color(0xFFF8FAFC), contrastTextColor(Color(0xFF263238)))
+    }
+
+    @Test
+    fun longTextValueDoesNotChangeBlockSize() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 96f, 120f))
+        val blockId = controller.document.rootBlocks.single()
+        val before = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.bounds
+
+        controller.selectBlockCenter(blockId)
+        controller.updateBlockField(
+            "text",
+            "A very long concrete value that must stay in the InfoPanel and never resize the workspace block",
+        )
+
+        val after = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.bounds
+        assertEquals(before.width, after.width, 0.01f)
+        assertEquals(before.height, after.height, 0.01f)
+
+        controller.close()
+    }
+
+    @Test
+    fun filePathValueIsStoredButOnlyExposedThroughInfoPanel() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_FIND_TEMPLATE, 96f, 120f))
+        val blockId = controller.document.rootBlocks.single()
+        val before = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.bounds
+
+        controller.selectBlockCenter(blockId)
+        controller.updateBlockField("imagePath", "/sdcard/screenshots/login/template-with-long-name.png")
+
+        val infoField = controller.selectedBlockInfo()!!.fields.single { it.key == "imagePath" }
+        val after = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.bounds
+        assertEquals("/sdcard/screenshots/login/template-with-long-name.png", infoField.value)
+        assertEquals(before.width, after.width, 0.01f)
+        assertEquals(before.height, after.height, 0.01f)
+
+        controller.close()
+    }
+
+    @Test
+    fun findTemplateParametersAndSourcesAreStoredInWorkspaceDocument() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_FIND_TEMPLATE, 96f, 120f))
+        val blockId = controller.document.rootBlocks.single()
+        controller.selectBlockCenter(blockId)
+
+        controller.updateBlockField("imagePath", "/sdcard/templates/login.png")
+        controller.updateBlockFieldSource("imagePath", "VARIABLE")
+        controller.updateBlockField("threshold", "0.91")
+        controller.updateBlockField("timeoutMs", "2500")
+        controller.updateBlockField("retryCount", "3")
+        controller.updateBlockField("searchRegion", "0,0,400,600")
+        controller.updateBlockFieldSource("searchRegion", "REGION_REPORTER")
+
+        val fields = controller.document.blocks[blockId]!!.fields
+        assertEquals("/sdcard/templates/login.png", fields["imagePath"]!!.asString())
+        assertEquals("VARIABLE", fields[parameterSourceFieldKey("imagePath")]!!.asString())
+        assertEquals("0.91", fields["threshold"]!!.asString())
+        assertEquals("2500.0", fields["timeoutMs"]!!.asString())
+        assertEquals("3.0", fields["retryCount"]!!.asString())
+        assertEquals("0,0,400,600", fields["searchRegion"]!!.asString())
+        assertEquals("REGION_REPORTER", fields[parameterSourceFieldKey("searchRegion")]!!.asString())
+
+        controller.close()
+    }
+
+    @Test
+    fun undoAndRedoRestoreParameterAndSourceChanges() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_FIND_TEMPLATE, 96f, 120f))
+        val blockId = controller.document.rootBlocks.single()
+        controller.selectBlockCenter(blockId)
+
+        controller.updateBlockField("threshold", "0.7")
+        controller.updateBlockFieldSource("imagePath", "VARIABLE")
+
+        assertEquals("VARIABLE", controller.document.blocks[blockId]!!.fields[parameterSourceFieldKey("imagePath")]!!.asString())
+        assertTrue(controller.undo())
+        assertEquals(null, controller.document.blocks[blockId]!!.fields[parameterSourceFieldKey("imagePath")])
+        assertTrue(controller.undo())
+        assertEquals("0.82", controller.document.blocks[blockId]!!.fields["threshold"]!!.asString())
+        assertTrue(controller.redo())
+        assertEquals("0.7", controller.document.blocks[blockId]!!.fields["threshold"]!!.asString())
+        assertTrue(controller.redo())
+        assertEquals("VARIABLE", controller.document.blocks[blockId]!!.fields[parameterSourceFieldKey("imagePath")]!!.asString())
+
+        controller.close()
+    }
+
+    @Test
+    fun infoPanelReportsMissingRequiredValue() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_FIND_TEMPLATE, 96f, 120f))
+        val blockId = controller.document.rootBlocks.single()
+
+        controller.selectBlockCenter(blockId)
+
+        val imagePath = controller.selectedBlockInfo()!!.fields.single { it.key == "imagePath" }
+        assertEquals("Datei oder Template fehlt.", imagePath.diagnostic)
+
+        controller.close()
+    }
+
+    @Test
+    fun startBlockScriptNameAndColorStayEditableInInfoPanel() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.starter(),
+        )
+        val blockId = controller.document.rootBlocks.single()
+
+        controller.selectBlockCenter(blockId)
+        controller.updateBlockField("script", "LoginFlow.ems")
+        controller.updateBlockField("color", "violet")
+
+        val fields = controller.document.blocks[blockId]!!.fields
+        assertEquals("LoginFlow.ems", fields["script"]!!.asString())
+        assertEquals("violet", fields["color"]!!.asString())
+        assertTrue(controller.undo())
+        assertEquals("orange", controller.document.blocks[blockId]!!.fields["color"]!!.asString())
+        assertTrue(controller.redo())
+        assertEquals("violet", controller.document.blocks[blockId]!!.fields["color"]!!.asString())
+
+        controller.close()
     }
 
     @Test
@@ -802,4 +947,9 @@ class BlockEditorControllerTest {
             emscriptGenerationFailures += message
         }
     }
+}
+
+private fun BlockEditorController.selectBlockCenter(blockId: de.visualtasker.blockeditor.domain.BlockId) {
+    val bounds = layoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.bounds
+    onTap(Offset2(bounds.x + bounds.width * 0.5f, bounds.y + 12f))
 }

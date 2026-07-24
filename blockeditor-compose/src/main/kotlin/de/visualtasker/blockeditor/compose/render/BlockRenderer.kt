@@ -117,12 +117,12 @@ internal fun DrawScope.drawBlock(
             }
         }
         val blockType = definition?.id ?: block.type
-        val label = block.displayLabel(definition?.label ?: "Unsupported: ${blockType.substringAfterLast('.')}")
+        val label = block.structuralLabel(definition, "Unsupported: ${blockType.substringAfterLast('.')}")
         val isReporter = definition?.isReporter == true
         val isInlineReporter = definition?.inputsInline == true
 
         if (isInlineReporter && inlineReporterLayout != null) {
-            val operator = block.fields["operator"]?.asString() ?: "add"
+            val operator = "op"
             val operatorStyle = TextStyle(
                 color = textColor,
                 fontSize = 13.sp,
@@ -162,7 +162,7 @@ internal fun DrawScope.drawBlock(
                 blockType == BlockTypes.VARIABLE_GET
             )
         if (isVariableReporter) {
-            val displayName = block.fields["variable"]?.asString()?.takeIf { it.isNotBlank() } ?: label
+            val displayName = "var"
             val textStyle = TextStyle(
                 color = textColor,
                 fontSize = 13.sp,
@@ -242,8 +242,33 @@ private fun DrawScope.drawGroupDragIndicator(
     }
 }
 
-private fun BlockNode.displayLabel(fallback: String): String {
-    if (!isStartBlock()) return fallback
+private fun BlockNode.structuralLabel(
+    definition: BlockDefinition?,
+    fallback: String,
+): String {
+    if (!isStartBlock()) {
+        val base = definition?.label ?: fallback
+        val parameterNames = definition
+            ?.fields
+            .orEmpty()
+            .filterNot { it.key.endsWith(".source") }
+            .joinToString(" ") { it.key }
+        val chips = if (fields["displayMode"]?.asString() == "detailed") {
+            buildList {
+                val paramCount = definition?.fields.orEmpty().size
+                if (paramCount > 0) add("$paramCount params")
+                if (fields["active"]?.asString() == "false") add("inactive")
+                if (metadata["macro.import.status"] in setOf("diagnostic", "legacy")) add("diagnostic")
+                if (metadata["macro.import.status"] == "unknown") add("unknown")
+                if (fields.keys.any { it.endsWith(".source") }) add("has source")
+            }.joinToString(" ")
+        } else {
+            ""
+        }
+        return listOf(base, parameterNames, chips)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+    }
     return fields["script"]?.asString()
         ?.removeSuffix(".ems")
         ?.takeIf { it.isNotBlank() }

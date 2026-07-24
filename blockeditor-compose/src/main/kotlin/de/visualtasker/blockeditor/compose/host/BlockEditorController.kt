@@ -14,7 +14,6 @@ import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.domain.WorkspaceGraph
 import de.visualtasker.blockeditor.domain.WorkspaceReducer
 import de.visualtasker.blockeditor.domain.WorkspaceState
-import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.domain.allConnections
 import de.visualtasker.blockeditor.domain.newBlockId
 import de.visualtasker.blockeditor.domain.rootOffset
@@ -41,16 +40,19 @@ import de.visualtasker.blockeditor.registry.BlockDesignBlueprint
 import de.visualtasker.blockeditor.registry.BlockDesignFactory
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.CompositeBlockRegistry
-import de.visualtasker.blockeditor.registry.FieldKind
+import de.visualtasker.blockeditor.registry.ParameterSourceKind
 import de.visualtasker.blockeditor.registry.VariableReporterFactory
 import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
 import de.visualtasker.blockeditor.registry.asFactory
 import de.visualtasker.blockeditor.registry.createNode
 import de.visualtasker.blockeditor.serialization.WorkspaceSerializer
 import de.visualtasker.blockeditor.validation.Validator
-import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoField
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoSnapshot
+import de.visualtasker.blockeditor.compose.viewmodel.CommonBlockInfoFields
 import de.visualtasker.blockeditor.compose.viewmodel.DragRenderState
+import de.visualtasker.blockeditor.compose.viewmodel.parameterSourceFieldKey
+import de.visualtasker.blockeditor.compose.viewmodel.parseInfoValue
+import de.visualtasker.blockeditor.compose.viewmodel.toBlockInfoField
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -402,15 +404,7 @@ class BlockEditorController(
             label = definition.label,
             categoryLabel = category.label,
             categoryAccentArgb = category.accentArgb,
-            fields = definition.fields.map { field ->
-                BlockInfoField(
-                    key = field.key,
-                    label = field.label.ifEmpty { field.key },
-                    kind = field.kind,
-                    value = block.fields[field.key]?.asString() ?: field.defaultValue,
-                    options = field.options,
-                )
-            },
+            fields = (definition.fields + CommonBlockInfoFields).map { it.toBlockInfoField(block) },
             slotContext = slotContext,
             chainSummary = chainPart,
         )
@@ -420,18 +414,23 @@ class BlockEditorController(
         if (disposed.get()) return
         val blockId = selectedBlockId ?: return
         val block = document.blocks[blockId] ?: return
-        val fieldDef = registry.getDefinition(block.type)?.fields?.find { it.key == fieldKey } ?: return
-        val parsed = when (fieldDef.kind) {
-            FieldKind.NUMBER -> rawValue.toDoubleOrNull()?.let { FieldValue.Number(it) }
-                ?: FieldValue.Number(0.0)
-            FieldKind.BOOLEAN -> FieldValue.Bool(rawValue.equals("true", ignoreCase = true))
-            FieldKind.CHOICE -> {
-                if (fieldDef.options.none { it.value == rawValue }) return
-                FieldValue.Text(rawValue)
-            }
-            FieldKind.TEXT -> FieldValue.Text(rawValue)
-        }
+        val fieldDef = (registry.getDefinition(block.type)?.fields.orEmpty() + CommonBlockInfoFields)
+            .find { it.key == fieldKey }
+            ?: return
+        val parsed = fieldDef.parseInfoValue(rawValue) ?: return
         onAction(WorkspaceAction.UpdateField(blockId, fieldKey, parsed))
+    }
+
+    fun updateBlockFieldSource(fieldKey: String, rawSource: String) {
+        if (disposed.get()) return
+        val blockId = selectedBlockId ?: return
+        val block = document.blocks[blockId] ?: return
+        val fieldDef = (registry.getDefinition(block.type)?.fields.orEmpty() + CommonBlockInfoFields)
+            .find { it.key == fieldKey }
+            ?: return
+        val source = ParameterSourceKind.entries.firstOrNull { it.name == rawSource } ?: return
+        if (source !in fieldDef.sourceOptions) return
+        onAction(WorkspaceAction.UpdateField(blockId, parameterSourceFieldKey(fieldKey), FieldValue.Text(source.name)))
     }
 
     fun openBlockFactory() {

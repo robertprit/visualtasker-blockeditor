@@ -117,6 +117,7 @@ fun BlockEditorScaffold(
     onPointerMove: (Offset2) -> Unit,
     onPointerUp: (Offset2) -> Unit,
     onFieldChange: (String, String) -> Unit,
+    onFieldSourceChange: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
     soundEffectsEnabled: Boolean = false,
     hapticFeedbackEnabled: Boolean = false,
@@ -158,6 +159,7 @@ fun BlockEditorScaffold(
         onPointerMove = onPointerMove,
         onPointerUp = onPointerUp,
         onFieldChange = onFieldChange,
+        onFieldSourceChange = onFieldSourceChange,
         modifier = modifier,
         soundEffectsEnabled = soundEffectsEnabled,
         hapticFeedbackEnabled = hapticFeedbackEnabled,
@@ -203,6 +205,7 @@ fun BlockEditorScaffold(
     onPointerMove: (Offset2) -> Unit,
     onPointerUp: (Offset2) -> Unit,
     onFieldChange: (String, String) -> Unit,
+    onFieldSourceChange: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
     soundEffectsEnabled: Boolean = false,
     hapticFeedbackEnabled: Boolean = false,
@@ -393,6 +396,7 @@ fun BlockEditorScaffold(
                     code = codePreview,
                     blockInfo = blockInfo,
                     onFieldChange = onFieldChange,
+                    onFieldSourceChange = onFieldSourceChange,
                     onToggleVisible = onToggleBottomPanel,
                 )
             }
