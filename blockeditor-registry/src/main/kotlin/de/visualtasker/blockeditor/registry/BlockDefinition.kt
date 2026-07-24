@@ -9,7 +9,9 @@ import de.visualtasker.blockeditor.domain.ConnectionKind
 import de.visualtasker.blockeditor.domain.FieldValue
 import de.visualtasker.blockeditor.domain.StatementInput
 import de.visualtasker.blockeditor.domain.ValueInput
+import kotlinx.serialization.Serializable
 
+@Serializable
 enum class FieldKind {
     TEXT,
     NUMBER,
@@ -24,6 +26,7 @@ enum class FieldKind {
     THRESHOLD,
 }
 
+@Serializable
 enum class ParameterSourceKind {
     MANUAL,
     REPORTER,
@@ -34,11 +37,13 @@ enum class ParameterSourceKind {
     REGION_REPORTER,
 }
 
+@Serializable
 data class FieldOption(
     val value: String,
     val label: String,
 )
 
+@Serializable
 data class FieldDefinition(
     val key: String,
     val label: String,
@@ -71,17 +76,20 @@ data class FieldDefinition(
     }
 }
 
+@Serializable
 data class ValueInputDefinition(
     val name: String,
     val label: String,
     val accepts: Set<String>,
 )
 
+@Serializable
 data class StatementInputDefinition(
     val name: String,
     val label: String,
 )
 
+@Serializable
 data class BlockDefinition(
     val id: String,
     val label: String,
