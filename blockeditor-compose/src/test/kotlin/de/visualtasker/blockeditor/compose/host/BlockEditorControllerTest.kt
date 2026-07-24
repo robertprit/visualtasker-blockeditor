@@ -280,6 +280,36 @@ class BlockEditorControllerTest {
     }
 
     @Test
+    fun rootDragDropClampsPositionToVisibleWorkspaceBounds() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onCanvasSizeChange(Offset2(320f, 220f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
+        val blockId = controller.document.rootBlocks.single()
+        val bounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.bounds
+        val rightHandle = Offset2(bounds.x + bounds.width * 0.88f, bounds.y + bounds.height * 0.5f)
+
+        assertTrue(controller.onLongPressDragStart(rightHandle))
+        controller.onPointerMove(Offset2(-1200f, -900f))
+        controller.onPointerUp(Offset2(-1200f, -900f))
+
+        assertEquals(Offset2(0f, 0f), controller.document.rootOffset(blockId))
+
+        assertTrue(controller.onLongPressDragStart(Offset2(bounds.width * 0.88f, bounds.height * 0.5f)))
+        controller.onPointerMove(Offset2(1400f, 1100f))
+        controller.onPointerUp(Offset2(1400f, 1100f))
+        val movedBounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.bounds
+        val maxX = 320f / controller.viewport.scale - movedBounds.width
+        val maxY = 220f / controller.viewport.scale - movedBounds.height
+
+        assertEquals(maxX, controller.document.rootOffset(blockId)!!.x, 0.01f)
+        assertEquals(maxY, controller.document.rootOffset(blockId)!!.y, 0.01f)
+
+        controller.close()
+    }
+
+    @Test
     fun initialState_emitsValidationAndEmscriptOnly() {
         val callbacks = RecordingCallbacks()
         val controller = BlockEditorController(

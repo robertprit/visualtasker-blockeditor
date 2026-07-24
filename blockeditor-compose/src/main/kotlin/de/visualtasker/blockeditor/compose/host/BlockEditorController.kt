@@ -59,6 +59,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
@@ -203,7 +204,9 @@ class BlockEditorController(
             activeSnapCandidate = dragRender!!.snapCandidate,
             selectedBlockId = selectedBlockId,
         )
-        val (newDocument, newTransient) = DragOperations.endDrag(transient, document)
+        val activeDrag = dragRender!!
+        val (droppedDocument, newTransient) = DragOperations.endDrag(transient, document)
+        val newDocument = clampDroppedRootToCanvas(droppedDocument, activeDrag)
         dragRender = null
         selectedBlockId = newTransient.selectedBlockId
         if (newDocument != document) {
@@ -889,6 +892,44 @@ class BlockEditorController(
         selectSingle(duplicateId)
         infoPanelBlockId = duplicateId
         return true
+    }
+
+    private fun clampDroppedRootToCanvas(
+        source: WorkspaceDocument,
+        render: DragRenderState,
+    ): WorkspaceDocument {
+        val size = canvasSize ?: return source
+        if (size.x <= 0f || size.y <= 0f || viewport.scale <= 0f) return source
+        val rootId = render.session.rootBlockId
+        if (rootId !in source.rootBlocks) return source
+        val rootOffset = source.rootOffset(rootId) ?: return source
+        val rootLayout = render.dragLayoutCache.flatIndex.visibleBlocks
+            .find { it.blockId == rootId }
+            ?: return source
+        val visibleLeft = -viewport.panX / viewport.scale
+        val visibleTop = -viewport.panY / viewport.scale
+        val visibleRight = (size.x - viewport.panX) / viewport.scale
+        val visibleBottom = (size.y - viewport.panY) / viewport.scale
+        val subtreeLeftFromRoot = rootLayout.subtreeBounds.x - rootLayout.bounds.x
+        val subtreeTopFromRoot = rootLayout.subtreeBounds.y - rootLayout.bounds.y
+        val subtreeRightFromRoot = rootLayout.subtreeBounds.right - rootLayout.bounds.x
+        val subtreeBottomFromRoot = rootLayout.subtreeBounds.bottom - rootLayout.bounds.y
+        val clampedX = rootOffset.x.clampToVisibleRange(
+            min = visibleLeft - subtreeLeftFromRoot,
+            max = visibleRight - subtreeRightFromRoot,
+        )
+        val clampedY = rootOffset.y.clampToVisibleRange(
+            min = visibleTop - subtreeTopFromRoot,
+            max = visibleBottom - subtreeBottomFromRoot,
+        )
+        if (clampedX == rootOffset.x && clampedY == rootOffset.y) return source
+        return source.withRootOffset(rootId, clampedX, clampedY)
+    }
+
+    private fun Float.clampToVisibleRange(min: Float, max: Float): Float {
+        if (!isFinite() || !min.isFinite() || !max.isFinite()) return this
+        val clamped = if (min <= max) coerceIn(min, max) else min
+        return if (abs(clamped) < 0.0001f) 0f else clamped
     }
 
     private fun beginBlockDrag(screenPoint: Offset2, blockId: BlockId, pullMode: DragPullMode? = null): Boolean {

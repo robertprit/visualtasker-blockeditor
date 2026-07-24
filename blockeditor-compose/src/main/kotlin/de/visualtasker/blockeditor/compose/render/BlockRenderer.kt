@@ -25,6 +25,7 @@ import de.visualtasker.blockeditor.layout.LayoutConstants
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.BlockTypes
+import kotlin.math.pow
 
 internal fun DrawScope.drawBlock(
     block: BlockNode,
@@ -42,9 +43,13 @@ internal fun DrawScope.drawBlock(
 ) {
     val category = definition?.category ?: "unknown"
     val unsupported = definition == null
-    val fillColor = if (unsupported) colors.unsupportedFill else blockEditorColors(category)
+    val fillColor = when {
+        unsupported -> colors.unsupportedFill
+        block.isStartBlock() -> block.startBlockColor() ?: blockEditorColors(category)
+        else -> blockEditorColors(category)
+    }
     val strokeColor = if (unsupported) colors.unsupportedStroke else colors.blockStroke
-    val textColor = if (unsupported) colors.unsupportedText else colors.blockText
+    val textColor = if (unsupported) colors.unsupportedText else contrastTextColor(fillColor)
     val strokePathEffect = if (unsupported) PathEffect.dashPathEffect(floatArrayOf(12f, 8f)) else null
     val path = resolveBlockVisualPath(
         definition = definition,
@@ -249,6 +254,31 @@ private fun BlockNode.isStartBlock(): Boolean =
     type == BlockTypes.EVENT_START ||
         type == "em_on_start" ||
         metadata["macro.import.canonicalCommand"] == "EVENT.ON_START"
+
+private fun BlockNode.startBlockColor(): Color? = when (fields["color"]?.asString()) {
+    "blue" -> Color(0xFF5E97F6)
+    "green" -> Color(0xFF43A047)
+    "violet" -> Color(0xFF7E57C2)
+    "orange" -> Color(0xFFFFB300)
+    "red" -> Color(0xFFE53935)
+    "gray" -> Color(0xFF78909C)
+    else -> null
+}
+
+internal fun contrastTextColor(background: Color): Color =
+    if (relativeLuminance(background) > 0.48f) Color(0xFF111827) else Color(0xFFF8FAFC)
+
+private fun relativeLuminance(color: Color): Float {
+    fun channel(value: Float): Float =
+        if (value <= 0.03928f) {
+            value / 12.92f
+        } else {
+            ((value + 0.055f) / 1.055f).toDouble().pow(2.4).toFloat()
+        }
+    return 0.2126f * channel(color.red) +
+        0.7152f * channel(color.green) +
+        0.0722f * channel(color.blue)
+}
 
 internal fun drawableLabelWidth(requestedWidth: Float, canvasRemainingWidth: Float): Float =
     minOf(requestedWidth, canvasRemainingWidth).coerceAtLeast(0f)

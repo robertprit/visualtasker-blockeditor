@@ -1,6 +1,7 @@
 package de.visualtasker.blockeditor.compose.render
 
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import org.junit.Assert.assertEquals
@@ -160,6 +161,12 @@ class BlockVisualPathProviderTest {
             BlockPathCache.shape(statementDefinition(id = "em_on_start", hasPrevious = false)) ==
                 BlockVisualShape.Container,
         )
+    }
+
+    @Test
+    fun `block text color is selected by fill contrast`() {
+        assertEquals(Color(0xFF111827), contrastTextColor(Color(0xFFFFC107)))
+        assertEquals(Color(0xFFF8FAFC), contrastTextColor(Color(0xFF263238)))
     }
 
     @Test

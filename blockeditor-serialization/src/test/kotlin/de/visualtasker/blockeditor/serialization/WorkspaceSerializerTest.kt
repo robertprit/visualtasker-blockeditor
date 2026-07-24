@@ -1,11 +1,13 @@
 package de.visualtasker.blockeditor.serialization
 
 import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.blockeditor.domain.FieldValue
 import de.visualtasker.blockeditor.domain.Offset2
 import de.visualtasker.blockeditor.domain.WorkspaceAction
 import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.domain.WorkspacePoint
 import de.visualtasker.blockeditor.domain.WorkspaceReducer
+import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.domain.rootOffset
 import de.visualtasker.blockeditor.domain.withRootOffset
 import de.visualtasker.blockeditor.registry.BlockTypes
@@ -66,6 +68,27 @@ class WorkspaceSerializerTest {
         assertTrue(json.contains("\"rootPositions\""))
         assertEquals(WorkspacePoint(42f, 84f), restored.rootPositions[rootId])
         assertEquals(document.rootOffset(rootId), restored.rootOffset(rootId))
+    }
+
+    @Test
+    fun startBlockColor_roundTripsAsEditableField() {
+        val factory = DefaultBlockRegistry.asFactory()
+        var document = WorkspaceDocument(id = "start-color")
+        document = WorkspaceReducer.reduce(
+            document,
+            WorkspaceAction.InstantiateBlock(BlockTypes.EVENT_START, 12f, 16f),
+            factory,
+        )
+        val startId = document.rootBlocks.single()
+        document = WorkspaceReducer.reduce(
+            document,
+            WorkspaceAction.UpdateField(startId, "color", FieldValue.Text("violet")),
+            factory,
+        )
+
+        val restored = WorkspaceSerializer.deserialize(WorkspaceSerializer.serialize(document))
+
+        assertEquals("violet", restored.blocks[startId]!!.fields["color"]!!.asString())
     }
 
     @Test

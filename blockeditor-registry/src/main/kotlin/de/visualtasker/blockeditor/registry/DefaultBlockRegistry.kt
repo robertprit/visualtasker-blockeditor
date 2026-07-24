@@ -35,7 +35,23 @@ object DefaultBlockRegistry : BlockRegistry {
             category = "event",
             hasPrevious = false,
             hasNext = true,
-            fields = listOf(FieldDefinition("script", "Script", defaultValue = "Script Start")),
+            fields = listOf(
+                FieldDefinition("script", "Script", defaultValue = "Script Start"),
+                FieldDefinition(
+                    key = "color",
+                    label = "Farbe",
+                    kind = FieldKind.CHOICE,
+                    defaultValue = "orange",
+                    options = listOf(
+                        FieldOption("blue", "Blau"),
+                        FieldOption("green", "Grün"),
+                        FieldOption("violet", "Violett"),
+                        FieldOption("orange", "Orange"),
+                        FieldOption("red", "Rot"),
+                        FieldOption("gray", "Grau"),
+                    ),
+                ),
+            ),
         ),
         BlockDefinition(
             id = BlockTypes.ACTION_CLICK_TEXT,

@@ -55,6 +55,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.unit.dp
 import de.visualtasker.blockeditor.compose.layers.EditorCanvasLayer
@@ -260,13 +261,20 @@ fun BlockEditorScaffold(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxHeight(),
+                .fillMaxHeight()
+                .padding(top = 6.dp, end = 6.dp, bottom = 6.dp),
         ) {
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.extraLarge)
                     .background(colors.workspaceBackground)
+                    .border(
+                        width = 1.dp,
+                        color = scheme.outlineVariant.copy(alpha = 0.55f),
+                        shape = MaterialTheme.shapes.extraLarge,
+                    )
                     .onSizeChanged { size ->
                         canvasSize = Offset2(size.width.toFloat(), size.height.toFloat())
                         onCanvasSize.value(canvasSize)
