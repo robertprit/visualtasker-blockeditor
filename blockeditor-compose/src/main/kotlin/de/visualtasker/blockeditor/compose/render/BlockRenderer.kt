@@ -9,9 +9,11 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import de.visualtasker.blockeditor.compose.theme.blockEditorColors
 import de.visualtasker.blockeditor.domain.BlockNode
@@ -91,12 +93,23 @@ internal fun DrawScope.drawBlock(
                     strokeWidth = 2f,
                 )
             }
-            val labelTop = bounds.y + (bounds.height - textMeasurer.measure(section.label, sectionLabelStyle).size.height) / 2f
-            drawText(
+            val sectionTextSize = safeDrawableTextSize(
+                width = bounds.width - LayoutConstants.SLOT_PADDING * 2,
+                height = bounds.height,
+            )
+            val sectionLabelLayout = sectionTextSize?.let {
+                measureTextSafely(textMeasurer, section.label, sectionLabelStyle, it)
+            }
+            val labelTop = sectionLabelLayout?.let {
+                bounds.y + (bounds.height - it.size.height) / 2f
+            } ?: bounds.y
+            drawTextSafely(
                 textMeasurer = textMeasurer,
                 text = section.label,
                 topLeft = Offset(bounds.x + LayoutConstants.SLOT_PADDING, labelTop),
                 style = sectionLabelStyle,
+                availableWidth = sectionTextSize?.width ?: 0f,
+                availableHeight = sectionTextSize?.height ?: 0f,
             )
             if (section.inputName != null) {
                 val dockX = bounds.right - LayoutConstants.REPORTER_WIDTH - LayoutConstants.SLOT_PADDING
@@ -127,10 +140,14 @@ internal fun DrawScope.drawBlock(
                 color = textColor,
                 fontSize = 13.sp,
             )
-            val operatorLayout = textMeasurer.measure(operator, operatorStyle)
+            val operatorTextSize = safeDrawableTextSize(
+                width = inlineReporterLayout.operatorBounds.width,
+                height = inlineReporterLayout.operatorBounds.height,
+            ) ?: return@translate
+            val operatorLayout = measureTextSafely(textMeasurer, operator, operatorStyle, operatorTextSize)
             val operatorTop = inlineReporterLayout.operatorBounds.y +
                 (inlineReporterLayout.operatorBounds.height - operatorLayout.size.height) / 2f
-            drawText(
+            drawTextSafely(
                 textMeasurer = textMeasurer,
                 text = operator,
                 topLeft = Offset(
@@ -139,6 +156,8 @@ internal fun DrawScope.drawBlock(
                     operatorTop,
                 ),
                 style = operatorStyle,
+                availableWidth = operatorTextSize.width,
+                availableHeight = operatorTextSize.height,
             )
             listOf("Input1" to inlineReporterLayout.leftSlot, "Input2" to inlineReporterLayout.rightSlot)
                 .forEach { (inputName, slot) ->
@@ -167,15 +186,21 @@ internal fun DrawScope.drawBlock(
                 color = textColor,
                 fontSize = 13.sp,
             )
-            val textLayout = textMeasurer.measure(displayName, textStyle)
-            drawText(
+            val reporterTextSize = safeDrawableTextSize(width, height) ?: return@translate
+            val textLayout = measureTextSafely(textMeasurer, displayName, textStyle, reporterTextSize)
+            val textTopLeft = centeredTextTopLeft(
+                containerWidth = width,
+                containerHeight = height,
+                contentWidth = textLayout.size.width.toFloat(),
+                contentHeight = textLayout.size.height.toFloat(),
+            ) ?: return@translate
+            drawTextSafely(
                 textMeasurer = textMeasurer,
                 text = displayName,
-                topLeft = Offset(
-                    (width - textLayout.size.width) / 2f,
-                    (height - textLayout.size.height) / 2f,
-                ),
+                topLeft = textTopLeft,
                 style = textStyle,
+                availableWidth = width - textTopLeft.x,
+                availableHeight = height - textTopLeft.y,
             )
             return@translate
         }
@@ -209,18 +234,24 @@ internal fun DrawScope.drawBlock(
         )
         if (drawableTextWidth <= 0f) return@translate
         val displayLabel = truncateLabel(label, drawableTextWidth, textMeasurer, textStyle)
-        val textLayout = textMeasurer.measure(displayLabel, textStyle)
+        val headerTextSize = safeDrawableTextSize(
+            width = drawableTextWidth,
+            height = size.height - topLeft.y,
+        ) ?: return@translate
+        val textLayout = measureTextSafely(textMeasurer, displayLabel, textStyle, headerTextSize)
         val textTopLeft = Offset(
             labelX,
             (headerHeight - textLayout.size.height) / 2f,
         )
         val drawableTextHeight = size.height - topLeft.y - textTopLeft.y
         if (!hasDrawableTextArea(drawableTextWidth, drawableTextHeight)) return@translate
-        drawText(
+        drawTextSafely(
             textMeasurer = textMeasurer,
             text = displayLabel,
             topLeft = textTopLeft,
             style = textStyle,
+            availableWidth = drawableTextWidth,
+            availableHeight = drawableTextHeight,
         )
     }
 }
@@ -309,6 +340,71 @@ internal fun drawableLabelWidth(requestedWidth: Float, canvasRemainingWidth: Flo
     minOf(requestedWidth, canvasRemainingWidth).coerceAtLeast(0f)
 
 internal fun hasDrawableTextArea(width: Float, height: Float): Boolean = width > 0f && height > 0f
+
+internal fun safeDrawableTextSize(width: Float, height: Float): Size? =
+    if (width.isFinite() && height.isFinite() && width > 0f && height > 0f) {
+        Size(width, height)
+    } else {
+        null
+    }
+
+internal fun safeTextConstraintWidth(computedWidth: Float, requestedMinWidth: Float = 0f): Int? {
+    if (!computedWidth.isFinite() || !requestedMinWidth.isFinite()) return null
+    val availableWidth = computedWidth.coerceAtLeast(0f)
+    if (availableWidth <= 0f) return null
+    val minWidth = requestedMinWidth.coerceAtLeast(0f).coerceAtMost(availableWidth)
+    return maxOf(minWidth, availableWidth).toInt().coerceAtLeast(1)
+}
+
+internal fun centeredTextTopLeft(
+    containerWidth: Float,
+    containerHeight: Float,
+    contentWidth: Float,
+    contentHeight: Float,
+): Offset? {
+    safeDrawableTextSize(containerWidth, containerHeight) ?: return null
+    return Offset(
+        x = ((containerWidth - contentWidth) / 2f).coerceAtLeast(0f),
+        y = ((containerHeight - contentHeight) / 2f).coerceAtLeast(0f),
+    )
+}
+
+private fun measureTextSafely(
+    textMeasurer: TextMeasurer,
+    text: String,
+    style: TextStyle,
+    availableSize: Size,
+): TextLayoutResult {
+    safeTextConstraintWidth(availableSize.width) ?: error("Text measurement requires positive finite width.")
+    return textMeasurer.measure(
+        text = text,
+        style = style,
+        overflow = TextOverflow.Clip,
+        softWrap = false,
+        maxLines = 1,
+    )
+}
+
+private fun DrawScope.drawTextSafely(
+    textMeasurer: TextMeasurer,
+    text: String,
+    topLeft: Offset,
+    style: TextStyle,
+    availableWidth: Float,
+    availableHeight: Float,
+) {
+    val drawSize = safeDrawableTextSize(availableWidth, availableHeight) ?: return
+    drawText(
+        textMeasurer = textMeasurer,
+        text = text,
+        topLeft = topLeft,
+        style = style,
+        overflow = TextOverflow.Clip,
+        softWrap = false,
+        maxLines = 1,
+        size = drawSize,
+    )
+}
 
 private fun truncateLabel(
     label: String,

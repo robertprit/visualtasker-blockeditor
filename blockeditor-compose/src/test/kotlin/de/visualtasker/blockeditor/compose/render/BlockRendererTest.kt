@@ -1,6 +1,9 @@
 package de.visualtasker.blockeditor.compose.render
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -18,7 +21,7 @@ class BlockRendererTest {
     @Test
     fun `positive label space is bounded by canvas`() {
         assertTrue(drawableLabelWidth(100f, 12f) > 0f)
-        org.junit.Assert.assertEquals(12f, drawableLabelWidth(100f, 12f))
+        assertEquals(12f, drawableLabelWidth(100f, 12f))
     }
 
     @Test
@@ -29,5 +32,68 @@ class BlockRendererTest {
     @Test
     fun `label inside canvas remains drawable`() {
         assertTrue(hasDrawableTextArea(width = 12f, height = 8f))
+    }
+
+    @Test
+    fun `narrow text box is clamped to valid drawable size`() {
+        val size = safeDrawableTextSize(width = 1f, height = 1f)
+
+        assertNotNull(size)
+        assertEquals(1f, size!!.width)
+        assertEquals(1f, size.height)
+    }
+
+    @Test
+    fun `invalid text boxes are skipped before Compose constraints are created`() {
+        assertNull(safeDrawableTextSize(width = 0f, height = 12f))
+        assertNull(safeDrawableTextSize(width = 12f, height = 0f))
+        assertNull(safeDrawableTextSize(width = -1f, height = 12f))
+        assertNull(safeDrawableTextSize(width = 12f, height = -1f))
+        assertNull(safeDrawableTextSize(width = Float.NaN, height = 12f))
+        assertNull(safeDrawableTextSize(width = 12f, height = Float.POSITIVE_INFINITY))
+    }
+
+    @Test
+    fun `text constraint width is only created for positive finite space`() {
+        assertEquals(1, safeTextConstraintWidth(computedWidth = 1f))
+        assertEquals(12, safeTextConstraintWidth(computedWidth = 12f, requestedMinWidth = 24f))
+        assertNull(safeTextConstraintWidth(computedWidth = 0f))
+        assertNull(safeTextConstraintWidth(computedWidth = -1f))
+        assertNull(safeTextConstraintWidth(computedWidth = Float.NaN))
+        assertNull(safeTextConstraintWidth(computedWidth = Float.POSITIVE_INFINITY))
+    }
+
+    @Test
+    fun `reporter text centering never returns negative origins`() {
+        val offset = centeredTextTopLeft(
+            containerWidth = 4f,
+            containerHeight = 4f,
+            contentWidth = 24f,
+            contentHeight = 12f,
+        )
+
+        assertNotNull(offset)
+        assertEquals(0f, offset!!.x)
+        assertEquals(0f, offset.y)
+    }
+
+    @Test
+    fun `empty or collapsed reporter text containers are skipped`() {
+        assertNull(
+            centeredTextTopLeft(
+                containerWidth = 0f,
+                containerHeight = 40f,
+                contentWidth = 12f,
+                contentHeight = 12f,
+            ),
+        )
+        assertNull(
+            centeredTextTopLeft(
+                containerWidth = 148f,
+                containerHeight = 0f,
+                contentWidth = 12f,
+                contentHeight = 12f,
+            ),
+        )
     }
 }
