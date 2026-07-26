@@ -75,11 +75,11 @@ class BlockVisualPathProviderTest {
     }
 
     @Test
-    fun `provider is not consulted for legacy-rendered shapes`() {
+    fun `provider can override every visual block shape`() {
         var calls = 0
         val provider = BlockVisualPathProvider {
             calls += 1
-            BlockVisualPathResult.Success(Path())
+            BlockVisualPathResult.Success(trianglePath())
         }
 
         val statement = resolveBlockVisualPath(
@@ -107,10 +107,10 @@ class BlockVisualPathProviderTest {
             provider,
         )
 
-        assertEquals(0, calls)
-        assertSame(BlockPathCache.path(statementDefinition(), Size(120f, 44f)), statement)
-        assertSame(BlockPathCache.path(containerDefinition, Size(120f, 88f)), container)
-        assertSame(BlockPathCache.path(inlineStatementDefinition, Size(120f, 44f)), inlineStatement)
+        assertEquals(3, calls)
+        assertEquals(trianglePath().getBounds(), statement.getBounds())
+        assertEquals(trianglePath().getBounds(), container.getBounds())
+        assertEquals(trianglePath().getBounds(), inlineStatement.getBounds())
     }
 
     @Test

@@ -47,7 +47,7 @@ private val ExpressiveTypography = Typography(
     headlineMedium = TextStyle(
         fontSize = 28.sp,
         fontWeight = FontWeight.SemiBold,
-        letterSpacing = (-0.25).sp,
+        letterSpacing = 0.sp,
     ),
     titleLarge = TextStyle(
         fontSize = 22.sp,

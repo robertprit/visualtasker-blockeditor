@@ -47,9 +47,6 @@ internal fun resolveBlockVisualPath(
     if (provider === BlockVisualPathProvider.Legacy) return legacy
 
     val shape = BlockPathCache.shape(definition)
-    if (shape != BlockVisualShape.Reporter && shape != BlockVisualShape.InlineReporter) {
-        return legacy
-    }
     val request = BlockVisualPathRequest(
         definition = definition?.presentationSnapshot(),
         shape = shape,

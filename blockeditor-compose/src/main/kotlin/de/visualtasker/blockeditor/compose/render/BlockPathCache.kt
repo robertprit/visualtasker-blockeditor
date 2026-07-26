@@ -29,7 +29,7 @@ internal object BlockPathCache {
     ): String {
         val type = definition?.id ?: "unknown"
         val kind = when {
-            definition?.inputsInline == true -> "ir"
+            definition?.isReporter == true && definition.inputsInline -> "ir"
             definition?.isReporter == true -> "r"
             definition?.statementInputs?.isNotEmpty() == true -> "c"
             else -> "s"
@@ -50,7 +50,7 @@ internal object BlockPathCache {
         size: Size,
         branchDividerYs: List<Float>,
     ): Path = when {
-        definition?.inputsInline == true -> BlockShapes.inlineReporterPath(size)
+        definition?.isReporter == true && definition.inputsInline -> BlockShapes.inlineReporterPath(size)
         definition?.isReporter == true -> BlockShapes.reporterPath(size)
         definition?.statementInputs?.isNotEmpty() == true -> {
             val dividers = branchDividerYs.ifEmpty {

@@ -1,6 +1,7 @@
 package de.visualtasker.blockeditor.compose.theme
 
 import androidx.compose.ui.graphics.Color
+import de.visualtasker.blockeditor.registry.BlockCategories
 
 data class BlockEditorColors(
     val event: Color,
@@ -22,14 +23,20 @@ data class BlockEditorColors(
 )
 
 fun blockEditorColors(category: String): Color = when (category) {
-    "event" -> Color(0xFFFFC107)
-    "action" -> Color(0xFF42A5F5)
-    "emscript" -> Color(0xFF5E97F6)
-    "control" -> Color(0xFFFF7043)
-    "logic" -> Color(0xFF66BB6A)
-    "debug" -> Color(0xFFAB47BC)
-    "variable" -> Color(0xFF26A69A)
-    else -> Color(0xFF78909C)
+    BlockCategories.EVENT -> Color(0xFFB78B00)
+    BlockCategories.ACTION -> Color(0xFF3E6F91)
+    BlockCategories.EMSCRIPT -> Color(0xFF56687A)
+    BlockCategories.INPUT -> Color(0xFF4B6F8F)
+    BlockCategories.PERCEPTION -> Color(0xFF3F735F)
+    BlockCategories.CONTROL -> Color(0xFF87684A)
+    BlockCategories.LOGIC -> Color(0xFF586E4B)
+    BlockCategories.VARIABLES -> Color(0xFF6D607E)
+    BlockCategories.FLOW -> Color(0xFF7B6750)
+    BlockCategories.RUNTIME -> Color(0xFF686E78)
+    BlockCategories.DEBUG -> Color(0xFF75617A)
+    BlockCategories.VARIABLE -> Color(0xFF5A716B)
+    BlockCategories.CUSTOM -> Color(0xFF66707A)
+    else -> Color(0xFF66707A)
 }
 
 fun defaultBlockEditorColors(): BlockEditorColors = darkBlockEditorColors()
@@ -45,12 +52,12 @@ fun darkBlockEditorColors(): BlockEditorColors = BlockEditorColors(
     gridDot = Color(0x334B5563),
     snapHighlight = Color(0x6642A5F5),
     dragShadow = Color(0x66000000),
-    blockStroke = Color(0xFF90A4AE),
+    blockStroke = Color(0xFFB3BDC8),
     blockText = Color(0xFFF5F7FA),
     slotBackground = Color(0x33000000),
-    unsupportedFill = Color(0xFF93000A),
-    unsupportedStroke = Color(0xFFFFDAD6),
-    unsupportedText = Color(0xFFFFDAD6),
+    unsupportedFill = Color(0xFF5F523A),
+    unsupportedStroke = Color(0xFFE4CFA4),
+    unsupportedText = Color(0xFFFFF0CF),
 )
 
 fun lightBlockEditorColors(): BlockEditorColors = BlockEditorColors(
@@ -64,10 +71,10 @@ fun lightBlockEditorColors(): BlockEditorColors = BlockEditorColors(
     gridDot = Color(0x33475569),
     snapHighlight = Color(0x6642A5F5),
     dragShadow = Color(0x33000000),
-    blockStroke = Color(0xFF263238),
+    blockStroke = Color(0xFF39434D),
     blockText = Color(0xFF102027),
     slotBackground = Color(0x33FFFFFF),
-    unsupportedFill = Color(0xFFFFDAD6),
-    unsupportedStroke = Color(0xFFBA1A1A),
-    unsupportedText = Color(0xFF410002),
+    unsupportedFill = Color(0xFFFFF1D2),
+    unsupportedStroke = Color(0xFF826B2A),
+    unsupportedText = Color(0xFF3C2F12),
 )
