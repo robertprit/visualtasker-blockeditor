@@ -119,16 +119,25 @@ object DragOperations {
             if (connectedInChain || inStatementSlot) {
                 doc = WorkspaceReducer.liftDragGroup(doc, session.rootBlockId, session.includedBlocks)
             }
+            val drop = dropPosition(session, candidate)
             doc = WorkspaceReducer.reduce(
                 doc,
                 WorkspaceAction.Connect(candidate.sourceConnectionId, candidate.targetConnectionId),
             )
-            val drop = dropPosition(session, candidate)
             val chainHead = chainHeadId(doc, session.rootBlockId)
-            WorkspaceReducer.reduce(
-                doc,
-                WorkspaceAction.MoveRoot(chainHead, drop.x, drop.y),
-            )
+            val movedRoot = when {
+                chainHead in session.includedBlocks && chainHead in doc.rootBlocks -> chainHead
+                session.rootBlockId in doc.rootBlocks -> session.rootBlockId
+                else -> null
+            }
+            if (movedRoot == null) {
+                doc
+            } else {
+                WorkspaceReducer.reduce(
+                    doc,
+                    WorkspaceAction.MoveRoot(movedRoot, drop.x, drop.y),
+                )
+            }
         } else {
             var doc = document
             if (WorkspaceGraph.isValuePlugged(doc, session.rootBlockId)) {
