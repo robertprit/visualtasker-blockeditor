@@ -17,16 +17,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.CenterFocusStrong
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.ZoomOut
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -103,6 +102,7 @@ fun BlockEditorScaffold(
     onCreateCustomBlock: (BlockDesignBlueprint) -> Unit,
     onClearWorkspace: () -> Unit,
     showBottomPanelToggle: Boolean = true,
+    showBlockFactoryEntry: Boolean = true,
     onFitWorkspace: () -> Unit,
     onUndo: () -> Boolean,
     onRedo: () -> Boolean,
@@ -145,6 +145,7 @@ fun BlockEditorScaffold(
         onCreateCustomBlock = onCreateCustomBlock,
         onClearWorkspace = onClearWorkspace,
         showBottomPanelToggle = showBottomPanelToggle,
+        showBlockFactoryEntry = showBlockFactoryEntry,
         onFitWorkspace = onFitWorkspace,
         onUndo = onUndo,
         onRedo = onRedo,
@@ -191,6 +192,7 @@ fun BlockEditorScaffold(
     onCreateCustomBlock: (BlockDesignBlueprint) -> Unit,
     onClearWorkspace: () -> Unit,
     showBottomPanelToggle: Boolean = true,
+    showBlockFactoryEntry: Boolean = true,
     onFitWorkspace: () -> Unit,
     onUndo: () -> Boolean,
     onRedo: () -> Boolean,
@@ -213,6 +215,12 @@ fun BlockEditorScaffold(
 ) {
     val scheme = MaterialTheme.colorScheme
     val colors = defaultBlockEditorColors().copy(
+        event = scheme.primaryContainer,
+        action = scheme.secondaryContainer,
+        control = scheme.tertiaryContainer,
+        logic = scheme.tertiaryContainer,
+        debug = scheme.errorContainer,
+        variable = scheme.surfaceContainerHighest,
         workspaceBackground = scheme.surfaceContainerLowest,
         gridDot = scheme.outlineVariant.copy(alpha = 0.42f),
         snapHighlight = scheme.primary.copy(alpha = 0.35f),
@@ -243,44 +251,47 @@ fun BlockEditorScaffold(
     val deleteCandidate = blockDragActive &&
         latestDragPoint?.let { isInTrashZone(it, canvasSize, trashSizePx, trashMarginPx) } == true
 
+    val workspaceOutlineColor = scheme.outlineVariant.copy(alpha = 0.55f)
+    val toolboxColor = scheme.surfaceContainerLowest
+    val workspaceShape = RoundedCornerShape(30.dp)
+
     Row(modifier = modifier.fillMaxSize()) {
         EditorNavigationRail(
             expandedCategory = expandedCategory,
             onCategoryClick = onCategoryClick,
             onOpenBlockFactory = onOpenBlockFactory,
             onClearWorkspace = onClearWorkspace,
+            showBlockFactoryEntry = showBlockFactoryEntry,
+            containerColor = toolboxColor,
         )
 
-        if (expandedCategory != null) {
-            CategoryPalettePanel(
-                category = expandedCategory,
-                definitions = definitionsForCategory,
-                onAddBlock = onAddBlock,
-                onCreateVariable = onCreateVariable,
-                onDismiss = onDismissCategory,
-            )
-        }
-
-        Column(
+        Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxHeight()
-                .padding(top = 6.dp, end = 6.dp, bottom = 6.dp),
+                .fillMaxHeight(),
         ) {
-            Box(
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .padding(top = 6.dp, end = 6.dp, bottom = 6.dp),
+            ) {
+                Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.extraLarge)
+                    .clip(workspaceShape)
                     .background(colors.workspaceBackground)
                     .border(
                         width = 1.dp,
-                        color = scheme.outlineVariant.copy(alpha = 0.55f),
-                        shape = MaterialTheme.shapes.extraLarge,
+                        color = workspaceOutlineColor,
+                        shape = workspaceShape,
                     )
                     .onSizeChanged { size ->
-                        canvasSize = Offset2(size.width.toFloat(), size.height.toFloat())
-                        onCanvasSize.value(canvasSize)
+                        val nextSize = Offset2(size.width.toFloat(), size.height.toFloat())
+                        if (!sameCanvasSize(canvasSize, nextSize)) {
+                            canvasSize = nextSize
+                            onCanvasSize.value(canvasSize)
+                        }
                     }
                     .pointerInput(Unit) {
                         coroutineScope {
@@ -337,7 +348,7 @@ fun BlockEditorScaffold(
                             if (!it) latestDragPoint = null
                         },
                     ),
-            ) {
+                ) {
                 EditorCanvasLayer(
                     document = document,
                     layoutCache = layoutCache,
@@ -370,41 +381,41 @@ fun BlockEditorScaffold(
                         .align(Alignment.TopStart)
                         .padding(8.dp),
                 )
-                if (blockDragActive) {
-                    TrashDropTarget(
-                        active = deleteCandidate,
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(16.dp),
-                    )
+                TrashDropTarget(
+                    active = deleteCandidate,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp),
+                )
                 }
-                if (!showBottomPanel && showBottomPanelToggle) {
-                    FloatingActionButton(
-                        onClick = onToggleBottomPanel,
-                        modifier = Modifier
-                            .align(androidx.compose.ui.Alignment.BottomEnd)
-                            .padding(16.dp),
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    ) {
-                        Icon(Icons.Filled.Code, contentDescription = "Inspector öffnen")
-                    }
+
+                if (showBottomPanel) {
+                    EditorBottomPanel(
+                        code = codePreview,
+                        blockInfo = blockInfo,
+                        onFieldChange = onFieldChange,
+                        onFieldSourceChange = onFieldSourceChange,
+                        onToggleVisible = onToggleBottomPanel,
+                    )
                 }
             }
 
-            if (showBottomPanel) {
-                EditorBottomPanel(
-                    code = codePreview,
-                    blockInfo = blockInfo,
-                    onFieldChange = onFieldChange,
-                    onFieldSourceChange = onFieldSourceChange,
-                    onToggleVisible = onToggleBottomPanel,
+            if (expandedCategory != null) {
+                CategoryPalettePanel(
+                    category = expandedCategory,
+                    definitions = definitionsForCategory,
+                    onAddBlock = onAddBlock,
+                    onCreateVariable = onCreateVariable,
+                    onDismiss = onDismissCategory,
+                    containerColor = toolboxColor,
+                    modifier = Modifier.align(Alignment.TopStart),
                 )
             }
         }
     }
 
     BlockDesignFactorySheet(
-        visible = showBlockFactory,
+        visible = showBlockFactoryEntry && showBlockFactory,
         onDismiss = onDismissBlockFactory,
         onCreate = onCreateCustomBlock,
     )
@@ -459,6 +470,14 @@ private fun isInTrashZone(
     val bottom = canvasSize.y - marginPx
     return point.x in left..right && point.y in top..bottom
 }
+
+private fun sameCanvasSize(
+    previous: Offset2,
+    next: Offset2,
+    tolerance: Float = 0.5f,
+): Boolean =
+    kotlin.math.abs(previous.x - next.x) <= tolerance &&
+        kotlin.math.abs(previous.y - next.y) <= tolerance
 
 private fun playEditorSound(
     platformView: android.view.View,
@@ -559,11 +578,11 @@ private fun BlockEditorToolbarIconButton(
             },
             colors = IconButtonDefaults.iconButtonColors(
                 containerColor = when {
-                    selected -> MaterialTheme.colorScheme.secondaryContainer
+                    selected -> MaterialTheme.colorScheme.primary
                     else -> Color.Transparent
                 },
                 contentColor = when {
-                    selected -> MaterialTheme.colorScheme.onSecondaryContainer
+                    selected -> MaterialTheme.colorScheme.onPrimary
                     danger -> MaterialTheme.colorScheme.error
                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                 },

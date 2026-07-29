@@ -3,6 +3,12 @@ package de.visualtasker.blockeditor.compose.render
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.unit.Density
+import de.visualtasker.blockeditor.compose.shapes.BlockDockKind
+import de.visualtasker.blockeditor.compose.shapes.BlockShapeFamily
+import de.visualtasker.blockeditor.compose.shapes.BlockShapeRequest
+import de.visualtasker.blockeditor.compose.shapes.BlockShapeTokens
+import de.visualtasker.blockeditor.compose.shapes.MaterialExpressiveBlockShapeBuilder
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -30,7 +36,7 @@ class BlockVisualPathProviderTest {
     @Test
     fun `provider paths do not leak between render passes`() {
         val shared = trianglePath()
-        val provider = BlockVisualPathProvider { BlockVisualPathResult.Success(shared) }
+        val provider = BlockVisualPathProvider { BlockVisualPathResult.LegacyPath(shared) }
 
         val first = resolveBlockVisualPath(
             statementDefinition(isReporter = true),
@@ -64,7 +70,7 @@ class BlockVisualPathProviderTest {
             statementDefinition(isReporter = true),
             Size(120f, 44f),
             emptyList(),
-            BlockVisualPathProvider { BlockVisualPathResult.Success(supplied) },
+            BlockVisualPathProvider { BlockVisualPathResult.LegacyPath(supplied) },
         )
 
         assertNotSame(supplied, actual)
@@ -76,14 +82,14 @@ class BlockVisualPathProviderTest {
     }
 
     @Test
-    fun `provider is not consulted for legacy-rendered shapes`() {
+    fun `provider can override every visual shape family`() {
         var calls = 0
         val provider = BlockVisualPathProvider {
             calls += 1
-            BlockVisualPathResult.Success(Path())
+            BlockVisualPathResult.Unsupported
         }
 
-        val statement = resolveBlockVisualPath(
+        resolveBlockVisualPath(
             statementDefinition(),
             Size(120f, 44f),
             emptyList(),
@@ -94,24 +100,21 @@ class BlockVisualPathProviderTest {
                 de.visualtasker.blockeditor.registry.StatementInputDefinition("DO", "do"),
             ),
         )
-        val container = resolveBlockVisualPath(
+        resolveBlockVisualPath(
             containerDefinition,
             Size(120f, 88f),
             emptyList(),
             provider,
         )
         val inlineStatementDefinition = statementDefinition(inputsInline = true)
-        val inlineStatement = resolveBlockVisualPath(
+        resolveBlockVisualPath(
             inlineStatementDefinition,
             Size(120f, 44f),
             emptyList(),
             provider,
         )
 
-        assertEquals(0, calls)
-        assertSame(BlockPathCache.path(statementDefinition(), Size(120f, 44f)), statement)
-        assertSame(BlockPathCache.path(containerDefinition, Size(120f, 88f)), container)
-        assertSame(BlockPathCache.path(inlineStatementDefinition, Size(120f, 44f)), inlineStatement)
+        assertEquals(3, calls)
     }
 
     @Test
@@ -121,7 +124,7 @@ class BlockVisualPathProviderTest {
             definition.copy(isReporter = true),
             Size(120f, 44f),
             emptyList(),
-            BlockVisualPathProvider { BlockVisualPathResult.Success(Path()) },
+            BlockVisualPathProvider { BlockVisualPathResult.LegacyPath(Path()) },
         )
         val failed = resolveBlockVisualPath(
             definition.copy(isReporter = true),
@@ -185,13 +188,81 @@ class BlockVisualPathProviderTest {
             emptyList(),
             BlockVisualPathProvider { request ->
                 received = request.definition
-                BlockVisualPathResult.UseLegacy
+                BlockVisualPathResult.Unsupported
             },
         )
         mutableStatementInputs.clear()
 
         assertNotSame(definition, received)
         assertEquals(1, received?.statementInputs?.size)
+    }
+
+    @Test
+    fun `material expressive geometry has positive finite bounds and path`() {
+        val geometry = MaterialExpressiveBlockShapeBuilder.geometry(
+            request = BlockShapeRequest(
+                blockType = "test.statement",
+                size = Size(288f, 60f),
+                family = BlockShapeFamily.Statement,
+            ),
+            tokens = BlockShapeTokens().toPx(Density(1f)),
+        )
+
+        assertFalse(geometry.path.isEmpty)
+        assertTrue(geometry.visualBounds.width > 0f)
+        assertTrue(geometry.visualBounds.height > 0f)
+        assertTrue(geometry.contentBounds.left >= geometry.visualBounds.left)
+        assertTrue(geometry.contentBounds.right <= geometry.visualBounds.right)
+        assertTrue(geometry.interactionBounds.width > 0f)
+        assertTrue(geometry.interactionBounds.height > 0f)
+    }
+
+    @Test
+    fun `material expressive stack docks share a stable x axis`() {
+        val geometry = MaterialExpressiveBlockShapeBuilder.geometry(
+            request = BlockShapeRequest(
+                blockType = "test.statement",
+                size = Size(288f, 60f),
+                family = BlockShapeFamily.Statement,
+            ),
+            tokens = BlockShapeTokens().toPx(Density(1f)),
+        )
+        val previous = geometry.docks.single { it.kind == BlockDockKind.PreviousStack }
+        val next = geometry.docks.single { it.kind == BlockDockKind.NextStack }
+
+        assertEquals(64f, previous.center.x)
+        assertEquals(previous.center.x, next.center.x)
+        assertTrue(previous.bounds.width > 0f)
+        assertTrue(next.bounds.width > 0f)
+    }
+
+    @Test
+    fun `material expressive event has no previous dock`() {
+        val geometry = MaterialExpressiveBlockShapeBuilder.geometry(
+            request = BlockShapeRequest(
+                blockType = "event.start",
+                size = Size(288f, 64f),
+                family = BlockShapeFamily.Event,
+            ),
+            tokens = BlockShapeTokens().toPx(Density(1f)),
+        )
+
+        assertTrue(geometry.docks.none { it.kind == BlockDockKind.PreviousStack })
+        assertTrue(geometry.docks.any { it.kind == BlockDockKind.NextStack })
+    }
+
+    @Test
+    fun `material expressive provider returns geometry with defensively copied path`() {
+        val result = MaterialExpressiveBlockVisualPathProvider.path(
+            BlockVisualPathRequest(
+                definition = statementDefinition(),
+                shape = BlockVisualShape.Statement,
+                targetSize = Size(288f, 60f),
+            ),
+        ) as BlockVisualPathResult.Geometry
+
+        assertFalse(result.geometry.path.isEmpty)
+        assertTrue(result.geometry.docks.isNotEmpty())
     }
 
     @Test

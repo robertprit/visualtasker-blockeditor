@@ -3,6 +3,7 @@ package de.visualtasker.blockeditor.interaction
 import de.visualtasker.blockeditor.domain.WorkspaceAction
 import de.visualtasker.blockeditor.domain.WorkspaceGraph
 import de.visualtasker.blockeditor.domain.WorkspaceReducer
+import de.visualtasker.blockeditor.domain.rootOffset
 import de.visualtasker.blockeditor.domain.withRootOffset
 import de.visualtasker.blockeditor.layout.LayoutEngine
 import de.visualtasker.blockeditor.registry.BlockTypes
@@ -89,6 +90,56 @@ class EndDragTest {
 
         assertEquals(repeatId, WorkspaceGraph.nextChain(result, startId))
         assertEquals(clickId, WorkspaceGraph.nextChain(result, repeatId))
+    }
+
+    @Test
+    fun endDrag_snapFloatingBlockIntoStartStackKeepsStartRootPosition() {
+        val factory = DefaultBlockRegistry.asFactory()
+        var document = SampleWorkspaceFactory.create()
+        val startId = document.rootBlocks.first()
+        val startRootPosition = document.rootOffset(startId)
+
+        document = WorkspaceReducer.reduce(
+            document,
+            WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 320f, 220f),
+            factory,
+        )
+        val clickId = document.rootBlocks.first { it != startId }
+        val layout = layoutEngine.build(document)
+        val begin = DragOperations.beginDrag(
+            document = document,
+            layoutCache = layout,
+            blockId = clickId,
+            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            ViewportState(),
+            pullMode = DragPullMode.Single,
+        )
+        val startNext = document.blocks[startId]!!.next!!.id
+        val clickPrevious = document.blocks[clickId]!!.previous!!.id
+        val startAnchor = layout.flatIndex.connectionAnchors.first { it.connectionId == startNext }
+        val clickAnchor = layout.flatIndex.connectionAnchors.first { it.connectionId == clickPrevious }
+        val dragOffset = de.visualtasker.blockeditor.domain.Offset2(
+            x = startAnchor.x - clickAnchor.x,
+            y = startAnchor.y - clickAnchor.y + 8f,
+        )
+        val candidate = SnapEngine().findSnapCandidate(
+            layout.flatIndex,
+            begin.dragSession!!.copy(dragOffset = dragOffset),
+            document,
+        )
+        assertNotNull(candidate)
+
+        val (result, _) = DragOperations.endDrag(
+            begin.copy(
+                dragSession = begin.dragSession!!.copy(dragOffset = dragOffset),
+                activeSnapCandidate = candidate,
+            ),
+            document,
+        )
+
+        assertEquals(clickId, WorkspaceGraph.nextChain(result, startId))
+        assertEquals(startRootPosition, result.rootOffset(startId))
+        assertEquals(listOf(startId), result.rootBlocks)
     }
 
     @Test

@@ -29,7 +29,11 @@ object ContainerBranchLayout {
                     slot.bounds.y - blockTop - LayoutConstants.ELIF_SECTION_HEIGHT - LayoutConstants.BRANCH_SHELF
                 BlockTypes.SLOT_ELSE ->
                     slot.bounds.y - blockTop - LayoutConstants.BRANCH_SHELF
-                else -> null
+                else -> if (slot.slotName.startsWith("ELIF_")) {
+                    slot.bounds.y - blockTop - LayoutConstants.ELIF_SECTION_HEIGHT - LayoutConstants.BRANCH_SHELF
+                } else {
+                    null
+                }
             }
         }
 
@@ -46,7 +50,7 @@ object ContainerBranchLayout {
                 dividers += slotY
                 slotY += LayoutConstants.BRANCH_SHELF
             }
-            if (slotDef.name == BlockTypes.SLOT_ELIF) {
+            if (slotDef.name == BlockTypes.SLOT_ELIF || slotDef.name.startsWith("ELIF_")) {
                 slotY += LayoutConstants.ELIF_SECTION_HEIGHT
             }
             slotY += LayoutConstants.STATEMENT_MIN_HEIGHT + LayoutConstants.SLOT_PADDING

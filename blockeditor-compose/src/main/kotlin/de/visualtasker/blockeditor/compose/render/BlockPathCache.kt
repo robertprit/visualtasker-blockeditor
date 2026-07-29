@@ -6,6 +6,7 @@ import de.visualtasker.blockeditor.compose.shapes.BlockShapes
 import de.visualtasker.blockeditor.layout.ContainerBranchLayout
 import de.visualtasker.blockeditor.layout.LayoutConstants
 import de.visualtasker.blockeditor.registry.BlockDefinition
+import de.visualtasker.blockeditor.registry.BlockTypes
 
 /** Gecachte Pfade – kein Path-Alloc pro Frame. */
 internal object BlockPathCache {
@@ -31,6 +32,7 @@ internal object BlockPathCache {
         val kind = when {
             definition?.inputsInline == true -> "ir"
             definition?.isReporter == true -> "r"
+            definition.isStartStatement() -> "ss"
             definition.isDecorativeEventContainer() -> "ec"
             definition?.statementInputs?.isNotEmpty() == true -> "c"
             else -> "s"
@@ -54,6 +56,7 @@ internal object BlockPathCache {
     ): Path = when {
         definition?.inputsInline == true -> BlockShapes.inlineReporterPath(size)
         definition?.isReporter == true -> BlockShapes.reporterPath(size)
+        definition.isStartStatement() -> BlockShapes.startStatementPath(size)
         definition.isDecorativeEventContainer() -> BlockShapes.decorativeContainerPath(
             size,
             LayoutConstants.HEADER_HEIGHT,
@@ -75,4 +78,7 @@ internal object BlockPathCache {
 
     private fun BlockDefinition?.isDecorativeEventContainer(): Boolean =
         this?.id == "em_on_start" && statementInputs.isEmpty()
+
+    private fun BlockDefinition?.isStartStatement(): Boolean =
+        this?.id == BlockTypes.EVENT_START && statementInputs.isEmpty()
 }

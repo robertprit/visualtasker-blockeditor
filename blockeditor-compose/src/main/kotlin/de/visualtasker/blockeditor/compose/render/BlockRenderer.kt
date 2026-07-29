@@ -15,7 +15,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
-import de.visualtasker.blockeditor.compose.theme.blockEditorColors
+import de.visualtasker.blockeditor.compose.theme.BlockEditorColors
 import de.visualtasker.blockeditor.domain.BlockNode
 import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.compose.icons.drawBlockTypeIcon
@@ -36,19 +36,21 @@ internal fun DrawScope.drawBlock(
     width: Float,
     height: Float,
     textMeasurer: TextMeasurer,
-    colors: de.visualtasker.blockeditor.compose.theme.BlockEditorColors,
+    colors: BlockEditorColors,
     registry: BlockRegistry,
     branchDividerYs: List<Float> = emptyList(),
     branchSections: List<BranchSectionLayout> = emptyList(),
     inlineReporterLayout: InlineReporterLayout? = null,
     visualPathProvider: BlockVisualPathProvider = BlockVisualPathProvider.Legacy,
+    selected: Boolean = false,
+    selectionColor: Color = Color(0xFF42A5F5),
 ) {
     val category = definition?.category ?: "unknown"
     val unsupported = definition == null
     val fillColor = when {
         unsupported -> colors.unsupportedFill
-        block.isStartBlock() -> block.startBlockColor() ?: blockEditorColors(category)
-        else -> blockEditorColors(category)
+        block.isStartBlock() -> block.startBlockColor() ?: colors.forCategory(category)
+        else -> colors.forCategory(category)
     }
     val strokeColor = if (unsupported) colors.unsupportedStroke else colors.blockStroke
     val textColor = if (unsupported) colors.unsupportedText else contrastTextColor(fillColor)
@@ -62,10 +64,16 @@ internal fun DrawScope.drawBlock(
     translate(topLeft.x, topLeft.y) {
         drawPath(path, fillColor, style = Fill)
         drawPath(path, strokeColor, style = Stroke(width = 2f, pathEffect = strokePathEffect))
+        if (selected) {
+            drawPath(path, selectionColor, style = Stroke(width = 4f))
+        }
         branchDividerYs.forEach { dividerY ->
             val stem = BlockShapes.branchStemTabPath(dividerY)
             drawPath(stem, fillColor, style = Fill)
             drawPath(stem, strokeColor, style = Stroke(width = 2f, pathEffect = strokePathEffect))
+            if (selected) {
+                drawPath(stem, selectionColor, style = Stroke(width = 4f))
+            }
         }
         val sectionLabelStyle = TextStyle(
             color = textColor.copy(alpha = 0.85f),
@@ -310,6 +318,17 @@ private fun BlockNode.isStartBlock(): Boolean =
     type == BlockTypes.EVENT_START ||
         type == "em_on_start" ||
         metadata["macro.import.canonicalCommand"] == "EVENT.ON_START"
+
+private fun BlockEditorColors.forCategory(category: String): Color = when (category) {
+    "event" -> event
+    "action" -> action
+    "emscript" -> action
+    "control" -> control
+    "logic" -> logic
+    "debug" -> debug
+    "variable" -> variable
+    else -> variable
+}
 
 private fun BlockNode.startBlockColor(): Color? = when (fields["color"]?.asString()) {
     "blue" -> Color(0xFF5E97F6)

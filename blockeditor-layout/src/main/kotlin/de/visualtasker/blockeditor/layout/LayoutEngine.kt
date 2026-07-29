@@ -9,7 +9,10 @@ import de.visualtasker.blockeditor.domain.WorkspaceGraph
 import de.visualtasker.blockeditor.domain.rootOffset
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockRegistry
+import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
+import de.visualtasker.blockeditor.registry.StatementInputDefinition
+import de.visualtasker.blockeditor.registry.ValueInputDefinition
 
 class LayoutEngine(
     private val registry: BlockRegistry = DefaultBlockRegistry,
@@ -125,7 +128,7 @@ class LayoutEngine(
                 zCounter = layoutBlock(currentId, offset.x, currentY, zCounter)
                 val next = WorkspaceGraph.nextChain(document, currentId) ?: break
                 val layout = visibleBlocks.find { it.blockId == currentId }
-                currentY = (layout?.bounds?.bottom ?: currentY) + LayoutConstants.BLOCK_GAP
+                currentY = (layout?.bounds?.bottom ?: currentY) + LayoutConstants.LINEAR_STACK_GAP
                 currentId = next
             }
         }
@@ -171,12 +174,12 @@ class LayoutEngine(
     ): Float {
         val stack = WorkspaceGraph.statementStack(document, blockId, slotName)
         if (stack.isEmpty()) return LayoutConstants.STATEMENT_MIN_HEIGHT
-        var height = LayoutConstants.BLOCK_GAP * (stack.size - 1)
+        var height = LayoutConstants.LINEAR_STACK_GAP * (stack.size - 1)
         stack.forEach { childId ->
             val childDef = registry.getDefinition(document.blocks[childId]?.type ?: "")
             height += estimatedStackBlockHeight(document, childId, childDef)
         }
-        return height.coerceAtLeast(LayoutConstants.STATEMENT_MIN_HEIGHT)
+        return height.coerceAtLeast(LayoutConstants.STATEMENT_MIN_HEIGHT + LayoutConstants.STACK_CONNECTOR_DEPTH)
     }
 
     private fun estimatedStackBlockHeight(
@@ -189,17 +192,17 @@ class LayoutEngine(
                 return LayoutConstants.HEADER_HEIGHT + LayoutConstants.FOOTER_HEIGHT
             }
             var body = LayoutConstants.HEADER_HEIGHT + LayoutConstants.SLOT_PADDING
-            definition.statementInputs.forEach { slotDef ->
+            statementInputDefinitions(definition, document.blocks[blockId]).forEach { slotDef ->
                 var slotContent = computeStatementStackHeight(document, blockId, slotDef.name)
-                if (slotDef.name != de.visualtasker.blockeditor.registry.BlockTypes.SLOT_THEN) {
+                if (slotDef.name != BlockTypes.SLOT_THEN) {
                     slotContent += LayoutConstants.BRANCH_SHELF
                 }
-                if (slotDef.name == de.visualtasker.blockeditor.registry.BlockTypes.SLOT_ELIF) {
+                if (slotDef.name.isElifSlot()) {
                     slotContent += LayoutConstants.ELIF_SECTION_HEIGHT
                 }
                 body += slotContent + LayoutConstants.SLOT_PADDING
             }
-            if (definition.statementInputs.size > 1) {
+            if (statementInputDefinitions(definition, document.blocks[blockId]).size > 1) {
                 body += LayoutConstants.CORNER_RADIUS
             }
             return body + LayoutConstants.FOOTER_HEIGHT
@@ -308,7 +311,9 @@ class LayoutEngine(
         var maxZ = zStart + 1
         var bodyBottom = slotY
 
-        val conditionDef = definition.valueInputs.find { it.name == "CONDITION" }
+        val valueInputDefinitions = valueInputDefinitions(definition, block)
+        val statementInputDefinitions = statementInputDefinitions(definition, block)
+        val conditionDef = valueInputDefinitions.find { it.name == "CONDITION" || it.name == "condition" }
         if (conditionDef != null) {
             val headerSection = Rect(
                 x + LayoutConstants.NESTED_INDENT,
@@ -330,8 +335,8 @@ class LayoutEngine(
             )
         }
 
-        definition.statementInputs.forEach { slotDef ->
-            if (slotDef.name != de.visualtasker.blockeditor.registry.BlockTypes.SLOT_THEN) {
+        statementInputDefinitions.forEach { slotDef ->
+            if (slotDef.name != BlockTypes.SLOT_THEN) {
                 val dividerBounds = Rect(
                     x + LayoutConstants.NESTED_INDENT,
                     slotY,
@@ -348,8 +353,8 @@ class LayoutEngine(
                 slotY += LayoutConstants.BRANCH_SHELF
             }
 
-            if (slotDef.name == de.visualtasker.blockeditor.registry.BlockTypes.SLOT_ELIF) {
-                val elifDef = definition.valueInputs.find { it.name == "ELIF_CONDITION" }
+            if (slotDef.name.isElifSlot()) {
+                val elifDef = valueInputDefinitions.find { it.name == slotDef.name.elifConditionInputName() }
                 val elifSection = Rect(
                     x + LayoutConstants.NESTED_INDENT,
                     slotY,
@@ -409,7 +414,7 @@ class LayoutEngine(
                 maxZ = layoutChild(childId, slotBounds.x, childY, maxZ)
                 val childLayout = visibleBlocks.find { it.blockId == childId }
                 val childHeight = childLayout?.bounds?.height ?: LayoutConstants.HEADER_HEIGHT
-                childY += childHeight + LayoutConstants.BLOCK_GAP
+                childY += childHeight + LayoutConstants.LINEAR_STACK_GAP
                 bodyBottom = maxOf(bodyBottom, childY)
             }
 
@@ -417,7 +422,7 @@ class LayoutEngine(
             bodyBottom = maxOf(bodyBottom, slotBounds.bottom)
         }
 
-        if (definition.statementInputs.size > 1) {
+        if (statementInputDefinitions.size > 1) {
             bodyBottom += LayoutConstants.CORNER_RADIUS
         }
 
@@ -635,7 +640,7 @@ class LayoutEngine(
                 ownerBlockId = blockId,
                 kind = ConnectionKind.Previous,
                 type = null,
-                x = bounds.x + LayoutConstants.NESTED_INDENT,
+                x = bounds.x + LayoutConstants.STACK_DOCK_X.coerceIn(0f, bounds.width),
                 y = bounds.y,
                 radius = LayoutConstants.ANCHOR_RADIUS,
                 zIndex = zIndex,
@@ -647,8 +652,8 @@ class LayoutEngine(
                 ownerBlockId = blockId,
                 kind = ConnectionKind.Next,
                 type = null,
-                x = bounds.x + bounds.width / 2,
-                y = bounds.bottom,
+                x = bounds.x + LayoutConstants.STACK_DOCK_X.coerceIn(0f, bounds.width),
+                y = bounds.bottom + LayoutConstants.STACK_VERTICAL_GAP,
                 radius = LayoutConstants.ANCHOR_RADIUS,
                 zIndex = zIndex,
             )
@@ -706,8 +711,31 @@ class LayoutEngine(
         )
         definition?.isReporter == true -> LayoutConstants.REPORTER_WIDTH
         definition.isDecorativeEventContainer() -> LayoutConstants.STANDARD_WIDTH
-        definition?.statementInputs?.isNotEmpty() == true -> LayoutConstants.STANDARD_WIDTH
+        definition?.statementInputs?.isNotEmpty() == true || block.statementInputs.isNotEmpty() -> LayoutConstants.STANDARD_WIDTH
         else -> LayoutConstants.STANDARD_WIDTH
+    }
+
+    private fun statementInputDefinitions(
+        definition: BlockDefinition,
+        block: BlockNode?,
+    ): List<StatementInputDefinition> {
+        val dynamicInputs = block?.statementInputs.orEmpty()
+        if (dynamicInputs.size <= definition.statementInputs.size) return definition.statementInputs
+        return dynamicInputs.map { input ->
+            StatementInputDefinition(input.name, input.name.branchLabel())
+        }
+    }
+
+    private fun valueInputDefinitions(
+        definition: BlockDefinition,
+        block: BlockNode,
+    ): List<ValueInputDefinition> {
+        val dynamicInputs = block.valueInputs
+        if (dynamicInputs.size <= definition.valueInputs.size) return definition.valueInputs
+        val staticNames = definition.valueInputs.map { it.name }.toSet()
+        return definition.valueInputs + dynamicInputs
+            .filter { input -> input.name !in staticNames }
+            .map { input -> ValueInputDefinition(input.name, input.name.branchLabel(), input.connection.accepts) }
     }
 
     private fun updateSubtreeBounds(
@@ -735,7 +763,30 @@ class LayoutEngine(
     private companion object {
         fun LayoutConstants.VALUE_DOCK_GAP(index: Int): Float = OUTPUT_TAB + index * (REPORTER_WIDTH + 4f)
 
+        val LayoutConstants.LINEAR_STACK_GAP: Float
+            get() = STACK_VERTICAL_GAP
+
         fun BlockDefinition?.isDecorativeEventContainer(): Boolean =
             this?.id == "em_on_start" && statementInputs.isEmpty()
+
+        fun String.isElifSlot(): Boolean =
+            this == BlockTypes.SLOT_ELIF || startsWith("ELIF_")
+
+        fun String.elifConditionInputName(): String =
+            when {
+                this == BlockTypes.SLOT_ELIF -> "ELIF_CONDITION"
+                startsWith("ELIF_") -> "ELIF_CONDITION_${removePrefix("ELIF_")}"
+                else -> "ELIF_CONDITION"
+            }
+
+        fun String.branchLabel(): String =
+            when {
+                this == BlockTypes.SLOT_THEN -> "then"
+                this == BlockTypes.SLOT_ELSE -> "else"
+                isElifSlot() -> "else if"
+                startsWith("ELIF_CONDITION") -> "else if"
+                this == "condition" || this == "CONDITION" -> "if"
+                else -> lowercase()
+            }
     }
 }

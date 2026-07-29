@@ -52,6 +52,7 @@ data class BlockInfoSnapshot(
     val fields: List<BlockInfoField>,
     val slotContext: String?,
     val chainSummary: String,
+    val branchCount: Int = 0,
 )
 
 /** Visuelle Drag-Daten inkl. Layout-Vorschau ohne gezogene Blöcke. */
@@ -310,6 +311,13 @@ class BlockEditorViewModel(
             scope = VariableScope.Global,
         )
         onAction(WorkspaceAction.CreateVariable(variable))
+        onAction(
+            WorkspaceAction.InstantiateBlock(
+                VariableReporterFactory.reporterId(variable.id),
+                96f,
+                120f + (document.rootBlocks.size * 24f),
+            ),
+        )
     }
 
     fun addBlockFromPalette(definition: BlockDefinition) {

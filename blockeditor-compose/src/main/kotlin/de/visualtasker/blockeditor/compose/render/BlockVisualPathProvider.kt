@@ -3,6 +3,11 @@ package de.visualtasker.blockeditor.compose.render
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Path
+import de.visualtasker.blockeditor.compose.shapes.BlockShapeFamily
+import de.visualtasker.blockeditor.compose.shapes.BlockShapeRequest
+import de.visualtasker.blockeditor.compose.shapes.BlockShapeTokens
+import de.visualtasker.blockeditor.compose.shapes.BlockVisualGeometry
+import de.visualtasker.blockeditor.compose.shapes.MaterialExpressiveBlockShapeBuilder
 import de.visualtasker.blockeditor.registry.BlockDefinition
 
 /** Presentation-only shape classification. It has no layout or connection authority. */
@@ -21,8 +26,9 @@ data class BlockVisualPathRequest(
 )
 
 sealed interface BlockVisualPathResult {
-    data class Success(val path: Path) : BlockVisualPathResult
-    data object UseLegacy : BlockVisualPathResult
+    data class Geometry(val geometry: BlockVisualGeometry) : BlockVisualPathResult
+    data class LegacyPath(val path: Path) : BlockVisualPathResult
+    data object Unsupported : BlockVisualPathResult
 }
 
 /**
@@ -33,7 +39,17 @@ fun interface BlockVisualPathProvider {
     fun path(request: BlockVisualPathRequest): BlockVisualPathResult
 
     companion object {
-        val Legacy = BlockVisualPathProvider { BlockVisualPathResult.UseLegacy }
+        val Legacy = BlockVisualPathProvider { BlockVisualPathResult.Unsupported }
+    }
+}
+
+object MaterialExpressiveBlockVisualPathProvider : BlockVisualPathProvider {
+    override fun path(request: BlockVisualPathRequest): BlockVisualPathResult {
+        val geometry = MaterialExpressiveBlockShapeBuilder.geometry(
+            request = request.toShapeRequest(),
+            tokens = BlockShapeTokens().toPx(androidx.compose.ui.unit.Density(1f)),
+        )
+        return BlockVisualPathResult.Geometry(geometry)
     }
 }
 
@@ -47,9 +63,6 @@ internal fun resolveBlockVisualPath(
     if (provider === BlockVisualPathProvider.Legacy) return legacy
 
     val shape = BlockPathCache.shape(definition)
-    if (shape != BlockVisualShape.Reporter && shape != BlockVisualShape.InlineReporter) {
-        return legacy
-    }
     val request = BlockVisualPathRequest(
         definition = definition?.presentationSnapshot(),
         shape = shape,
@@ -59,20 +72,41 @@ internal fun resolveBlockVisualPath(
     val result = try {
         provider.path(request)
     } catch (_: RuntimeException) {
-        BlockVisualPathResult.UseLegacy
+        BlockVisualPathResult.Unsupported
     }
     return when (result) {
-        is BlockVisualPathResult.Success -> result.path
+        is BlockVisualPathResult.Geometry -> result.geometry.path
             .takeUnless(Path::isEmpty)
             ?.let(::copyPath)
             ?: legacy
-        BlockVisualPathResult.UseLegacy -> legacy
+        is BlockVisualPathResult.LegacyPath -> result.path
+            .takeUnless(Path::isEmpty)
+            ?.let(::copyPath)
+            ?: legacy
+        BlockVisualPathResult.Unsupported -> legacy
     }
 }
 
 private fun copyPath(source: Path): Path = Path().apply {
     addPath(source, Offset.Zero)
 }
+
+private fun BlockVisualPathRequest.toShapeRequest(): BlockShapeRequest =
+    BlockShapeRequest(
+        blockType = definition?.id,
+        size = targetSize,
+        family = when (shape) {
+            BlockVisualShape.Statement -> when {
+                definition?.hasPrevious == false -> BlockShapeFamily.Event
+                definition?.hasNext == false -> BlockShapeFamily.Terminal
+                else -> BlockShapeFamily.Statement
+            }
+            BlockVisualShape.Reporter -> BlockShapeFamily.Reporter
+            BlockVisualShape.InlineReporter -> BlockShapeFamily.InlineOperator
+            BlockVisualShape.Container -> BlockShapeFamily.Container
+        },
+        branchDividerYs = branchDividerYs,
+    )
 
 private fun BlockDefinition.presentationSnapshot(): BlockDefinition = copy(
     fields = fields.map { field -> field.copy(options = field.options.toList()) },

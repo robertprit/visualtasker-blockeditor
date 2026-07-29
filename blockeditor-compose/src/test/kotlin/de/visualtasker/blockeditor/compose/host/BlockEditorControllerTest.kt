@@ -2,6 +2,7 @@ package de.visualtasker.blockeditor.compose.host
 
 import de.visualtasker.blockeditor.domain.Offset2
 import de.visualtasker.blockeditor.domain.WorkspaceAction
+import de.visualtasker.blockeditor.domain.WorkspaceGraph
 import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.domain.rootOffset
 import de.visualtasker.blockeditor.compose.render.contrastTextColor
@@ -18,7 +19,9 @@ import de.visualtasker.blockeditor.registry.CompositeBlockRegistry
 import de.visualtasker.blockeditor.registry.FieldDefinition
 import de.visualtasker.blockeditor.registry.FieldKind
 import de.visualtasker.blockeditor.registry.FieldOption
+import de.visualtasker.blockeditor.registry.StatementInputDefinition
 import de.visualtasker.blockeditor.registry.StaticBlockRegistry
+import de.visualtasker.blockeditor.registry.ValueInputDefinition
 import androidx.compose.ui.graphics.Color
 import de.visualtasker.blockeditor.validation.ValidationError
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +34,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -373,11 +377,13 @@ class BlockEditorControllerTest {
 
         controller.onTap(left)
         assertEquals(setOf(blockId), controller.selectedBlockIds)
-        assertEquals(null, controller.selectedBlockInfo())
+        assertEquals(blockId, controller.selectedBlockInfo()!!.blockId)
 
         controller.onTap(center)
         assertEquals(blockId, controller.selectedBlockInfo()!!.blockId)
-        assertFalse(controller.onLongPressDragStart(center))
+        assertTrue(controller.onLongPressDragStart(center))
+        assertEquals(DragPullMode.Single, controller.dragRender!!.session.pullMode)
+        controller.onPointerUp(center)
 
         assertTrue(controller.onLongPressDragStart(left))
         assertEquals(DragPullMode.StackBelow, controller.dragRender!!.session.pullMode)
@@ -425,6 +431,57 @@ class BlockEditorControllerTest {
     }
 
     @Test
+    fun trashDeleteRemovesActiveDragBlockEvenWhenSelectionWasCleared() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
+        val blockId = controller.document.rootBlocks.single()
+        val bounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.bounds
+        val rightHandle = Offset2(bounds.x + bounds.width * 0.88f, bounds.y + bounds.height * 0.5f)
+
+        assertTrue(controller.onLongPressDragStart(rightHandle))
+        controller.onTap(Offset2(-100f, -100f))
+
+        assertTrue(controller.deleteSelectedBlock())
+        assertFalse(blockId in controller.document.blocks)
+        assertTrue(controller.document.rootBlocks.isEmpty())
+
+        controller.close()
+    }
+
+    @Test
+    fun centerLongPressDetachesSingleBlockFromConnectedStack() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 96f, 120f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 220f))
+        val first = controller.document.rootBlocks[0]
+        val second = controller.document.rootBlocks[1]
+        controller.onAction(
+            WorkspaceAction.Connect(
+                controller.document.blocks[first]!!.next!!.id,
+                controller.document.blocks[second]!!.previous!!.id,
+            ),
+        )
+        val secondBounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == second }.bounds
+        val center = Offset2(secondBounds.x + secondBounds.width * 0.5f, secondBounds.y + secondBounds.height * 0.5f)
+
+        assertTrue(controller.onLongPressDragStart(center))
+        assertEquals(DragPullMode.Single, controller.dragRender!!.session.pullMode)
+        controller.onPointerMove(Offset2(center.x + 180f, center.y))
+        controller.onPointerUp(Offset2(center.x + 180f, center.y))
+
+        assertEquals(null, de.visualtasker.blockeditor.domain.WorkspaceGraph.nextChain(controller.document, first))
+        assertEquals(null, de.visualtasker.blockeditor.domain.WorkspaceGraph.previousChain(controller.document, second))
+        assertEquals(null, de.visualtasker.blockeditor.domain.WorkspaceGraph.nextChain(controller.document, second))
+        assertTrue(second in controller.document.rootBlocks)
+
+        controller.close()
+    }
+
+    @Test
     fun rootDragDropClampsPositionToVisibleWorkspaceBounds() {
         val controller = BlockEditorController(
             initialDocument = WorkspaceBootstrap.empty(),
@@ -450,6 +507,285 @@ class BlockEditorControllerTest {
 
         assertEquals(maxX, controller.document.rootOffset(blockId)!!.x, 0.01f)
         assertEquals(maxY, controller.document.rootOffset(blockId)!!.y, 0.01f)
+
+        controller.close()
+    }
+
+    @Test
+    fun rootDragMoveClipsBlockAtVisibleWorkspaceEdge() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onCanvasSizeChange(Offset2(320f, 220f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
+        val blockId = controller.document.rootBlocks.single()
+        val bounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.bounds
+        val rightHandle = Offset2(bounds.x + bounds.width * 0.88f, bounds.y + bounds.height * 0.5f)
+
+        assertTrue(controller.onLongPressDragStart(rightHandle))
+        controller.onPointerMove(Offset2(-1200f, -900f))
+
+        val render = controller.dragRender!!
+        val offset = render.session.dragOffset
+        val draggedBounds = render.dragLayoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.subtreeBounds
+        val left = (draggedBounds.x + offset.x) * controller.viewport.scale + controller.viewport.panX
+        val top = (draggedBounds.y + offset.y) * controller.viewport.scale + controller.viewport.panY
+
+        assertEquals(0f, left, 0.01f)
+        assertEquals(0f, top, 0.01f)
+        controller.onPointerUp(Offset2(-1200f, -900f))
+
+        controller.close()
+    }
+
+    @Test
+    fun selectedBlockTypeCanSwitchIfBranchVariantWithoutLosingSharedConnections() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.CONTROL_IF, 96f, 120f))
+        val blockId = controller.document.rootBlocks.single()
+        controller.selectBlockCenter(blockId)
+
+        assertTrue(controller.replaceSelectedBlockType(BlockTypes.CONTROL_IF_ELSE))
+        val ifElse = controller.document.blocks.getValue(blockId)
+        assertEquals(BlockTypes.CONTROL_IF_ELSE, ifElse.type)
+        assertEquals(listOf(BlockTypes.SLOT_THEN, BlockTypes.SLOT_ELSE), ifElse.statementInputs.map { it.name })
+        assertEquals(setOf(blockId), controller.selectedBlockIds)
+        assertEquals(blockId, controller.selectedBlockInfo()!!.blockId)
+
+        assertTrue(controller.replaceSelectedBlockType(BlockTypes.CONTROL_IF))
+        val ifOnly = controller.document.blocks.getValue(blockId)
+        assertEquals(BlockTypes.CONTROL_IF, ifOnly.type)
+        assertEquals(listOf(BlockTypes.SLOT_THEN), ifOnly.statementInputs.map { it.name })
+
+        controller.close()
+    }
+
+    @Test
+    fun selectedIfBlockCanGrowToEightBranchesAndShrinkBack() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.CONTROL_IF, 96f, 120f))
+        val blockId = controller.document.rootBlocks.single()
+        controller.selectBlockCenter(blockId)
+
+        repeat(7) {
+            assertTrue(controller.addSelectedIfBranch(BlockTypes.CONTROL_IF, BlockTypes.CONTROL_IF_ELSE))
+        }
+
+        val expanded = controller.document.blocks.getValue(blockId)
+        assertEquals(BlockTypes.CONTROL_IF_ELSE, expanded.type)
+        assertEquals(8, controller.selectedBlockInfo()!!.branchCount)
+        assertEquals(
+            listOf(
+                BlockTypes.SLOT_THEN,
+                "ELIF_1",
+                "ELIF_2",
+                "ELIF_3",
+                "ELIF_4",
+                "ELIF_5",
+                "ELIF_6",
+                BlockTypes.SLOT_ELSE,
+            ),
+            expanded.statementInputs.map { it.name },
+        )
+        assertFalse(controller.addSelectedIfBranch(BlockTypes.CONTROL_IF, BlockTypes.CONTROL_IF_ELSE))
+
+        repeat(7) {
+            assertTrue(controller.removeSelectedIfBranch(BlockTypes.CONTROL_IF, BlockTypes.CONTROL_IF_ELSE))
+        }
+
+        val collapsed = controller.document.blocks.getValue(blockId)
+        assertEquals(BlockTypes.CONTROL_IF, collapsed.type)
+        assertEquals(listOf(BlockTypes.SLOT_THEN), collapsed.statementInputs.map { it.name })
+        assertEquals(1, controller.selectedBlockInfo()!!.branchCount)
+
+        controller.close()
+    }
+
+    @Test
+    fun createVariablePlacesReporterBlockInWorkspace() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+
+        controller.createVariable("loginText", "String")
+
+        assertEquals(1, controller.document.variables.variables.size)
+        val reporterId = controller.document.rootBlocks.single()
+        val reporter = controller.document.blocks.getValue(reporterId)
+        assertTrue(reporter.type.startsWith(BlockTypes.VARIABLE_REPORTER_PREFIX))
+        assertEquals("loginText", reporter.fields["variable"]!!.asString())
+
+        controller.close()
+    }
+
+    @Test
+    fun singleDraggingBlockOutOfStartStackKeepsGhostUntilDropThenBridgesGap() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.starter(),
+        )
+        controller.onCanvasSizeChange(Offset2(720f, 540f))
+        repeat(5) { index ->
+            controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f + index * 80f))
+            val newBlock = controller.document.rootBlocks.last()
+            val previous = if (index == 0) {
+                controller.document.rootBlocks.first()
+            } else {
+                controller.document.rootBlocks[controller.document.rootBlocks.size - 2]
+            }
+            controller.onAction(WorkspaceAction.Connect(controller.document.blocks[previous]!!.next!!.id, controller.document.blocks[newBlock]!!.previous!!.id))
+        }
+        val startId = controller.document.rootBlocks.single()
+        val firstDetached = WorkspaceGraph.nextChain(controller.document, startId)!!
+        val remainingHead = WorkspaceGraph.nextChain(controller.document, firstDetached)!!
+        val firstBounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == firstDetached }.bounds
+        val remainingBoundsBefore = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == remainingHead }.bounds
+        val workspaceCenter = Offset2(firstBounds.x + firstBounds.width * 0.5f, firstBounds.y + firstBounds.height * 0.5f)
+        val screenCenter = Offset2(
+            workspaceCenter.x * controller.viewport.scale + controller.viewport.panX,
+            workspaceCenter.y * controller.viewport.scale + controller.viewport.panY,
+        )
+
+        assertTrue(controller.onLongPressDragStart(screenCenter))
+        val staticRemainingBounds = controller.dragRender!!.staticLayoutCache.flatIndex.visibleBlocks
+            .single { it.blockId == remainingHead }
+            .bounds
+        assertEquals(remainingBoundsBefore.y, staticRemainingBounds.y, 0.01f)
+        val detachedDropPoint = Offset2(screenCenter.x + 360f, screenCenter.y + 160f)
+        controller.onPointerMove(detachedDropPoint)
+        assertNull(controller.dragRender!!.snapCandidate)
+        controller.onPointerUp(detachedDropPoint)
+
+        assertEquals(remainingHead, WorkspaceGraph.nextChain(controller.document, startId))
+        assertTrue(firstDetached in controller.document.rootBlocks)
+
+        controller.close()
+    }
+
+    @Test
+    fun draggingStartAwayPreservesPromotedContainerRootPositionAndNestedChildren() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.starter(),
+        )
+        controller.onCanvasSizeChange(Offset2(720f, 540f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.CONTROL_IF_ELSE, 96f, 220f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 160f, 320f))
+        val startId = controller.document.rootBlocks[0]
+        val ifId = controller.document.rootBlocks[1]
+        val childId = controller.document.rootBlocks[2]
+        controller.onAction(WorkspaceAction.Connect(controller.document.blocks[startId]!!.next!!.id, controller.document.blocks[ifId]!!.previous!!.id))
+        controller.onAction(WorkspaceAction.Connect(controller.document.blocks[ifId]!!.statementInputs.single { it.name == BlockTypes.SLOT_THEN }.connection.id, controller.document.blocks[childId]!!.previous!!.id))
+        val ifBoundsBefore = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == ifId }.bounds
+        val childSlotBefore = de.visualtasker.blockeditor.domain.WorkspaceGraph.slotContaining(controller.document, childId)
+        val startBounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == startId }.bounds
+        val workspaceRightHandle = Offset2(startBounds.x + startBounds.width * 0.88f, startBounds.y + startBounds.height * 0.5f)
+        val rightHandle = Offset2(
+            workspaceRightHandle.x * controller.viewport.scale + controller.viewport.panX,
+            workspaceRightHandle.y * controller.viewport.scale + controller.viewport.panY,
+        )
+
+        assertTrue(controller.onLongPressDragStart(rightHandle))
+        val previewIfBounds = controller.dragRender!!.staticLayoutCache.flatIndex.visibleBlocks.single { it.blockId == ifId }.bounds
+        assertEquals(ifBoundsBefore.x, previewIfBounds.x, 0.01f)
+        assertEquals(ifBoundsBefore.y, previewIfBounds.y, 0.01f)
+
+        controller.onPointerMove(Offset2(rightHandle.x + 220f, rightHandle.y))
+        controller.onPointerUp(Offset2(rightHandle.x + 220f, rightHandle.y))
+
+        assertTrue(ifId in controller.document.rootBlocks)
+        assertEquals(ifBoundsBefore.x, controller.document.rootOffset(ifId)!!.x, 0.01f)
+        assertEquals(ifBoundsBefore.y, controller.document.rootOffset(ifId)!!.y, 0.01f)
+        assertEquals(childSlotBefore, de.visualtasker.blockeditor.domain.WorkspaceGraph.slotContaining(controller.document, childId))
+
+        controller.close()
+    }
+
+    @Test
+    fun draggingIfContainerKeepsBranchChildrenAttached() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onCanvasSizeChange(Offset2(720f, 540f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.CONTROL_IF_ELSE, 96f, 160f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 160f, 260f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 160f, 340f))
+        val ifId = controller.document.rootBlocks[0]
+        val thenChild = controller.document.rootBlocks[1]
+        val elseChild = controller.document.rootBlocks[2]
+        controller.onAction(WorkspaceAction.Connect(controller.document.blocks[ifId]!!.statementInputs.single { it.name == BlockTypes.SLOT_THEN }.connection.id, controller.document.blocks[thenChild]!!.previous!!.id))
+        controller.onAction(WorkspaceAction.Connect(controller.document.blocks[ifId]!!.statementInputs.single { it.name == BlockTypes.SLOT_ELSE }.connection.id, controller.document.blocks[elseChild]!!.previous!!.id))
+        val ifBounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == ifId }.bounds
+        val workspaceCenter = Offset2(ifBounds.x + ifBounds.width * 0.5f, ifBounds.y + ifBounds.height * 0.5f)
+        val screenCenter = Offset2(
+            workspaceCenter.x * controller.viewport.scale + controller.viewport.panX,
+            workspaceCenter.y * controller.viewport.scale + controller.viewport.panY,
+        )
+
+        assertTrue(controller.onLongPressDragStart(screenCenter))
+        assertTrue(thenChild in controller.dragRender!!.session.includedBlocks)
+        assertTrue(elseChild in controller.dragRender!!.session.includedBlocks)
+        controller.onPointerMove(Offset2(screenCenter.x + 180f, screenCenter.y + 20f))
+        controller.onPointerUp(Offset2(screenCenter.x + 180f, screenCenter.y + 20f))
+
+        assertEquals(ifId to BlockTypes.SLOT_THEN, de.visualtasker.blockeditor.domain.WorkspaceGraph.slotContaining(controller.document, thenChild))
+        assertEquals(ifId to BlockTypes.SLOT_ELSE, de.visualtasker.blockeditor.domain.WorkspaceGraph.slotContaining(controller.document, elseChild))
+        assertFalse(thenChild in controller.document.rootBlocks)
+        assertFalse(elseChild in controller.document.rootBlocks)
+
+        controller.close()
+    }
+
+    @Test
+    fun draggingEmscriptIfContainerKeepsBranchChildrenAttached() {
+        val registry = CompositeBlockRegistry().apply {
+            register(
+                BlockDefinition(
+                    id = "emscript:control.if_else",
+                    label = "If / Else",
+                    category = "flow",
+                    hasPrevious = true,
+                    hasNext = true,
+                    valueInputs = listOf(ValueInputDefinition("condition", "if", setOf("Bool", "Boolean"))),
+                    statementInputs = listOf(
+                        StatementInputDefinition(BlockTypes.SLOT_THEN, "then"),
+                        StatementInputDefinition(BlockTypes.SLOT_ELSE, "else"),
+                    ),
+                ),
+            )
+        }
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+            registry = registry,
+        )
+        controller.onCanvasSizeChange(Offset2(720f, 540f))
+        controller.onAction(WorkspaceAction.InstantiateBlock("emscript:control.if_else", 96f, 160f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 160f, 260f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 160f, 340f))
+        val ifId = controller.document.rootBlocks[0]
+        val thenChild = controller.document.rootBlocks[1]
+        val elseChild = controller.document.rootBlocks[2]
+        controller.onAction(WorkspaceAction.Connect(controller.document.blocks[ifId]!!.statementInputs.single { it.name == BlockTypes.SLOT_THEN }.connection.id, controller.document.blocks[thenChild]!!.previous!!.id))
+        controller.onAction(WorkspaceAction.Connect(controller.document.blocks[ifId]!!.statementInputs.single { it.name == BlockTypes.SLOT_ELSE }.connection.id, controller.document.blocks[elseChild]!!.previous!!.id))
+        val ifBounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == ifId }.bounds
+        val workspaceCenter = Offset2(ifBounds.x + ifBounds.width * 0.5f, ifBounds.y + ifBounds.height * 0.5f)
+        val screenCenter = Offset2(
+            workspaceCenter.x * controller.viewport.scale + controller.viewport.panX,
+            workspaceCenter.y * controller.viewport.scale + controller.viewport.panY,
+        )
+
+        assertTrue(controller.onLongPressDragStart(screenCenter))
+        assertTrue(thenChild in controller.dragRender!!.session.includedBlocks)
+        assertTrue(elseChild in controller.dragRender!!.session.includedBlocks)
+        controller.onPointerMove(Offset2(screenCenter.x + 180f, screenCenter.y + 20f))
+        controller.onPointerUp(Offset2(screenCenter.x + 180f, screenCenter.y + 20f))
+
+        assertEquals(ifId to BlockTypes.SLOT_THEN, de.visualtasker.blockeditor.domain.WorkspaceGraph.slotContaining(controller.document, thenChild))
+        assertEquals(ifId to BlockTypes.SLOT_ELSE, de.visualtasker.blockeditor.domain.WorkspaceGraph.slotContaining(controller.document, elseChild))
+        assertFalse(thenChild in controller.document.rootBlocks)
+        assertFalse(elseChild in controller.document.rootBlocks)
 
         controller.close()
     }
@@ -515,6 +851,39 @@ class BlockEditorControllerTest {
         assertEquals(0, callbacks.documentChanges.size)
         assertEquals(0, callbacks.validationBatches.size)
         assertEquals(0, callbacks.emscriptDrafts.size)
+
+        controller.close()
+    }
+
+    @Test
+    fun persistentWorkspaceChangesDoNotAutoCenterViewport() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onCanvasSizeChange(Offset2(480f, 360f))
+        controller.onViewportChange(ViewportState(scale = 1f, panX = 72f, panY = 48f))
+
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
+
+        assertEquals(ViewportState(scale = 1f, panX = 72f, panY = 48f), controller.viewport)
+
+        controller.close()
+    }
+
+    @Test
+    fun toolboxCanvasResizeDoesNotRecenterViewportAfterInitialFit() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
+
+        controller.onCanvasSizeChange(Offset2(640f, 420f))
+        controller.onViewportChange(controller.viewport.copy(panX = 24f, panY = 18f))
+        val beforeToolboxResize = controller.viewport
+
+        controller.onCanvasSizeChange(Offset2(420f, 420f))
+
+        assertEquals(beforeToolboxResize, controller.viewport)
 
         controller.close()
     }

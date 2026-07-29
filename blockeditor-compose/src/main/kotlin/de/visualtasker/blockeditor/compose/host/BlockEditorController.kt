@@ -4,8 +4,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.blockeditor.domain.BlockNode
+import de.visualtasker.blockeditor.domain.Connection
+import de.visualtasker.blockeditor.domain.ConnectionId
+import de.visualtasker.blockeditor.domain.ConnectionKind
 import de.visualtasker.blockeditor.domain.FieldValue
 import de.visualtasker.blockeditor.domain.Offset2
+import de.visualtasker.blockeditor.domain.StatementInput
+import de.visualtasker.blockeditor.domain.ValueInput
 import de.visualtasker.blockeditor.domain.VariableDefinition
 import de.visualtasker.blockeditor.domain.VariableRegistry
 import de.visualtasker.blockeditor.domain.VariableScope
@@ -100,6 +106,7 @@ class BlockEditorController(
     private var workspaceState: WorkspaceState = WorkspaceState(initialDocument)
     private var pendingFocusBlockId: BlockId? = null
     private var pendingFocusSelect: Boolean = false
+    private var initialCanvasFitApplied: Boolean = false
 
     override var selectedBlockIds by mutableStateOf<Set<BlockId>>(emptySet())
         private set
@@ -150,9 +157,9 @@ class BlockEditorController(
             clearSelection()
             return
         }
-        val (blockId, zone) = zoneHit
+        val (blockId, _) = zoneHit
         selectSingle(blockId)
-        infoPanelBlockId = if (zone == BlockTouchZone.CenterLabel) blockId else null
+        infoPanelBlockId = blockId
     }
 
     fun onDoubleTap(screenPoint: Offset2) {
@@ -169,7 +176,7 @@ class BlockEditorController(
         return when (zone) {
             BlockTouchZone.LeftGroup -> beginBlockDrag(screenPoint, blockId, DragPullMode.StackBelow)
             BlockTouchZone.RightSingle -> beginBlockDrag(screenPoint, blockId, DragPullMode.Single)
-            BlockTouchZone.CenterLabel -> false
+            BlockTouchZone.CenterLabel -> beginBlockDrag(screenPoint, blockId, DragPullMode.Single)
         }
     }
 
@@ -189,7 +196,7 @@ class BlockEditorController(
             layoutCache = render.staticLayoutCache,
             document = render.previewDocument,
         )
-        val session = updated.dragSession ?: return
+        val session = updated.dragSession?.let(::clampDragSessionToCanvas) ?: return
         render.runtimeState.update(session.dragOffset, updated.activeSnapCandidate)
         dragRender = render.copy(
             session = session,
@@ -208,7 +215,8 @@ class BlockEditorController(
         )
         val activeDrag = dragRender!!
         val (droppedDocument, newTransient) = DragOperations.endDrag(transient, document)
-        val newDocument = clampDroppedRootToCanvas(droppedDocument, activeDrag)
+        val positionedDocument = preserveMissingRootOffsets(droppedDocument)
+        val newDocument = clampDroppedRootToCanvas(positionedDocument, activeDrag)
         dragRender = null
         selectedBlockId = newTransient.selectedBlockId
         if (newDocument != document) {
@@ -236,8 +244,10 @@ class BlockEditorController(
         if (pending != null && focusBlockInCanvas(pending, selectFocusedBlock = pendingFocusSelect)) {
             pendingFocusBlockId = null
             pendingFocusSelect = false
-        } else {
+            initialCanvasFitApplied = true
+        } else if (!initialCanvasFitApplied) {
             fitWorkspaceToCanvas(force = true)
+            initialCanvasFitApplied = true
         }
     }
 
@@ -292,7 +302,7 @@ class BlockEditorController(
     fun deleteSelectedBlock(): Boolean {
         if (disposed.get()) return false
         val activeDrag = dragRender
-        if (activeDrag?.session?.pullMode == DragPullMode.StackBelow) {
+        if (activeDrag != null) {
             val toDelete = activeDrag.session.includedBlocks.filter { it in document.blocks }
             if (toDelete.isEmpty()) return false
             dragRender = null
@@ -355,6 +365,13 @@ class BlockEditorController(
             scope = VariableScope.Global,
         )
         onAction(WorkspaceAction.CreateVariable(variable))
+        onAction(
+            WorkspaceAction.InstantiateBlock(
+                VariableReporterFactory.reporterId(variable.id),
+                96f,
+                120f + (document.rootBlocks.size * 24f),
+            ),
+        )
     }
 
     fun addBlockFromPalette(definition: BlockDefinition) {
@@ -407,6 +424,7 @@ class BlockEditorController(
             fields = (definition.fields + CommonBlockInfoFields).map { it.toBlockInfoField(block) },
             slotContext = slotContext,
             chainSummary = chainPart,
+            branchCount = block.ifBranchCount().takeIf { block.statementInputs.isNotEmpty() } ?: 0,
         )
     }
 
@@ -431,6 +449,39 @@ class BlockEditorController(
         val source = ParameterSourceKind.entries.firstOrNull { it.name == rawSource } ?: return
         if (source !in fieldDef.sourceOptions) return
         onAction(WorkspaceAction.UpdateField(blockId, parameterSourceFieldKey(fieldKey), FieldValue.Text(source.name)))
+    }
+
+    fun replaceSelectedBlockType(targetType: String): Boolean {
+        if (disposed.get()) return false
+        val blockId = selectedBlockId ?: return false
+        return replaceBlockType(blockId, targetType)
+    }
+
+    fun addSelectedIfBranch(
+        ifType: String,
+        ifElseType: String,
+        maxBranches: Int = 8,
+    ): Boolean {
+        if (disposed.get()) return false
+        val blockId = selectedBlockId ?: return false
+        val block = document.blocks[blockId] ?: return false
+        if (block.type != ifType && block.type != ifElseType) return false
+        val nextCount = (block.ifBranchCount() + 1).coerceAtMost(maxBranches)
+        if (nextCount == block.ifBranchCount()) return false
+        return replaceIfBranchShape(blockId, ifType, ifElseType, nextCount)
+    }
+
+    fun removeSelectedIfBranch(
+        ifType: String,
+        ifElseType: String,
+    ): Boolean {
+        if (disposed.get()) return false
+        val blockId = selectedBlockId ?: return false
+        val block = document.blocks[blockId] ?: return false
+        if (block.type != ifType && block.type != ifElseType) return false
+        val nextCount = (block.ifBranchCount() - 1).coerceAtLeast(1)
+        if (nextCount == block.ifBranchCount()) return false
+        return replaceIfBranchShape(blockId, ifType, ifElseType, nextCount)
     }
 
     fun openBlockFactory() {
@@ -460,6 +511,7 @@ class BlockEditorController(
         showBlockFactory = false
         applyPersistentDocumentChange(WorkspaceBootstrap.starter())
         viewport = ViewportState()
+        initialCanvasFitApplied = false
     }
 
     fun replaceWorkspaceDocument(
@@ -472,8 +524,11 @@ class BlockEditorController(
         dragRender = null
         clearSelection()
         applyPersistentDocumentChange(newDocument, recordHistory = recordHistory)
+        initialCanvasFitApplied = false
         val focused = focusBlockId?.takeIf { it in document.blocks } ?: return
-        if (!focusBlockInCanvas(focused, selectFocusedBlock)) {
+        if (focusBlockInCanvas(focused, selectFocusedBlock)) {
+            initialCanvasFitApplied = true
+        } else {
             if (selectFocusedBlock) {
                 selectSingle(focused)
             }
@@ -513,7 +568,6 @@ class BlockEditorController(
         document = newDocument
         syncVariableReporters(newDocument.variables)
         layoutCache = layoutEngine.build(newDocument)
-        fitWorkspaceToCanvas()
         callbacks.onWorkspaceDocumentChanged(WorkspaceSerializer.serialize(newDocument))
         scheduleDerivedOutputs()
     }
@@ -893,6 +947,140 @@ class BlockEditorController(
         return true
     }
 
+    private fun replaceBlockType(blockId: BlockId, targetType: String): Boolean {
+        val source = document.blocks[blockId] ?: return false
+        if (source.type == targetType) return false
+        val targetDefinition = registry.getDefinition(targetType) ?: return false
+        val targetTemplate = targetDefinition.createNode(blockId)
+        val targetConnectionIds = targetTemplate.allConnections().map { it.id }.toSet()
+        val promotedRoots = mutableListOf<BlockId>()
+        var blocks = document.blocks.toMutableMap()
+
+        source.allConnections()
+            .filter { it.id !in targetConnectionIds }
+            .forEach { removedConnection ->
+                val partnerId = removedConnection.connectedTo ?: return@forEach
+                val (partnerBlockId, partnerConnection) = WorkspaceGraph.findConnection(document, partnerId)
+                    ?: return@forEach
+                blocks[partnerBlockId] = blocks[partnerBlockId]
+                    ?.withConnectionUpdated(partnerConnection.id) { it.copy(connectedTo = null) }
+                    ?: return@forEach
+                if (removedConnection.kind == de.visualtasker.blockeditor.domain.ConnectionKind.StatementInput &&
+                    partnerConnection.kind == de.visualtasker.blockeditor.domain.ConnectionKind.Previous
+                ) {
+                    promotedRoots += partnerBlockId
+                }
+            }
+
+        val sourceValueInputs = source.valueInputs.associateBy { it.name }
+        val sourceStatementInputs = source.statementInputs.associateBy { it.name }
+        val replacement = targetTemplate.copy(
+            fields = targetTemplate.fields + source.fields,
+            previous = source.previous?.takeIf { targetTemplate.previous != null },
+            next = source.next?.takeIf { targetTemplate.next != null },
+            output = source.output?.takeIf { targetTemplate.output != null },
+            valueInputs = targetTemplate.valueInputs.map { input ->
+                sourceValueInputs[input.name]?.let { existing ->
+                    input.copy(connection = existing.connection)
+                } ?: input
+            },
+            statementInputs = targetTemplate.statementInputs.map { input ->
+                sourceStatementInputs[input.name]?.let { existing ->
+                    input.copy(connection = existing.connection)
+                } ?: input
+            },
+            collapsed = source.collapsed,
+            metadata = source.metadata,
+        )
+        blocks[blockId] = replacement
+        val updated = document.copy(
+            version = document.version + 1,
+            blocks = blocks,
+            rootBlocks = WorkspaceGraph.pruneRootBlocks(document.copy(blocks = blocks), document.rootBlocks + promotedRoots),
+        )
+        applyPersistentDocumentChange(updated, previousDocument = document)
+        selectSingle(blockId)
+        infoPanelBlockId = blockId
+        return true
+    }
+
+    private fun replaceIfBranchShape(
+        blockId: BlockId,
+        ifType: String,
+        ifElseType: String,
+        branchCount: Int,
+    ): Boolean {
+        val targetType = if (branchCount <= 1) ifType else ifElseType
+        return replaceBlockType(
+            blockId = blockId,
+            targetType = targetType,
+            branchCount = branchCount.coerceIn(1, 8),
+        )
+    }
+
+    private fun replaceBlockType(
+        blockId: BlockId,
+        targetType: String,
+        branchCount: Int,
+    ): Boolean {
+        val source = document.blocks[blockId] ?: return false
+        val targetDefinition = registry.getDefinition(targetType) ?: return false
+        val targetTemplate = targetDefinition.createNode(blockId)
+        val dynamicTemplate = targetTemplate.withIfBranches(branchCount)
+        val targetConnectionIds = dynamicTemplate.allConnections().map { it.id }.toSet()
+        val promotedRoots = mutableListOf<BlockId>()
+        var blocks = document.blocks.toMutableMap()
+
+        source.allConnections()
+            .filter { it.id !in targetConnectionIds }
+            .forEach { removedConnection ->
+                val partnerId = removedConnection.connectedTo ?: return@forEach
+                val (partnerBlockId, partnerConnection) = WorkspaceGraph.findConnection(document, partnerId)
+                    ?: return@forEach
+                blocks[partnerBlockId] = blocks[partnerBlockId]
+                    ?.withConnectionUpdated(partnerConnection.id) { it.copy(connectedTo = null) }
+                    ?: return@forEach
+                if (removedConnection.kind == ConnectionKind.StatementInput &&
+                    partnerConnection.kind == ConnectionKind.Previous
+                ) {
+                    promotedRoots += partnerBlockId
+                }
+            }
+
+        val sourceValueInputs = source.valueInputs.associateBy { it.name }
+        val sourceStatementInputs = source.statementInputs.associateBy { it.name }
+        val replacement = dynamicTemplate.copy(
+            fields = dynamicTemplate.fields + source.fields,
+            previous = source.previous?.takeIf { dynamicTemplate.previous != null },
+            next = source.next?.takeIf { dynamicTemplate.next != null },
+            output = source.output?.takeIf { dynamicTemplate.output != null },
+            valueInputs = dynamicTemplate.valueInputs.map { input ->
+                sourceValueInputs[input.name]?.let { existing ->
+                    input.copy(connection = existing.connection)
+                } ?: input
+            },
+            statementInputs = dynamicTemplate.statementInputs.map { input ->
+                sourceStatementInputs[input.name]?.let { existing ->
+                    input.copy(connection = existing.connection)
+                } ?: input
+            },
+            collapsed = source.collapsed,
+            metadata = source.metadata + ("if.branchCount" to branchCount.toString()),
+        )
+        blocks[blockId] = replacement
+        val updated = preserveMissingRootOffsets(
+            document.copy(
+                version = document.version + 1,
+                blocks = blocks,
+                rootBlocks = WorkspaceGraph.pruneRootBlocks(document.copy(blocks = blocks), document.rootBlocks + promotedRoots),
+            ),
+        )
+        applyPersistentDocumentChange(updated, previousDocument = document)
+        selectSingle(blockId)
+        infoPanelBlockId = blockId
+        return true
+    }
+
     private fun clampDroppedRootToCanvas(
         source: WorkspaceDocument,
         render: DragRenderState,
@@ -925,11 +1113,108 @@ class BlockEditorController(
         return source.withRootOffset(rootId, clampedX, clampedY)
     }
 
+    private fun clampDragSessionToCanvas(
+        session: de.visualtasker.blockeditor.interaction.DragSession,
+    ): de.visualtasker.blockeditor.interaction.DragSession {
+        val render = dragRender ?: return session
+        val size = canvasSize ?: return session
+        if (size.x <= 0f || size.y <= 0f || viewport.scale <= 0f) return session
+        val rootLayout = render.dragLayoutCache.flatIndex.visibleBlocks
+            .find { it.blockId == session.rootBlockId }
+            ?: return session
+
+        val visibleLeft = -viewport.panX / viewport.scale
+        val visibleTop = -viewport.panY / viewport.scale
+        val visibleRight = (size.x - viewport.panX) / viewport.scale
+        val visibleBottom = (size.y - viewport.panY) / viewport.scale
+        val origin = session.originalLayoutPosition
+        val subtreeLeftFromOrigin = rootLayout.subtreeBounds.x - origin.x
+        val subtreeTopFromOrigin = rootLayout.subtreeBounds.y - origin.y
+        val subtreeRightFromOrigin = rootLayout.subtreeBounds.right - origin.x
+        val subtreeBottomFromOrigin = rootLayout.subtreeBounds.bottom - origin.y
+        val minX = visibleLeft - origin.x - subtreeLeftFromOrigin
+        val maxX = visibleRight - origin.x - subtreeRightFromOrigin
+        val minY = visibleTop - origin.y - subtreeTopFromOrigin
+        val maxY = visibleBottom - origin.y - subtreeBottomFromOrigin
+        val clampedOffset = Offset2(
+            session.dragOffset.x.clampToVisibleRange(minX, maxX),
+            session.dragOffset.y.clampToVisibleRange(minY, maxY),
+        )
+        return if (clampedOffset == session.dragOffset) {
+            session
+        } else {
+            session.copy(dragOffset = clampedOffset)
+        }
+    }
+
     private fun Float.clampToVisibleRange(min: Float, max: Float): Float {
         if (!isFinite() || !min.isFinite() || !max.isFinite()) return this
         val clamped = if (min <= max) coerceIn(min, max) else min
         return if (abs(clamped) < 0.0001f) 0f else clamped
     }
+
+    private fun preserveMissingRootOffsets(source: WorkspaceDocument): WorkspaceDocument {
+        var updated = source
+        source.rootBlocks.forEach { rootId ->
+            if (updated.rootOffset(rootId) != null) return@forEach
+            val layout = layoutCache.flatIndex.visibleBlocks.find { it.blockId == rootId } ?: return@forEach
+            updated = updated.withRootOffset(rootId, layout.bounds.x, layout.bounds.y)
+        }
+        return updated
+    }
+
+    private fun BlockNode.ifBranchCount(): Int {
+        val explicit = metadata["if.branchCount"]?.toIntOrNull()
+        if (explicit != null) return explicit.coerceIn(1, 8)
+        return statementInputs.count { input ->
+            input.name == BlockTypes.SLOT_THEN ||
+                input.name == BlockTypes.SLOT_ELSE ||
+                input.name.startsWith("ELIF_")
+        }.coerceAtLeast(1)
+    }
+
+    private fun BlockNode.withIfBranches(branchCount: Int): BlockNode {
+        val count = branchCount.coerceIn(1, 8)
+        if (count <= 1) return this
+        val elifCount = (count - 2).coerceAtLeast(0)
+        val valueInputs = buildList {
+            addAll(this@withIfBranches.valueInputs.filterNot { it.name.startsWith("ELIF_CONDITION_") })
+            repeat(elifCount) { index ->
+                val number = index + 1
+                add(
+                    ValueInput(
+                        name = "ELIF_CONDITION_$number",
+                        connection = Connection(
+                            id = ConnectionId("${id.value}:ELIF_CONDITION_$number"),
+                            owner = id,
+                            kind = ConnectionKind.ValueInput,
+                            accepts = setOf("Bool", "Boolean"),
+                            slotName = "ELIF_CONDITION_$number",
+                        ),
+                    ),
+                )
+            }
+        }
+        val statementInputs = buildList {
+            add(statementInput(BlockTypes.SLOT_THEN))
+            repeat(elifCount) { index ->
+                add(statementInput("ELIF_${index + 1}"))
+            }
+            add(statementInput(BlockTypes.SLOT_ELSE))
+        }
+        return copy(valueInputs = valueInputs, statementInputs = statementInputs)
+    }
+
+    private fun BlockNode.statementInput(name: String): StatementInput =
+        statementInputs.find { it.name == name } ?: StatementInput(
+            name = name,
+            connection = Connection(
+                id = ConnectionId("${id.value}:$name:stmt"),
+                owner = id,
+                kind = ConnectionKind.StatementInput,
+                slotName = name,
+            ),
+        )
 
     private fun beginBlockDrag(screenPoint: Offset2, blockId: BlockId, pullMode: DragPullMode? = null): Boolean {
         if (blockId !in selectedBlockIds) {
@@ -954,6 +1239,7 @@ class BlockEditorController(
                 blockId,
                 session.includedBlocks,
             )
+            layoutDoc = preserveMissingRootOffsets(layoutDoc)
             if (rootBounds != null) {
                 val liftedRoot = layoutDoc.blocks[blockId]
                 if (liftedRoot != null) {
@@ -971,8 +1257,12 @@ class BlockEditorController(
                 document,
                 blockId,
                 session.includedBlocks,
-            )
-            val staticLayout = layoutEngine.build(layoutDoc)
+            ).let(::preserveMissingRootOffsets)
+            val staticLayout = if (session.pullMode == DragPullMode.Single) {
+                preLiftLayout
+            } else {
+                layoutEngine.build(layoutDoc)
+            }
             val dragLayout = layoutEngine.build(layoutDoc)
             val rootLayout = staticLayout.flatIndex.visibleBlocks
                 .find { it.blockId == blockId }

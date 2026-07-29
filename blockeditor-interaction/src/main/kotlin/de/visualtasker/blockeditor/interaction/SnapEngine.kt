@@ -34,6 +34,7 @@ class SnapEngine(
             for (target in nearby) {
                 if (target.ownerBlockId in excluded) continue
                 if (target.connectionId == source.connectionId) continue
+                if (areAlreadyConnected(document, source, target)) continue
                 if (target.kind !in compatible) continue
                 if (!kindsCompatible(source.kind, target.kind)) continue
                 if (WorkspaceGraph.isDescendantOf(document, target.ownerBlockId, dragSession.rootBlockId)) continue
@@ -193,6 +194,20 @@ class SnapEngine(
         } ?: return null
         val (blockId, conn) = WorkspaceGraph.findConnection(document, partnerConnId) ?: return null
         return if (conn.kind == ConnectionKind.Previous) blockId else null
+    }
+
+    private fun areAlreadyConnected(
+        document: de.visualtasker.blockeditor.domain.WorkspaceDocument,
+        source: ConnectionAnchor,
+        target: ConnectionAnchor,
+    ): Boolean {
+        val sourcePartner = WorkspaceGraph.findConnection(document, source.connectionId)
+            ?.second
+            ?.connectedTo
+        val targetPartner = WorkspaceGraph.findConnection(document, target.connectionId)
+            ?.second
+            ?.connectedTo
+        return sourcePartner == target.connectionId || targetPartner == source.connectionId
     }
 
     private fun isCandidateStillValid(

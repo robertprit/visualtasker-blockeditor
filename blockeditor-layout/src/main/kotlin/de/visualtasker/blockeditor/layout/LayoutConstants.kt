@@ -9,6 +9,10 @@ object LayoutConstants {
     const val PREVIEW_RADIUS = 72f
     const val COLLAPSED_HEIGHT = 44f
     const val STANDARD_WIDTH = 288f
+    const val STACK_DOCK_X = 64f
+    const val STACK_CONNECTOR_WIDTH = 28f
+    const val STACK_CONNECTOR_DEPTH = 8f
+    const val STACK_VERTICAL_GAP = 6f
     const val REPORTER_WIDTH = 148f
     const val REPORTER_HEIGHT = 40f
     const val OUTPUT_TAB = 16f

@@ -34,7 +34,7 @@ class StartDragTest {
     }
 
     @Test
-    fun previousAnchor_alignsWithPuzzleNotch() {
+    fun previousAnchor_alignsWithStackDockAxis() {
         val document = SampleWorkspaceFactory.createDemo()
         val chain = SampleWorkspaceFactory.mainChain(document)
         val repeatId = chain[2]
@@ -43,7 +43,7 @@ class StartDragTest {
         val previous = document.blocks[repeatId]!!.previous!!.id
         val anchor = layout.connectionAnchors.first { it.connectionId == previous }
 
-        assertEquals(repeatLayout.bounds.x + LayoutConstants.NESTED_INDENT, anchor.x, 0.01f)
+        assertEquals(repeatLayout.bounds.x + LayoutConstants.STACK_DOCK_X, anchor.x, 0.01f)
         assertEquals(repeatLayout.bounds.y, anchor.y, 0.01f)
     }
 }

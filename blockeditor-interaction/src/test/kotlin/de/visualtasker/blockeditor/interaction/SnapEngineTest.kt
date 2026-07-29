@@ -22,11 +22,20 @@ class SnapEngineTest {
 
     @Test
     fun findSnapCandidate_detectsNearbyCompatibleAnchor() {
-        val document = SampleWorkspaceFactory.createDemo()
-        val chain = SampleWorkspaceFactory.mainChain(document)
-        val layout = layoutEngine.build(document).flatIndex
+        val initial = SampleWorkspaceFactory.createDemo()
+        val chain = SampleWorkspaceFactory.mainChain(initial)
         val clickId = chain[3]
         val repeatId = chain[2]
+        val clickBlock = initial.blocks[clickId]!!
+        val repeatBlock = initial.blocks[repeatId]!!
+        val document = initial.copy(
+            blocks = initial.blocks + mapOf(
+                clickId to clickBlock.copy(previous = clickBlock.previous!!.copy(connectedTo = null)),
+                repeatId to repeatBlock.copy(next = repeatBlock.next!!.copy(connectedTo = null)),
+            ),
+            rootBlocks = initial.rootBlocks + clickId,
+        )
+        val layout = layoutEngine.build(document).flatIndex
         val clickPrevious = document.blocks[clickId]!!.previous!!.id
         val repeatNext = document.blocks[repeatId]!!.next!!.id
         val clickAnchor = layout.connectionAnchors.first { it.connectionId == clickPrevious }

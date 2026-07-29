@@ -61,13 +61,15 @@ fun EditorNavigationRail(
     onCategoryClick: (String) -> Unit,
     onOpenBlockFactory: () -> Unit,
     onClearWorkspace: () -> Unit,
+    showBlockFactoryEntry: Boolean = true,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLowest,
     modifier: Modifier = Modifier,
 ) {
     val categories = BlockCategories.all.filter { it.id != BlockCategories.CUSTOM }
 
     NavigationRail(
         modifier = modifier.fillMaxHeight(),
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = containerColor,
     ) {
         Spacer(Modifier.height(12.dp))
         categories.forEach { category ->
@@ -102,18 +104,20 @@ fun EditorNavigationRail(
             )
         }
         Spacer(Modifier.weight(1f))
-        NavigationRailItem(
-            selected = expandedCategory == BlockCategories.CUSTOM,
-            onClick = onOpenBlockFactory,
-            icon = {
-                Icon(
-                    imageVector = CategoryIcons.forCategory(BlockCategories.CUSTOM),
-                    contentDescription = "Block Factory",
-                    modifier = Modifier.size(24.dp),
-                )
-            },
-            label = null,
-        )
+        if (showBlockFactoryEntry) {
+            NavigationRailItem(
+                selected = expandedCategory == BlockCategories.CUSTOM,
+                onClick = onOpenBlockFactory,
+                icon = {
+                    Icon(
+                        imageVector = CategoryIcons.forCategory(BlockCategories.CUSTOM),
+                        contentDescription = "Block Factory",
+                        modifier = Modifier.size(24.dp),
+                    )
+                },
+                label = null,
+            )
+        }
         NavigationRailItem(
             selected = false,
             onClick = onClearWorkspace,
@@ -138,6 +142,7 @@ fun CategoryPalettePanel(
     onAddBlock: (BlockDefinition) -> Unit,
     onCreateVariable: ((name: String, type: String) -> Unit)? = null,
     onDismiss: () -> Unit,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLowest,
     modifier: Modifier = Modifier,
 ) {
     if (category == null) return
@@ -162,7 +167,7 @@ fun CategoryPalettePanel(
             .fillMaxHeight()
             .width(260.dp)
             .animateContentSize(),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f),
+        color = containerColor,
         tonalElevation = 3.dp,
         shape = MaterialTheme.shapes.large,
     ) {

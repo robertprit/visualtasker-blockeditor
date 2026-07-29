@@ -28,7 +28,7 @@ fun Modifier.workspacePointerGestures(
     val onDragEndState = rememberUpdatedState(onDragEnd)
     val onBlockDragActiveChangeState = rememberUpdatedState(onBlockDragActiveChange)
 
-    val longPressTimeout = viewConfiguration.longPressTimeoutMillis
+    val longPressTimeout = (viewConfiguration.longPressTimeoutMillis / 2).coerceAtLeast(1L)
     val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
     val touchSlop = viewConfiguration.touchSlop
 

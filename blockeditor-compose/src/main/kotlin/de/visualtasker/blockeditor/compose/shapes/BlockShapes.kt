@@ -60,6 +60,37 @@ object BlockShapes {
         close()
     }
 
+    fun startStatementPath(size: Size): Path = Path().apply {
+        val w = size.width
+        val h = size.height
+
+        moveTo(CORNER, 0f)
+        lineTo(w - CORNER, 0f)
+        arcTo(Rect(w - CORNER * 2, 0f, w, CORNER * 2), 270f, 90f, false)
+        lineTo(w, h - CORNER)
+        arcTo(Rect(w - CORNER * 2, h - CORNER * 2, w, h), 0f, 90f, false)
+
+        val tabCenter = w / 2f
+        lineTo(tabCenter + TAB_WIDTH / 2, h)
+
+        cubicTo(
+            tabCenter + TAB_WIDTH / 4, h,
+            tabCenter + TAB_WIDTH / 4, h - TAB_DEPTH,
+            tabCenter, h - TAB_DEPTH
+        )
+        cubicTo(
+            tabCenter - TAB_WIDTH / 4, h - TAB_DEPTH,
+            tabCenter - TAB_WIDTH / 4, h,
+            tabCenter - TAB_WIDTH / 2, h
+        )
+
+        lineTo(CORNER, h)
+        arcTo(Rect(0f, h - CORNER * 2, CORNER * 2, h), 90f, 90f, false)
+        lineTo(0f, CORNER)
+        arcTo(Rect(0f, 0f, CORNER * 2, CORNER * 2), 180f, 90f, false)
+        close()
+    }
+
     fun containerPath(
         size: Size,
         headerHeight: Float,

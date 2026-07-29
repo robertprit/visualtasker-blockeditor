@@ -50,6 +50,59 @@ class LayoutEngineTest {
     }
 
     @Test
+    fun linearEventStatementStack_usesSharedStackDockGeometry() {
+        val startId = BlockId("start")
+        val firstId = BlockId("first")
+        val secondId = BlockId("second")
+        val startDef = DefaultBlockRegistry.getDefinition(BlockTypes.EVENT_START)!!
+        val statementDef = DefaultBlockRegistry.getDefinition("action.wait")!!
+        val startNext = ConnectionId("start:next")
+        val firstPrevious = ConnectionId("first:previous")
+        val firstNext = ConnectionId("first:next")
+        val secondPrevious = ConnectionId("second:previous")
+        val start = startDef.createNode(startId)
+            .withRootOffset(12f, 24f)
+            .copy(next = Connection(startNext, startId, ConnectionKind.Next, connectedTo = firstPrevious))
+        val first = statementDef.createNode(firstId).copy(
+            previous = Connection(firstPrevious, firstId, ConnectionKind.Previous, connectedTo = startNext),
+            next = Connection(firstNext, firstId, ConnectionKind.Next, connectedTo = secondPrevious),
+        )
+        val second = statementDef.createNode(secondId).copy(
+            previous = Connection(secondPrevious, secondId, ConnectionKind.Previous, connectedTo = firstNext),
+        )
+        val document = WorkspaceDocument(
+            id = "linear-stack",
+            blocks = mapOf(startId to start, firstId to first, secondId to second),
+            rootBlocks = listOf(startId),
+        )
+
+        val cache = engine.build(document)
+        val startLayout = cache.flatIndex.visibleBlocks.first { it.blockId == startId }
+        val firstLayout = cache.flatIndex.visibleBlocks.first { it.blockId == firstId }
+        val secondLayout = cache.flatIndex.visibleBlocks.first { it.blockId == secondId }
+        val anchors = cache.flatIndex.connectionAnchors
+
+        assertEquals(startLayout.bounds.x + LayoutConstants.STACK_DOCK_X, anchors.anchor(startId, ConnectionKind.Next).x)
+        assertEquals(firstLayout.bounds.x + LayoutConstants.STACK_DOCK_X, anchors.anchor(firstId, ConnectionKind.Previous).x)
+        assertEquals(firstLayout.bounds.x + LayoutConstants.STACK_DOCK_X, anchors.anchor(firstId, ConnectionKind.Next).x)
+        assertEquals(secondLayout.bounds.x + LayoutConstants.STACK_DOCK_X, anchors.anchor(secondId, ConnectionKind.Previous).x)
+        assertEquals(startLayout.bounds.bottom + LayoutConstants.STACK_VERTICAL_GAP, anchors.anchor(startId, ConnectionKind.Next).y)
+        assertEquals(firstLayout.bounds.y, anchors.anchor(firstId, ConnectionKind.Previous).y)
+        assertEquals(firstLayout.bounds.bottom + LayoutConstants.STACK_VERTICAL_GAP, anchors.anchor(firstId, ConnectionKind.Next).y)
+        assertEquals(secondLayout.bounds.y, anchors.anchor(secondId, ConnectionKind.Previous).y)
+        assertEquals(
+            startLayout.bounds.bottom + LayoutConstants.STACK_VERTICAL_GAP,
+            firstLayout.bounds.y,
+            0.001f,
+        )
+        assertEquals(
+            firstLayout.bounds.bottom + LayoutConstants.STACK_VERTICAL_GAP,
+            secondLayout.bounds.y,
+            0.001f,
+        )
+    }
+
+    @Test
     fun repeatContainer_growsWithBodyStack() {
         val empty = layoutRepeat(emptyList())
         val one = layoutRepeat(listOf("a"))
@@ -278,4 +331,7 @@ class LayoutEngineTest {
 
     private fun blockHeight(cache: LayoutCache, blockId: BlockId): Float =
         cache.flatIndex.visibleBlocks.first { it.blockId == blockId }.bounds.height
+
+    private fun List<ConnectionAnchor>.anchor(blockId: BlockId, kind: ConnectionKind): ConnectionAnchor =
+        first { it.ownerBlockId == blockId && it.kind == kind }
 }

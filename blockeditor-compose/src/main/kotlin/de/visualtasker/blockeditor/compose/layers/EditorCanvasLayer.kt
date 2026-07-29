@@ -6,8 +6,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
@@ -24,11 +25,14 @@ import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.domain.WorkspaceGraph
 import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.domain.Offset2
+import de.visualtasker.blockeditor.interaction.DragPullMode
 import de.visualtasker.blockeditor.layout.ContainerBranchLayout
 import de.visualtasker.blockeditor.layout.LayoutCache
 import de.visualtasker.blockeditor.layout.LayoutConstants
 import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
+
+private const val GhostBlockAlpha = 0.42f
 
 /**
  * Ein Canvas: Hintergrund aus Layout-Vorschau (ohne gezogene Blöcke),
@@ -85,6 +89,10 @@ fun EditorCanvasLayer(
         render.snapCandidate?.snapOffset ?: render.session.dragOffset
     }
     val snapTargetId = dragRender?.snapCandidate?.targetConnectionId
+    val ghostRootId = dragRender
+        ?.takeIf { it.session.pullMode == DragPullMode.Single }
+        ?.session
+        ?.rootBlockId
 
     Canvas(modifier = modifier.fillMaxSize()) {
         if (gridVisible) {
@@ -95,7 +103,7 @@ fun EditorCanvasLayer(
                 staticLayout.flatIndex.visibleBlocks
                     .sortedBy { it.zIndex }
                     .forEach { layout ->
-                        if (movesWithDrag(layout.blockId)) return@forEach
+                        if (movesWithDrag(layout.blockId) && layout.blockId != ghostRootId) return@forEach
                         val block = document.blocks[layout.blockId] ?: return@forEach
                         val definition = registry.getDefinition(block.type)
                         val blockTopLeft = Offset2(layout.bounds.x, layout.bounds.y)
@@ -106,27 +114,37 @@ fun EditorCanvasLayer(
                         )
                         val inlineLayout = staticLayout.flatIndex.inlineReporterLayouts
                             .find { it.blockId == layout.blockId }
-                        drawBlock(
-                            block = block,
-                            definition = definition,
-                            topLeft = Offset(layout.bounds.x, layout.bounds.y),
-                            width = layout.bounds.width,
-                            height = layout.bounds.height,
-                            textMeasurer = textMeasurer,
-                            colors = colors,
-                            registry = registry,
-                            branchDividerYs = branchDividers,
-                            branchSections = branchSections,
-                            inlineReporterLayout = inlineLayout,
-                            visualPathProvider = visualPathProvider,
-                        )
-                        if (layout.blockId in selectedBlockIds) {
-                            drawRect(
-                                color = Color(0xFF42A5F5),
-                                topLeft = Offset(layout.bounds.x - 3f, layout.bounds.y - 3f),
-                                size = Size(layout.bounds.width + 6f, layout.bounds.height + 6f),
-                                style = Stroke(width = 3f),
+                        val drawStaticBlock = {
+                            drawBlock(
+                                block = block,
+                                definition = definition,
+                                topLeft = Offset(layout.bounds.x, layout.bounds.y),
+                                width = layout.bounds.width,
+                                height = layout.bounds.height,
+                                textMeasurer = textMeasurer,
+                                colors = colors,
+                                registry = registry,
+                                branchDividerYs = branchDividers,
+                                branchSections = branchSections,
+                                inlineReporterLayout = inlineLayout,
+                                visualPathProvider = visualPathProvider,
+                                selected = layout.blockId in selectedBlockIds,
                             )
+                        }
+                        if (layout.blockId == ghostRootId) {
+                            drawContext.canvas.saveLayer(
+                                Rect(
+                                    left = layout.bounds.x,
+                                    top = layout.bounds.y,
+                                    right = layout.bounds.x + layout.bounds.width,
+                                    bottom = layout.bounds.y + layout.bounds.height,
+                                ),
+                                Paint().apply { alpha = GhostBlockAlpha },
+                            )
+                            drawStaticBlock()
+                            drawContext.canvas.restore()
+                        } else {
+                            drawStaticBlock()
                         }
                     }
 
