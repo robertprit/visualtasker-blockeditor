@@ -105,6 +105,8 @@ data class BlockDefinition(
     val paletteVisible: Boolean = true,
     val deprecated: Boolean = false,
     val paletteOrder: Int = 0,
+    val metadata: Map<String, String> = emptyMap(),
+    val svgPath: String? = null,
 )
 
 interface BlockRegistry {
@@ -181,6 +183,7 @@ fun BlockDefinition.createNode(blockId: BlockId): BlockNode {
                 ),
             )
         },
+        metadata = metadata,
     )
 }
 

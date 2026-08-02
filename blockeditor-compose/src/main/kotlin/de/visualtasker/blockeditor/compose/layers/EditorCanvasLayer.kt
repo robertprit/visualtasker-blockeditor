@@ -114,6 +114,7 @@ fun EditorCanvasLayer(
                         )
                         val inlineLayout = staticLayout.flatIndex.inlineReporterLayouts
                             .find { it.blockId == layout.blockId }
+                            ?.relativeTo(layout)
                         val drawStaticBlock = {
                             drawBlock(
                                 block = block,
@@ -172,6 +173,7 @@ fun EditorCanvasLayer(
                             )
                             val inlineLayout = dragLayout.flatIndex.inlineReporterLayouts
                                 .find { it.blockId == layout.blockId }
+                                ?.relativeTo(layout)
                             drawBlock(
                                 block = block,
                                 definition = definition,

@@ -10,6 +10,8 @@ import de.visualtasker.blockeditor.layout.LayoutEngine
 import de.visualtasker.blockeditor.layout.SpatialIndex
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.SampleWorkspaceFactory
+import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
+import de.visualtasker.blockeditor.registry.asFactory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -213,5 +215,60 @@ class SnapEngineTest {
         assertNotNull(candidate)
         assertEquals(repeatPrevious, candidate!!.sourceConnectionId)
         assertEquals(startNext, candidate.targetConnectionId)
+    }
+
+    @Test
+    fun findSnapCandidate_skipsOccupiedValueInput() {
+        val factory = DefaultBlockRegistry.asFactory()
+        var document = de.visualtasker.blockeditor.domain.WorkspaceDocument(id = "occupied-value-snap")
+        document = de.visualtasker.blockeditor.domain.WorkspaceReducer.reduce(
+            document,
+            de.visualtasker.blockeditor.domain.WorkspaceAction.InstantiateBlock(BlockTypes.LOGIC_AND, 0f, 0f),
+            factory,
+        )
+        val andId = document.rootBlocks.single()
+        document = de.visualtasker.blockeditor.domain.WorkspaceReducer.reduce(
+            document,
+            de.visualtasker.blockeditor.domain.WorkspaceAction.InstantiateBlock(BlockTypes.LOGIC_BOOLEAN, 0f, 80f),
+            factory,
+        )
+        val firstReporterId = document.rootBlocks.last()
+        document = de.visualtasker.blockeditor.domain.WorkspaceReducer.reduce(
+            document,
+            de.visualtasker.blockeditor.domain.WorkspaceAction.InstantiateBlock(BlockTypes.LOGIC_BOOLEAN, 0f, 140f),
+            factory,
+        )
+        val secondReporterId = document.rootBlocks.last()
+        val aInput = document.blocks[andId]!!.valueInputs.first { it.name == "A" }.connection.id
+        document = de.visualtasker.blockeditor.domain.WorkspaceReducer.reduce(
+            document,
+            de.visualtasker.blockeditor.domain.WorkspaceAction.Connect(
+                document.blocks[firstReporterId]!!.output!!.id,
+                aInput,
+            ),
+            factory,
+        )
+
+        val layout = layoutEngine.build(document).flatIndex
+        val secondOutput = document.blocks[secondReporterId]!!.output!!.id
+        val outputAnchor = layout.connectionAnchors.first { it.connectionId == secondOutput }
+        val aAnchor = layout.connectionAnchors.first { it.connectionId == aInput }
+        val dragSession = DragSession(
+            rootBlockId = secondReporterId,
+            includedBlocks = setOf(secondReporterId),
+            pullMode = DragPullMode.Single,
+            startPointer = Offset2(0f, 0f),
+            currentPointer = Offset2(0f, 0f),
+            originalLayoutPosition = Offset2(0f, 140f),
+            dragOffset = Offset2(
+                x = aAnchor.x - outputAnchor.x,
+                y = aAnchor.y - outputAnchor.y,
+            ),
+            originalAnchors = layout.connectionAnchors.filter { it.ownerBlockId == secondReporterId },
+        )
+
+        val candidate = snapEngine.findSnapCandidate(layout, dragSession, document)
+
+        assertNull(candidate)
     }
 }

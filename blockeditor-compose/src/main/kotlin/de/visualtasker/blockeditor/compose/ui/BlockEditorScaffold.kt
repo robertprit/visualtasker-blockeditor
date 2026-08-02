@@ -4,6 +4,7 @@ package de.visualtasker.blockeditor.compose.ui
 
 import android.media.AudioManager
 import android.media.ToneGenerator
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -23,7 +24,6 @@ import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.ZoomOut
 import androidx.compose.material3.Icon
@@ -69,6 +69,7 @@ import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.layout.LayoutCache
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockDesignBlueprint
+import de.visualtasker.blockeditor.registry.BlockCategories
 import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
 import kotlinx.coroutines.coroutineScope
@@ -97,12 +98,15 @@ fun BlockEditorScaffold(
     onAddBlock: (BlockDefinition) -> Unit,
     onCreateVariable: (String, String) -> Unit,
     onToggleBottomPanel: () -> Unit,
+    onCloseTopMostPanel: () -> Boolean = { false },
     onOpenBlockFactory: () -> Unit,
     onDismissBlockFactory: () -> Unit,
     onCreateCustomBlock: (BlockDesignBlueprint) -> Unit,
     onClearWorkspace: () -> Unit,
     showBottomPanelToggle: Boolean = true,
     showBlockFactoryEntry: Boolean = true,
+    gridEnabled: Boolean = true,
+    extraCategories: List<BlockCategories.CategoryMeta> = emptyList(),
     onFitWorkspace: () -> Unit,
     onUndo: () -> Boolean,
     onRedo: () -> Boolean,
@@ -140,12 +144,15 @@ fun BlockEditorScaffold(
         onAddBlock = onAddBlock,
         onCreateVariable = onCreateVariable,
         onToggleBottomPanel = onToggleBottomPanel,
+        onCloseTopMostPanel = onCloseTopMostPanel,
         onOpenBlockFactory = onOpenBlockFactory,
         onDismissBlockFactory = onDismissBlockFactory,
         onCreateCustomBlock = onCreateCustomBlock,
         onClearWorkspace = onClearWorkspace,
         showBottomPanelToggle = showBottomPanelToggle,
         showBlockFactoryEntry = showBlockFactoryEntry,
+        gridEnabled = gridEnabled,
+        extraCategories = extraCategories,
         onFitWorkspace = onFitWorkspace,
         onUndo = onUndo,
         onRedo = onRedo,
@@ -187,12 +194,15 @@ fun BlockEditorScaffold(
     onAddBlock: (BlockDefinition) -> Unit,
     onCreateVariable: (String, String) -> Unit,
     onToggleBottomPanel: () -> Unit,
+    onCloseTopMostPanel: () -> Boolean = { false },
     onOpenBlockFactory: () -> Unit,
     onDismissBlockFactory: () -> Unit,
     onCreateCustomBlock: (BlockDesignBlueprint) -> Unit,
     onClearWorkspace: () -> Unit,
     showBottomPanelToggle: Boolean = true,
     showBlockFactoryEntry: Boolean = true,
+    gridEnabled: Boolean = true,
+    extraCategories: List<BlockCategories.CategoryMeta> = emptyList(),
     onFitWorkspace: () -> Unit,
     onUndo: () -> Boolean,
     onRedo: () -> Boolean,
@@ -247,13 +257,18 @@ fun BlockEditorScaffold(
     var blockDragActive by remember { mutableStateOf(false) }
     var latestDragPoint by remember { mutableStateOf<Offset2?>(null) }
     var canvasSize by remember { mutableStateOf(Offset2(0f, 0f)) }
-    var gridVisible by remember { mutableStateOf(true) }
+    val gridVisible = gridEnabled
     val deleteCandidate = blockDragActive &&
         latestDragPoint?.let { isInTrashZone(it, canvasSize, trashSizePx, trashMarginPx) } == true
 
     val workspaceOutlineColor = scheme.outlineVariant.copy(alpha = 0.55f)
     val toolboxColor = scheme.surfaceContainerLowest
     val workspaceShape = RoundedCornerShape(30.dp)
+    BackHandler(
+        enabled = showBlockFactory || expandedCategory != null || showBottomPanel,
+    ) {
+        onCloseTopMostPanel()
+    }
 
     Row(modifier = modifier.fillMaxSize()) {
         EditorNavigationRail(
@@ -262,6 +277,7 @@ fun BlockEditorScaffold(
             onOpenBlockFactory = onOpenBlockFactory,
             onClearWorkspace = onClearWorkspace,
             showBlockFactoryEntry = showBlockFactoryEntry,
+            extraCategories = extraCategories,
             containerColor = toolboxColor,
         )
 
@@ -362,13 +378,11 @@ fun BlockEditorScaffold(
                 )
                 BlockEditorIconBar(
                     selectedBlockAvailable = selectedBlockIds.isNotEmpty(),
-                    gridVisible = gridVisible,
                     onFitWorkspace = onFitWorkspace,
                     onUndo = onUndo,
                     onRedo = onRedo,
                     onZoomIn = onZoomIn,
                     onZoomOut = onZoomOut,
-                    onToggleGrid = { gridVisible = !gridVisible },
                     onDeleteSelectedBlock = {
                         if (onDeleteSelectedBlock()) {
                             playEditorSound(platformView, soundEffectsEnabled)
@@ -495,13 +509,11 @@ private fun playEditorSound(
 @Composable
 private fun BlockEditorIconBar(
     selectedBlockAvailable: Boolean,
-    gridVisible: Boolean,
     onFitWorkspace: () -> Unit,
     onUndo: () -> Boolean,
     onRedo: () -> Boolean,
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
-    onToggleGrid: () -> Unit,
     onDeleteSelectedBlock: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -537,12 +549,6 @@ private fun BlockEditorIconBar(
                 description = "Workspace einpassen",
                 icon = Icons.Filled.CenterFocusStrong,
                 onClick = onFitWorkspace,
-            )
-            BlockEditorToolbarIconButton(
-                description = "Raster umschalten",
-                icon = Icons.Filled.GridOn,
-                selected = gridVisible,
-                onClick = onToggleGrid,
             )
             BlockEditorToolbarIconButton(
                 description = "Ausgewählten Block löschen",

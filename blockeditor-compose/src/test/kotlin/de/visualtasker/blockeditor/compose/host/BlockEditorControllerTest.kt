@@ -13,6 +13,7 @@ import de.visualtasker.blockeditor.emscript.WorkspaceCodeGenerator
 import de.visualtasker.blockeditor.interaction.DragPullMode
 import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.registry.BlockTypes
+import de.visualtasker.blockeditor.registry.BlockCategories
 import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.CompositeBlockRegistry
@@ -1282,6 +1283,76 @@ class BlockEditorControllerTest {
         controller.onCategoryClick("test")
         assertEquals(listOf("visible"), controller.definitionsForExpandedCategory().map(BlockDefinition::id))
         assertEquals("hidden", registry.getDefinition("hidden")?.id)
+        controller.close()
+    }
+
+    @Test fun closeTopMostPanelClosesFactoryBeforeBottomPanel() {
+        val controller = BlockEditorController(initialDocument = WorkspaceBootstrap.empty())
+        controller.openBlockFactory()
+
+        assertTrue(controller.showBlockFactory)
+        assertTrue(controller.showBottomPanel)
+        assertTrue(controller.closeTopMostPanel())
+
+        assertFalse(controller.showBlockFactory)
+        assertEquals(BlockCategories.CUSTOM, controller.expandedCategory)
+        assertTrue(controller.showBottomPanel)
+        controller.close()
+    }
+
+    @Test fun closeTopMostPanelClosesPaletteBeforeBottomPanel() {
+        val controller = BlockEditorController(initialDocument = WorkspaceBootstrap.empty())
+        controller.onCategoryClick(BlockCategories.ACTION)
+
+        assertEquals(BlockCategories.ACTION, controller.expandedCategory)
+        assertTrue(controller.showBottomPanel)
+        assertTrue(controller.closeTopMostPanel())
+
+        assertNull(controller.expandedCategory)
+        assertTrue(controller.showBottomPanel)
+        controller.close()
+    }
+
+    @Test fun closeTopMostPanelClosesOnlyBottomPanelWhenNoInnerPanelIsOpen() {
+        val controller = BlockEditorController(initialDocument = WorkspaceBootstrap.empty())
+
+        assertTrue(controller.showBottomPanel)
+        assertTrue(controller.closeTopMostPanel())
+
+        assertFalse(controller.showBottomPanel)
+        assertFalse(controller.closeTopMostPanel())
+        controller.close()
+    }
+
+    @Test fun closeTopMostPanelReturnsFalseWhenHostMayCloseOuterPanel() {
+        val controller = BlockEditorController(initialDocument = WorkspaceBootstrap.empty())
+        controller.setBottomPanelVisible(false)
+
+        assertFalse(controller.showBlockFactory)
+        assertNull(controller.expandedCategory)
+        assertFalse(controller.showBottomPanel)
+        assertFalse(controller.closeTopMostPanel())
+        controller.close()
+    }
+
+    @Test fun repeatedCloseTopMostPanelClosesOneLayerAtATime() {
+        val controller = BlockEditorController(initialDocument = WorkspaceBootstrap.empty())
+        controller.openBlockFactory()
+
+        assertTrue(controller.closeTopMostPanel())
+        assertFalse(controller.showBlockFactory)
+        assertEquals(BlockCategories.CUSTOM, controller.expandedCategory)
+        assertTrue(controller.showBottomPanel)
+
+        assertTrue(controller.closeTopMostPanel())
+        assertFalse(controller.showBlockFactory)
+        assertNull(controller.expandedCategory)
+        assertTrue(controller.showBottomPanel)
+
+        assertTrue(controller.closeTopMostPanel())
+        assertFalse(controller.showBottomPanel)
+
+        assertFalse(controller.closeTopMostPanel())
         controller.close()
     }
 

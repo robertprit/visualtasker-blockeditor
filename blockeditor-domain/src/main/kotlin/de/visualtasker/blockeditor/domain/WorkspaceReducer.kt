@@ -236,6 +236,7 @@ object WorkspaceReducer {
                 return connect(document, target, source)
             sourceConn.kind == ConnectionKind.Output && targetConn.kind == ConnectionKind.ValueInput -> {
                 if (!typesCompatible(sourceConn, targetConn)) return document
+                if (targetConn.connectedTo != null && targetConn.connectedTo != source) return document
                 targetConn.connectedTo?.let { blocks = disconnectAt(blocks, target) }
                 sourceConn.connectedTo?.let { blocks = disconnectAt(blocks, source) }
                 blocks = link(blocks, sourceBlockId, source, target)

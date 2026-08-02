@@ -164,12 +164,24 @@ class SnapEngine(
     /**
      * Belegter Snap-Punkt: nur erlauben, wenn der gezogene Block freies `next` hat,
      * damit der bisherige Partner darunter gestapelt werden kann.
+     * ValueInputs haben keine implizite Replace-Interaktion; belegte Reporter-Slots
+     * bleiben ohne expliziten Disconnect/Replace geschlossen.
      */
     private fun shouldSkipOccupiedTarget(
         document: de.visualtasker.blockeditor.domain.WorkspaceDocument,
         dragSession: DragSession,
         target: ConnectionAnchor,
     ): Boolean {
+        if (target.kind == ConnectionKind.ValueInput) {
+            val partnerId = document.blocks[target.ownerBlockId]
+                ?.valueInputs
+                ?.firstOrNull { it.connection.id == target.connectionId }
+                ?.connection
+                ?.connectedTo
+            if (partnerId != null) {
+                return true
+            }
+        }
         val occupiedPartnerId = occupiedPartnerBlockId(document, target) ?: return false
         if (occupiedPartnerId == dragSession.rootBlockId) return false
         if (occupiedPartnerId in dragSession.includedBlocks) return true

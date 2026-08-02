@@ -194,6 +194,36 @@ class LayoutEngineTest {
     }
 
     @Test
+    fun multiValueReporter_placesValueInputAnchorsAtDistinctSlots() {
+        val andId = BlockId("and")
+        val and = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_AND)!!
+            .createNode(andId)
+            .withRootOffset(0f, 0f)
+        val document = WorkspaceDocument(
+            id = "multi-value-reporter-layout",
+            blocks = mapOf(andId to and),
+            rootBlocks = listOf(andId),
+        )
+
+        val cache = engine.build(document)
+        val inputHits = cache.flatIndex.hitPrimitives
+            .filter { it.blockId == andId && it.kind == HitKind.ValueInput }
+            .associateBy { it.inputName }
+        val inputAnchors = cache.flatIndex.connectionAnchors
+            .filter { it.ownerBlockId == andId && it.kind == ConnectionKind.ValueInput }
+            .associateBy { it.connectionId }
+        val aInput = and.valueInputs.first { it.name == "A" }
+        val bInput = and.valueInputs.first { it.name == "B" }
+        val aAnchor = inputAnchors.getValue(aInput.connection.id)
+        val bAnchor = inputAnchors.getValue(bInput.connection.id)
+
+        assertEquals(setOf("A", "B"), inputHits.keys)
+        assertEquals(inputHits.getValue("A").bounds.x, aAnchor.x, 0.001f)
+        assertEquals(inputHits.getValue("B").bounds.x, bAnchor.x, 0.001f)
+        assertTrue("A and B anchors must not overlap", aAnchor.x < bAnchor.x)
+    }
+
+    @Test
     fun ifElseContainer_usesIndependentSlotHeightsAcrossBranches() {
         val cache = layoutControl(BlockTypes.CONTROL_IF_ELSE)
         val controlId = BlockId("control")

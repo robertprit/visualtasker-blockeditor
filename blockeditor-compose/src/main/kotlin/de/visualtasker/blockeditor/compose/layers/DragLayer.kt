@@ -49,6 +49,7 @@ fun DragLayer(
             )
             val inlineLayout = layoutCache.flatIndex.inlineReporterLayouts
                 .find { it.blockId == layout.blockId }
+                ?.relativeTo(layout)
             drawBlock(
                 block = block,
                 definition = definition,

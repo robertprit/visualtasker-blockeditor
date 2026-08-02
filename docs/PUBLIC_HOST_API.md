@@ -90,13 +90,38 @@ Gradle resolves these to the included build projects automatically when group/ve
 // blockeditor-serialization
 object BlockEditorDocumentFormats {
     const val WORKSPACE_JSON = "application/vnd.visualtasker.blockeditor+json"
+    const val EMSCRIPT = "text/x-emscript"
 }
 
 object WorkspaceSerializer {
     fun serialize(document: WorkspaceDocument): String
     fun deserialize(raw: String): WorkspaceDocument
 }
+
+object BlockEditorDocumentImporter {
+    fun import(
+        raw: String,
+        fileName: String? = null,
+        mimeType: String? = null,
+    ): WorkspaceDocument
+}
 ```
+
+`WorkspaceSerializer` is the strict native save/load path for
+`application/vnd.visualtasker.blockeditor+json`. `BlockEditorDocumentImporter`
+is the public gateway for files selected by a host. It detects native workspace
+JSON, tolerant Blockly/Macrorify XML, and known but unsupported EMScript input.
+
+- Workspace JSON is the native persisted Blockeditor format and routes to
+  `WorkspaceSerializer.deserialize`.
+- Blockly/XML is a tolerant import path. It creates a `WorkspaceDocument`,
+  preserves visible legacy/unsupported blocks, keeps original legacy metadata,
+  maps known Macrorify blocks to canonical diagnostic metadata, and does not
+  create executable `ScriptIr`.
+- EMScript input (`.ems` or `text/x-emscript`) is recognized but fails
+  deterministically with `WorkspaceSerializationException("EMScript import is not implemented yet.")`.
+- Unknown inputs fail with `WorkspaceSerializationException` and a format
+  description.
 
 ### Workspace bootstrap
 

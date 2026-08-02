@@ -385,6 +385,37 @@ class BlockEditorController(
         showBottomPanel = !showBottomPanel
     }
 
+    fun setBottomPanelVisible(visible: Boolean) {
+        if (disposed.get()) return
+        showBottomPanel = visible
+    }
+
+    fun closeTopMostPanel(): Boolean {
+        if (disposed.get()) return false
+        return when (topMostCloseTarget(panelCloseState())) {
+            BlockEditorPanelCloseTarget.BlockFactory -> {
+                showBlockFactory = false
+                true
+            }
+            BlockEditorPanelCloseTarget.CategoryPalette -> {
+                expandedCategory = null
+                true
+            }
+            BlockEditorPanelCloseTarget.BottomPanel -> {
+                showBottomPanel = false
+                true
+            }
+            null -> false
+        }
+    }
+
+    private fun panelCloseState(): BlockEditorPanelCloseState =
+        BlockEditorPanelCloseState(
+            showBlockFactory = showBlockFactory,
+            expandedCategory = expandedCategory,
+            showBottomPanel = showBottomPanel,
+        )
+
     /** Explicitly regenerates the derived code with the same generator used by all other paths. */
     fun regenerateCode(): String? {
         if (disposed.get()) return null

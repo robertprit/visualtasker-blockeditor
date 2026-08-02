@@ -73,6 +73,8 @@ data class InlineReporterLayout(
     val leftSlot: Rect,
     val operatorBounds: Rect,
     val rightSlot: Rect,
+    val leftInputName: String = "Input1",
+    val rightInputName: String = "Input2",
     val zIndex: Int,
 )
 

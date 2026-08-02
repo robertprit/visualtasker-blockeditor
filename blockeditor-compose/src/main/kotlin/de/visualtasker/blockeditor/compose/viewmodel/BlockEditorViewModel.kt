@@ -5,6 +5,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import de.visualtasker.blockeditor.compose.debug.EditorDebugLog
+import de.visualtasker.blockeditor.compose.host.BlockEditorPanelCloseState
+import de.visualtasker.blockeditor.compose.host.BlockEditorPanelCloseTarget
+import de.visualtasker.blockeditor.compose.host.topMostCloseTarget
 import de.visualtasker.blockeditor.domain.BlockId
 import de.visualtasker.blockeditor.domain.Offset2
 import de.visualtasker.blockeditor.domain.WorkspaceAction
@@ -328,6 +331,34 @@ class BlockEditorViewModel(
     fun toggleBottomPanel() {
         showBottomPanel = !showBottomPanel
     }
+
+    fun setBottomPanelVisible(visible: Boolean) {
+        showBottomPanel = visible
+    }
+
+    fun closeTopMostPanel(): Boolean =
+        when (topMostCloseTarget(panelCloseState())) {
+            BlockEditorPanelCloseTarget.BlockFactory -> {
+                showBlockFactory = false
+                true
+            }
+            BlockEditorPanelCloseTarget.CategoryPalette -> {
+                expandedCategory = null
+                true
+            }
+            BlockEditorPanelCloseTarget.BottomPanel -> {
+                showBottomPanel = false
+                true
+            }
+            null -> false
+        }
+
+    private fun panelCloseState(): BlockEditorPanelCloseState =
+        BlockEditorPanelCloseState(
+            showBlockFactory = showBlockFactory,
+            expandedCategory = expandedCategory,
+            showBottomPanel = showBottomPanel,
+        )
 
     fun selectedBlockInfo(): BlockInfoSnapshot? {
         val blockId = selectedBlockId ?: return null

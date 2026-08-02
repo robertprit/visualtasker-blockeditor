@@ -59,6 +59,24 @@ data class CustomConnectionTypeDefinition(
 )
 
 @Serializable
+enum class BlockDesignPortHandleKind {
+    PREVIOUS,
+    NEXT,
+    VALUE_INPUT,
+    STATEMENT_BRANCH,
+    OUTPUT,
+    CUSTOM,
+}
+
+@Serializable
+data class BlockDesignPortHandle(
+    val name: String,
+    val kind: BlockDesignPortHandleKind,
+    val x: Float,
+    val y: Float,
+)
+
+@Serializable
 data class BlockDesignInputDefinition(
     val kind: BlockDesignInputKind,
     val name: String,
@@ -66,6 +84,8 @@ data class BlockDesignInputDefinition(
     val connectionType: String = "Any",
     val required: Boolean = false,
     val defaultValue: String = "",
+    val portX: Float? = null,
+    val portY: Float? = null,
 )
 
 @Serializable
@@ -102,6 +122,8 @@ data class BlockDesignBlueprint(
     val inputs: List<BlockDesignInputDefinition> = emptyList(),
     val infoFields: List<BlockDesignFieldBlueprint> = emptyList(),
     val generatorTemplate: String = "",
+    val svgPath: String? = null,
+    val portHandles: List<BlockDesignPortHandle> = emptyList(),
 )
 
 object BlockDesignFactory {
@@ -130,6 +152,7 @@ object BlockDesignFactory {
             valueInputs = blueprint.valueInputs.ifEmpty { generatedValueInputs },
             statementInputs = blueprint.statementInputs.ifEmpty { generatedStatementInputs },
             isReporter = blueprint.isReporter,
+            svgPath = blueprint.svgPath,
         )
     }
 

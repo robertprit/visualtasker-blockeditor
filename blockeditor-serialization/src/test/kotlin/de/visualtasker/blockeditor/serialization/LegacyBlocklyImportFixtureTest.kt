@@ -1,140 +1,157 @@
 package de.visualtasker.blockeditor.serialization
 
+import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.blockeditor.domain.ConnectionKind
+import de.visualtasker.blockeditor.domain.FieldValue
+import de.visualtasker.blockeditor.domain.WorkspacePoint
+import de.visualtasker.blockeditor.domain.asString
+import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.w3c.dom.Element
-import org.w3c.dom.Node
-import java.io.InputStream
-import javax.xml.parsers.DocumentBuilderFactory
 
 class LegacyBlocklyImportFixtureTest {
     @Test
-    fun macrorifyEmscriptBlocklyFixture_preservesLegacyDescriptorStructure() {
-        val document = parseLegacyFixture("legacy/macrorify_macro.ems-4.xml")
+    fun workspaceJsonRoutesToWorkspaceSerializer() {
+        val original = WorkspaceBootstrap.starter().copy(id = "native-json")
+        val document = BlockEditorDocumentImporter.import(
+            raw = WorkspaceSerializer.serialize(original),
+            mimeType = BlockEditorDocumentFormats.WORKSPACE_JSON,
+        )
 
-        assertEquals("https://developers.google.com/blockly/xml", document.xmlNamespace)
-        assertEquals("start", document.root.id)
-        assertEquals("em_on_start", document.root.type)
-        assertTrue(document.knownLegacyDescriptors.containsKey(document.root.type))
-        assertFalse(document.runtimeAuthority)
-        assertFalse(document.executableIrCreated)
+        assertEquals("native-json", document.id)
+        assertEquals(original.rootBlocks, document.rootBlocks)
+    }
 
-        val doHead = document.root.statementBlocks.getValue("DO")
-        assertEquals("scan", doHead.id)
-        assertEquals("em_scan_element_tree", doHead.type)
-        assertTrue(document.knownLegacyDescriptors.containsKey(doHead.type))
+    @Test
+    fun blocklyXmlRoutesToLegacyBlocklyXmlImporter() {
+        val document = BlockEditorDocumentImporter.import(
+            raw = fixture("legacy/macrorify_macro.ems-4.xml"),
+            fileName = "macrorify_macro.ems (4).xml",
+        )
 
-        val click = doHead.next!!
-        assertEquals("click-login", click.id)
+        assertEquals("macrorify_macro", document.id)
+        assertEquals(BlockId("start"), document.rootBlocks.single())
+        assertEquals("em_on_start", document.blocks.getValue(BlockId("start")).type)
+    }
+
+    @Test
+    fun macrorifyEmscriptBlocklyFixtureImportsAsWorkspaceDocument() {
+        val document = BlockEditorDocumentImporter.import(
+            raw = fixture("legacy/macrorify_macro.ems-4.xml"),
+            fileName = "macrorify_macro.ems (4).xml",
+        )
+
+        val start = document.blocks.getValue(BlockId("start"))
+        assertEquals("em_on_start", start.type)
+        assertEquals("EVENT.ON_START", start.metadata["macro.canonical.command"])
+        assertEquals("absent", start.metadata["macro.import.runtimeAuthority"])
+        assertEquals("workspace-only", start.metadata["macro.import.representation"])
+
+        val scan = document.blocks.getValue(BlockId("scan"))
+        assertEquals("em_scan_element_tree", scan.type)
+        assertEquals(start.statementInputs.single { it.name == "DO" }.connection.id, scan.previous!!.connectedTo)
+        assertEquals(ConnectionKind.StatementInput, start.statementInputs.single { it.name == "DO" }.connection.kind)
+
+        val click = document.blocks.getValue(BlockId("click-login"))
         assertEquals("em_click_text", click.type)
-        assertTrue(document.knownLegacyDescriptors.containsKey(click.type))
-        assertEquals("Login", click.shadowValues.getValue("TEXT").fields.getValue("TEXT"))
+        assertEquals(scan.next!!.id, click.previous!!.connectedTo)
+        assertEquals("Login", click.fields.getValue("TEXT").asString())
 
-        val screenshot = click.next!!
-        assertEquals("screenshot", screenshot.id)
+        val loginText = document.blocks.getValue(BlockId("login-text"))
+        assertEquals("em_text", loginText.type)
+        assertEquals(FieldValue.Text("Login"), loginText.fields["field:TEXT"])
+        assertEquals(click.valueInputs.single { it.name == "TEXT" }.connection.id, loginText.output!!.connectedTo)
+
+        val screenshot = document.blocks.getValue(BlockId("screenshot"))
         assertEquals("em_screenshot", screenshot.type)
-        assertTrue(document.knownLegacyDescriptors.containsKey(screenshot.type))
-        assertEquals("/sdcard/screen.png", screenshot.shadowValues.getValue("PATH").fields.getValue("TEXT"))
-        assertEquals(null, screenshot.next)
+        assertEquals(click.next!!.id, screenshot.previous!!.connectedTo)
+        assertEquals("/sdcard/screen.png", screenshot.fields.getValue("PATH").asString())
 
-        val reporterTypes = listOf(
-            click.shadowValues.getValue("TEXT").type,
-            screenshot.shadowValues.getValue("PATH").type,
-        )
-        assertEquals(listOf("em_text", "em_text"), reporterTypes)
-        reporterTypes.forEach { type ->
-            assertTrue(document.knownLegacyDescriptors.containsKey(type))
-        }
+        val screenshotPath = document.blocks.getValue(BlockId("screenshot-path"))
+        assertEquals("em_text", screenshotPath.type)
+        assertEquals(FieldValue.Text("/sdcard/screen.png"), screenshotPath.fields["field:TEXT"])
+        assertEquals(screenshot.valueInputs.single { it.name == "PATH" }.connection.id, screenshotPath.output!!.connectedTo)
     }
 
-    private fun parseLegacyFixture(resourcePath: String): LegacyBlocklyImportDocument {
-        val stream = javaClass.classLoader?.getResourceAsStream(resourcePath)
-        assertNotNull("Missing test fixture $resourcePath", stream)
-        stream!!.use { input ->
-            val root = xmlRoot(input)
-            val topLevelBlock = root.childElements("block").single()
-            return LegacyBlocklyImportDocument(
-                xmlNamespace = root.namespaceURI,
-                root = parseBlock(topLevelBlock),
+    @Test
+    fun rootPositionFromXmlAttributesIsPreserved() {
+        val document = BlockEditorDocumentImporter.import(
+            raw = """<xml xmlns="https://developers.google.com/blockly/xml"><block type="em_on_start" id="start" x="12" y="34"/></xml>""",
+            fileName = "position.xml",
+        )
+
+        assertEquals(WorkspacePoint(12f, 34f), document.rootPositions[BlockId("start")])
+    }
+
+    @Test
+    fun blankInputFailsClearly() {
+        val failure = failure { BlockEditorDocumentImporter.import("   ") }
+
+        assertEquals("Blockeditor document is blank.", failure.message)
+    }
+
+    @Test
+    fun malformedXmlFailsClearly() {
+        val failure = failure {
+            BlockEditorDocumentImporter.import("<xml><block type=\"em_on_start\"></xml>", fileName = "broken.xml")
+        }
+
+        assertTrue(failure.message!!.contains("Malformed Blockly XML"))
+    }
+
+    @Test
+    fun unsupportedEmscriptImportFailsClearly() {
+        val failure = failure {
+            BlockEditorDocumentImporter.import("click text Login", fileName = "script.ems")
+        }
+
+        assertEquals("EMScript import is not implemented yet.", failure.message)
+    }
+
+    @Test
+    fun emscriptFileNameFailsClearlyEvenWhenContentLooksLikeXml() {
+        val failure = failure {
+            BlockEditorDocumentImporter.import(
+                raw = """<xml xmlns="https://developers.google.com/blockly/xml"><block type="em_on_start" id="start"/></xml>""",
+                fileName = "script.ems",
             )
         }
+
+        assertEquals("EMScript import is not implemented yet.", failure.message)
     }
 
-    private fun xmlRoot(input: InputStream): Element {
-        val factory = DocumentBuilderFactory.newInstance()
-        factory.isNamespaceAware = true
-        return factory.newDocumentBuilder().parse(input).documentElement
-    }
-
-    private fun parseBlock(element: Element): LegacyBlock {
-        val statementBlocks = element.childElements("statement").associate { statement ->
-            val name = statement.getAttribute("name")
-            val block = statement.childElements("block").single()
-            name to parseBlock(block)
-        }
-        val shadowValues = element.childElements("value").mapNotNull { value ->
-            val name = value.getAttribute("name")
-            val shadow = value.childElements("shadow").singleOrNull() ?: return@mapNotNull null
-            name to LegacyShadow(
-                id = shadow.getAttribute("id"),
-                type = shadow.getAttribute("type"),
-                fields = shadow.childElements("field").associate { field ->
-                    field.getAttribute("name") to field.textContent
-                },
-            )
-        }.toMap()
-        val nextBlock = element.childElements("next")
-            .singleOrNull()
-            ?.childElements("block")
-            ?.singleOrNull()
-            ?.let(::parseBlock)
-
-        return LegacyBlock(
-            id = element.getAttribute("id"),
-            type = element.getAttribute("type"),
-            statementBlocks = statementBlocks,
-            shadowValues = shadowValues,
-            next = nextBlock,
+    @Test
+    fun unknownXmlBlockRemainsVisibleAsUnsupportedLegacyBlock() {
+        val document = BlockEditorDocumentImporter.import(
+            raw = """<xml xmlns="https://developers.google.com/blockly/xml"><block type="vendor_custom" id="custom"><field name="LABEL">Keep me</field></block></xml>""",
+            fileName = "unknown.xml",
         )
+        val block = document.blocks.getValue(BlockId("custom"))
+
+        assertEquals("vendor_custom", block.type)
+        assertEquals(FieldValue.Text("Keep me"), block.fields["field:LABEL"])
+        assertEquals("vendor_custom", block.metadata["macro.originalType"])
+        assertEquals("true", block.metadata["macro.unsupported"])
+        assertEquals("unknown", block.metadata["macro.import.status"])
+        assertNotEquals(null, block.metadata["macro.import.warning"])
     }
 
-    private fun Element.childElements(localName: String): List<Element> =
-        childNodes.asSequence()
-            .filterIsInstance<Element>()
-            .filter { it.localName == localName }
-            .toList()
+    private fun fixture(resourcePath: String): String =
+        javaClass.classLoader
+            ?.getResourceAsStream(resourcePath)
+            ?.use { it.readBytes().toString(Charsets.UTF_8) }
+            ?: error("Missing test fixture $resourcePath")
 
-    private fun org.w3c.dom.NodeList.asSequence(): Sequence<Node> =
-        (0 until length).asSequence().map { item(it) }
+    private fun failure(block: () -> Unit): WorkspaceSerializationException {
+        val failure = try {
+            block()
+            null
+        } catch (error: WorkspaceSerializationException) {
+            error
+        }
+        assertNotEquals(null, failure)
+        return failure!!
+    }
 }
-
-private data class LegacyBlocklyImportDocument(
-    val xmlNamespace: String,
-    val root: LegacyBlock,
-    val knownLegacyDescriptors: Map<String, String> = mapOf(
-        "em_on_start" to "EVENT.ON_START",
-        "em_scan_element_tree" to "ACCESSIBILITY.SCAN_ELEMENT_TREE",
-        "em_click_text" to "UI.CLICK_TEXT",
-        "em_screenshot" to "VISION.SCREENSHOT",
-        "em_text" to "TEXT_LITERAL",
-    ),
-    val runtimeAuthority: Boolean = false,
-    val executableIrCreated: Boolean = false,
-)
-
-private data class LegacyBlock(
-    val id: String,
-    val type: String,
-    val statementBlocks: Map<String, LegacyBlock>,
-    val shadowValues: Map<String, LegacyShadow>,
-    val next: LegacyBlock?,
-)
-
-private data class LegacyShadow(
-    val id: String,
-    val type: String,
-    val fields: Map<String, String>,
-)

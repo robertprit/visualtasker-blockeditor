@@ -27,6 +27,7 @@ fun BlockEditorScreen(
         onAddBlock = viewModel::addBlockFromPalette,
         onCreateVariable = viewModel::createVariable,
         onToggleBottomPanel = viewModel::toggleBottomPanel,
+        onCloseTopMostPanel = viewModel::closeTopMostPanel,
         onOpenBlockFactory = viewModel::openBlockFactory,
         onDismissBlockFactory = viewModel::dismissBlockFactory,
         onCreateCustomBlock = viewModel::createCustomBlock,

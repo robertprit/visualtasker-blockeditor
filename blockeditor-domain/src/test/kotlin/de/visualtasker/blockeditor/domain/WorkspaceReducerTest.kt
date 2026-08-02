@@ -141,6 +141,37 @@ class WorkspaceReducerTest {
         assertEquals(listOf(clickId, waitId), WorkspaceGraph.statementStack(lifted, repeatId, BlockTypes.SLOT_DO))
     }
 
+    @Test
+    fun connect_doesNotReplaceOccupiedValueInputWithoutExplicitDisconnect() {
+        var document = WorkspaceDocument(id = "occupied-value-input")
+        document = reduce(document, WorkspaceAction.InstantiateBlock(BlockTypes.LOGIC_AND, 0f, 0f))
+        val andId = document.rootBlocks.single()
+        document = reduce(document, WorkspaceAction.InstantiateBlock(BlockTypes.LOGIC_BOOLEAN, 0f, 80f))
+        val firstReporterId = document.rootBlocks.last()
+        document = reduce(document, WorkspaceAction.InstantiateBlock(BlockTypes.LOGIC_BOOLEAN, 0f, 140f))
+        val secondReporterId = document.rootBlocks.last()
+
+        val and = document.blocks[andId]!!
+        val aInput = and.valueInputs.first { it.name == "A" }.connection.id
+        val bInput = and.valueInputs.first { it.name == "B" }.connection.id
+        val firstOutput = document.blocks[firstReporterId]!!.output!!.id
+        val secondOutput = document.blocks[secondReporterId]!!.output!!.id
+
+        document = reduce(document, WorkspaceAction.Connect(firstOutput, aInput))
+        val afterBlockedReplace = reduce(document, WorkspaceAction.Connect(secondOutput, aInput))
+
+        assertEquals(firstOutput, afterBlockedReplace.blocks[andId]!!.valueInputs.first { it.name == "A" }.connection.connectedTo)
+        assertEquals(aInput, afterBlockedReplace.blocks[firstReporterId]!!.output!!.connectedTo)
+        assertEquals(null, afterBlockedReplace.blocks[secondReporterId]!!.output!!.connectedTo)
+        assertTrue(secondReporterId in afterBlockedReplace.rootBlocks)
+
+        val afterSecondSlot = reduce(afterBlockedReplace, WorkspaceAction.Connect(secondOutput, bInput))
+
+        assertEquals(firstOutput, afterSecondSlot.blocks[andId]!!.valueInputs.first { it.name == "A" }.connection.connectedTo)
+        assertEquals(secondOutput, afterSecondSlot.blocks[andId]!!.valueInputs.first { it.name == "B" }.connection.connectedTo)
+        assertEquals(bInput, afterSecondSlot.blocks[secondReporterId]!!.output!!.connectedTo)
+    }
+
     private fun reduce(document: WorkspaceDocument, action: WorkspaceAction): WorkspaceDocument =
         WorkspaceReducer.reduce(document, action, factory)
 }

@@ -107,6 +107,16 @@ class LayoutEngine(
                     zIndex = zStart,
                     inputName = input.name,
                 )
+                connectionAnchors += ConnectionAnchor(
+                    connectionId = input.connection.id,
+                    ownerBlockId = blockId,
+                    kind = ConnectionKind.ValueInput,
+                    type = input.connection.accepts.firstOrNull(),
+                    x = slotBounds.x,
+                    y = slotBounds.y + LayoutConstants.REPORTER_HEIGHT / 2f,
+                    radius = LayoutConstants.ANCHOR_RADIUS,
+                    zIndex = zStart,
+                )
                 input.connection.connectedTo?.let { connId ->
                     val (valueBlockId, _) = WorkspaceGraph.findConnection(document, connId) ?: return@let
                     maxZ = layoutBlock(valueBlockId, slotX, y, maxZ)
@@ -114,7 +124,7 @@ class LayoutEngine(
                 }
             }
 
-            addAnchors(block, blockId, bounds, zStart, connectionAnchors)
+            addAnchors(block, blockId, bounds, zStart, connectionAnchors, includeValueInputs = false)
             updateSubtreeBounds(visibleBlocks, blockId, bounds, subtreeBottom)
             return maxOf(maxZ, zStart + 1)
         }
@@ -512,8 +522,9 @@ class LayoutEngine(
         inlineReporterLayouts: MutableList<InlineReporterLayout>,
         layoutChild: (BlockId, Float, Float, Int) -> Int,
     ): Int {
-        val leftWidth = inlineSlotWidth(document, block, "Input1")
-        val rightWidth = inlineSlotWidth(document, block, "Input2")
+        val (leftInputName, rightInputName) = inlineReporterInputNames(block)
+        val leftWidth = inlineSlotWidth(document, block, leftInputName)
+        val rightWidth = inlineSlotWidth(document, block, rightInputName)
         val width = inlineReporterWidth(leftWidth, rightWidth)
         val height = LayoutConstants.REPORTER_HEIGHT
         val bounds = Rect(x, y, width, height)
@@ -549,10 +560,12 @@ class LayoutEngine(
             leftSlot = leftSlot,
             operatorBounds = operatorBounds,
             rightSlot = rightSlot,
+            leftInputName = leftInputName,
+            rightInputName = rightInputName,
             zIndex = zStart,
         )
 
-        listOf("Input1" to leftSlot, "Input2" to rightSlot).forEach { (inputName, slotBounds) ->
+        listOf(leftInputName to leftSlot, rightInputName to rightSlot).forEach { (inputName, slotBounds) ->
             val input = block.valueInputs.find { it.name == inputName } ?: return@forEach
             hitPrimitives += HitPrimitive(
                 id = "${blockId.value}:value:${input.name}",
@@ -616,13 +629,23 @@ class LayoutEngine(
         val child = document.blocks[childId] ?: return LayoutConstants.INLINE_MIN_SLOT_WIDTH
         val childDef = registry.getDefinition(child.type)
         return if (childDef?.inputsInline == true) {
-            inlineReporterWidth(
-                inlineSlotWidth(document, child, "Input1"),
-                inlineSlotWidth(document, child, "Input2"),
-            )
+            inlineReporterWidth(document, child)
         } else {
             LayoutConstants.INLINE_MIN_SLOT_WIDTH
         }
+    }
+
+    private fun inlineReporterWidth(document: WorkspaceDocument, block: BlockNode): Float {
+        val (leftInputName, rightInputName) = inlineReporterInputNames(block)
+        return inlineReporterWidth(
+            inlineSlotWidth(document, block, leftInputName),
+            inlineSlotWidth(document, block, rightInputName),
+        )
+    }
+
+    private fun inlineReporterInputNames(block: BlockNode): Pair<String, String> {
+        val names = block.valueInputs.map { it.name }
+        return (names.getOrNull(0) ?: "Input1") to (names.getOrNull(1) ?: "Input2")
     }
 
     private fun addAnchors(
@@ -705,10 +728,7 @@ class LayoutEngine(
         definition: BlockDefinition?,
         block: BlockNode,
     ): Float = when {
-        definition?.inputsInline == true -> inlineReporterWidth(
-            inlineSlotWidth(document, block, "Input1"),
-            inlineSlotWidth(document, block, "Input2"),
-        )
+        definition?.inputsInline == true -> inlineReporterWidth(document, block)
         definition?.isReporter == true -> LayoutConstants.REPORTER_WIDTH
         definition.isDecorativeEventContainer() -> LayoutConstants.STANDARD_WIDTH
         definition?.statementInputs?.isNotEmpty() == true || block.statementInputs.isNotEmpty() -> LayoutConstants.STANDARD_WIDTH

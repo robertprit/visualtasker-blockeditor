@@ -48,6 +48,7 @@ fun BlockEditorHost(
         onAddBlock = controller::addBlockFromPalette,
         onCreateVariable = controller::createVariable,
         onToggleBottomPanel = controller::toggleBottomPanel,
+        onCloseTopMostPanel = controller::closeTopMostPanel,
         onOpenBlockFactory = if (uiConfig.showBlockFactory) controller::openBlockFactory else ({ }),
         onDismissBlockFactory = controller::dismissBlockFactory,
         onCreateCustomBlock = controller::createCustomBlock,

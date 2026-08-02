@@ -62,10 +62,14 @@ fun EditorNavigationRail(
     onOpenBlockFactory: () -> Unit,
     onClearWorkspace: () -> Unit,
     showBlockFactoryEntry: Boolean = true,
+    extraCategories: List<BlockCategories.CategoryMeta> = emptyList(),
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLowest,
     modifier: Modifier = Modifier,
 ) {
-    val categories = BlockCategories.all.filter { it.id != BlockCategories.CUSTOM }
+    val categories = remember(extraCategories) {
+        (BlockCategories.all.filter { it.id != BlockCategories.CUSTOM } + extraCategories)
+            .distinctBy { it.id }
+    }
 
     NavigationRail(
         modifier = modifier.fillMaxHeight(),

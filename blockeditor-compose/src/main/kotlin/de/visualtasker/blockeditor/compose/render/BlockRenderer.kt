@@ -167,7 +167,10 @@ internal fun DrawScope.drawBlock(
                 availableWidth = operatorTextSize.width,
                 availableHeight = operatorTextSize.height,
             )
-            listOf("Input1" to inlineReporterLayout.leftSlot, "Input2" to inlineReporterLayout.rightSlot)
+            listOf(
+                inlineReporterLayout.leftInputName to inlineReporterLayout.leftSlot,
+                inlineReporterLayout.rightInputName to inlineReporterLayout.rightSlot,
+            )
                 .forEach { (inputName, slot) ->
                     val connected = block.valueInputs.find { it.name == inputName }
                         ?.connection?.connectedTo != null
