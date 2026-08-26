@@ -18,6 +18,7 @@ interface BlockEditorControllerState {
     val document: WorkspaceDocument
     val layoutCache: LayoutCache
     val viewport: ViewportState
+    val runtimeState: BlockEditorRuntimeState
     val dragRender: DragRenderState?
     val selectedBlockIds: Set<BlockId>
     val showBottomPanel: Boolean

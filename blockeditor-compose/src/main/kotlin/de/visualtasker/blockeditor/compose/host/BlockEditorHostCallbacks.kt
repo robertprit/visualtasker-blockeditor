@@ -13,6 +13,7 @@ interface BlockEditorHostCallbacks {
     fun onValidationErrors(errors: List<ValidationError>)
     fun onValidationEvent(event: BlockEditorValidationEvent) = Unit
     fun onEmscriptGenerationFailed(message: String) = Unit
+    fun onRuntimeStateChanged(state: BlockEditorRuntimeState) = Unit
 
     companion object {
         val NoOp: BlockEditorHostCallbacks = object : BlockEditorHostCallbacks {

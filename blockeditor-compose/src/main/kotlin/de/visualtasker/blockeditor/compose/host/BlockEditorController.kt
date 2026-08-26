@@ -60,6 +60,7 @@ import de.visualtasker.blockeditor.registry.asFactory
 import de.visualtasker.blockeditor.registry.createNode
 import de.visualtasker.blockeditor.serialization.WorkspaceSerializer
 import de.visualtasker.blockeditor.validation.Validator
+import de.visualtasker.blockeditor.validation.ValidationError
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoSnapshot
 import de.visualtasker.blockeditor.compose.viewmodel.CommonBlockInfoFields
 import de.visualtasker.blockeditor.compose.viewmodel.DragRenderState
@@ -96,6 +97,9 @@ class BlockEditorController(
     private val disposed = AtomicBoolean(false)
     private var debounceJob: Job? = null
     private var lastValidDraft: String = ""
+    private var lastPersistentValidationErrors: List<ValidationError> = emptyList()
+    private var lastEmscriptGenerationFailure: String? = null
+    private var releaseChecklist: BlockEditorReleaseChecklist = BlockEditorReleaseChecklist()
 
     override var document by mutableStateOf(initialDocument)
         private set
@@ -104,6 +108,9 @@ class BlockEditorController(
         private set
 
     override var viewport by mutableStateOf(ViewportState())
+        private set
+
+    override var runtimeState by mutableStateOf(BlockEditorRuntimeState())
         private set
 
     private var canvasSize by mutableStateOf<Offset2?>(null)
@@ -669,6 +676,15 @@ class BlockEditorController(
         }
     }
 
+    /**
+     * Host-owned release checklist update. `RUNNING` is only possible after a complete checklist.
+     */
+    fun updateReleaseChecklist(checklist: BlockEditorReleaseChecklist) {
+        if (disposed.get()) return
+        releaseChecklist = checklist
+        recomputeRuntimeState()
+    }
+
     override fun close() {
         if (!disposed.compareAndSet(false, true)) return
         debounceJob?.cancel()
@@ -988,7 +1004,9 @@ class BlockEditorController(
         )
         pendingDetachActive = false
         pendingValidationPhase = BlockEditorValidationPhase.AFTER_DOCUMENT_MUTATION
+        lastPersistentValidationErrors = result.errors
         callbacks.onValidationErrors(result.errors)
+        recomputeRuntimeState()
     }
 
     private fun emitEmscriptImmediate() {
@@ -1011,6 +1029,8 @@ class BlockEditorController(
     }.fold(
         onSuccess = { draft ->
             lastValidDraft = draft
+            lastEmscriptGenerationFailure = null
+            recomputeRuntimeState()
             draft
         },
         onFailure = { error ->
@@ -1019,10 +1039,49 @@ class BlockEditorController(
                     ?: error::class.simpleName
                     ?: "Unknown error"
                 callbacks.onEmscriptGenerationFailed("EMScript generation failed: $reason")
+                lastEmscriptGenerationFailure = "EMScript generation failed: $reason"
+            } else if (lastEmscriptGenerationFailure == null) {
+                lastEmscriptGenerationFailure = error.message?.takeIf { it.isNotBlank() }
+                    ?: error::class.simpleName
+                    ?: "Unknown error"
             }
+            recomputeRuntimeState()
             null
         },
     )
+
+    private fun recomputeRuntimeState() {
+        val temporaryGuards = buildSet {
+            if (!releaseChecklist.isCompleteForRunning) {
+                add(BlockEditorTemporaryGuard.RELEASE_CHECKLIST_INCOMPLETE)
+            }
+            if (lastPersistentValidationErrors.isNotEmpty()) {
+                add(BlockEditorTemporaryGuard.PERSISTENT_VALIDATION_ERRORS)
+            }
+            if (lastEmscriptGenerationFailure != null) {
+                add(BlockEditorTemporaryGuard.EMSCRIPT_GENERATION_UNAVAILABLE)
+            }
+        }
+        val nextStatus = when {
+            BlockEditorTemporaryGuard.PERSISTENT_VALIDATION_ERRORS in temporaryGuards ||
+                BlockEditorTemporaryGuard.EMSCRIPT_GENERATION_UNAVAILABLE in temporaryGuards ->
+                BlockEditorRuntimeStatus.BLOCKED
+            temporaryGuards.isNotEmpty() -> BlockEditorRuntimeStatus.RUNNING_WITH_GUARDS
+            else -> BlockEditorRuntimeStatus.RUNNING
+        }
+        val next = BlockEditorRuntimeState(
+            status = nextStatus,
+            checklist = releaseChecklist,
+            temporaryGuards = temporaryGuards,
+            persistentValidationErrors = lastPersistentValidationErrors,
+            lastEmscriptGenerationFailure = lastEmscriptGenerationFailure,
+            permanentGuards = runtimeState.permanentGuards,
+        )
+        if (next != runtimeState) {
+            runtimeState = next
+            callbacks.onRuntimeStateChanged(next)
+        }
+    }
 
     private fun constrainStartBlockVisible(candidate: ViewportState): ViewportState {
         val size = canvasSize ?: return candidate
