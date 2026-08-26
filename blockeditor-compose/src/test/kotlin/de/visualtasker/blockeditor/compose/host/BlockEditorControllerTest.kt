@@ -56,6 +56,9 @@ class BlockEditorControllerTest {
     fun hostSoundEffectsAreOptInByDefault() {
         assertFalse(BlockEditorHostUiConfig().soundEffectsEnabled)
         assertFalse(BlockEditorHostUiConfig().hapticFeedbackEnabled)
+        assertTrue(BlockEditorHostUiConfig().showToolbox)
+        assertTrue(BlockEditorHostUiConfig().gridEnabled)
+        assertTrue(BlockEditorHostUiConfig().extraCategories.isEmpty())
     }
 
     @Test

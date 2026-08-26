@@ -5,6 +5,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
 import de.visualtasker.blockeditor.compose.ui.BlockEditorScaffold
 import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
+import de.visualtasker.blockeditor.domain.BlockId
 
 /**
  * Public Compose entry point for host embedding.
@@ -14,8 +15,15 @@ fun BlockEditorHost(
     controller: BlockEditorController,
     uiConfig: BlockEditorHostUiConfig = BlockEditorHostUiConfig(),
     modifier: Modifier = Modifier,
+    selectedBlockIds: Set<BlockId>? = null,
 ) {
-    BlockEditorHost(controller, uiConfig, modifier, BlockVisualPathProvider.Legacy)
+    BlockEditorHost(
+        controller = controller,
+        uiConfig = uiConfig,
+        modifier = modifier,
+        visualPathProvider = BlockVisualPathProvider.Legacy,
+        selectedBlockIds = selectedBlockIds,
+    )
 }
 
 /** Public Compose entry point with an optional host-owned presentation path provider. */
@@ -25,6 +33,7 @@ fun BlockEditorHost(
     uiConfig: BlockEditorHostUiConfig = BlockEditorHostUiConfig(),
     modifier: Modifier = Modifier,
     visualPathProvider: BlockVisualPathProvider,
+    selectedBlockIds: Set<BlockId>? = null,
 ) {
     DisposableEffect(controller) {
         onDispose { controller.close() }
@@ -36,7 +45,7 @@ fun BlockEditorHost(
         registry = controller.registry,
         viewport = controller.viewport,
         dragRender = controller.dragRender,
-        selectedBlockIds = controller.selectedBlockIds,
+        selectedBlockIds = selectedBlockIds ?: controller.selectedBlockIds,
         codePreview = controller.codePreview,
         blockInfo = controller.selectedBlockInfo(),
         showBottomPanel = uiConfig.showBottomPanel && controller.showBottomPanel,
@@ -44,6 +53,9 @@ fun BlockEditorHost(
         expandedCategory = controller.expandedCategory,
         definitionsForCategory = controller.definitionsForExpandedCategory(),
         showBlockFactory = uiConfig.showBlockFactory && controller.showBlockFactory,
+        extraCategories = uiConfig.extraCategories,
+        showBlockFactoryEntry = uiConfig.showBlockFactoryEntry,
+        gridEnabled = uiConfig.gridEnabled,
         onCategoryClick = controller::onCategoryClick,
         onDismissCategory = controller::dismissCategory,
         onAddBlock = controller::addBlockFromPalette,
