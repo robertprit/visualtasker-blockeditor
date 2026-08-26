@@ -103,6 +103,15 @@ class BlockRendererTest {
     }
 
     @Test
+    fun `compact reporter badge requires finite drawable bounds`() {
+        assertEquals(14f, compactReporterBadgeEdge(width = 10f, height = 18f))
+        assertNull(compactReporterBadgeEdge(width = 0f, height = 18f))
+        assertNull(compactReporterBadgeEdge(width = 18f, height = -1f))
+        assertNull(compactReporterBadgeEdge(width = Float.NaN, height = 18f))
+        assertNull(compactReporterBadgeEdge(width = 18f, height = Float.POSITIVE_INFINITY))
+    }
+
+    @Test
     fun `inline operator label uses semantic operation instead of generic op`() {
         val block = BlockNode(
             id = BlockId("compare"),

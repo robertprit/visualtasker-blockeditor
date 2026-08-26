@@ -544,7 +544,7 @@ private fun DrawScope.drawReporterCompactBadge(
     tint: Color,
     textMeasurer: TextMeasurer,
 ) {
-    val edge = (minOf(width, height) - 6f).coerceAtLeast(14f)
+    val edge = compactReporterBadgeEdge(width, height) ?: return
     val chipTopLeft = Offset((width - edge) / 2f, (height - edge) / 2f)
     val shapeColor = tint.copy(alpha = 0.18f)
     val shapeStroke = tint.copy(alpha = 0.58f)
@@ -586,10 +586,21 @@ private fun DrawScope.drawReporterCompactBadge(
     }
     val symbolStyle = TextStyle(color = tint, fontSize = 11.sp)
     val layout = textMeasurer.measure(symbol, symbolStyle)
-    val symbolTopLeft = Offset(
-        chipTopLeft.x + (edge - layout.size.width) / 2f,
-        chipTopLeft.y + (edge - layout.size.height) / 2f,
-    )
+    val symbolOffset = centeredTextTopLeft(edge, edge, layout.size.width.toFloat(), layout.size.height.toFloat()) ?: return
+    val symbolTopLeft = chipTopLeft + symbolOffset
     if (!symbolTopLeft.x.isFinite() || !symbolTopLeft.y.isFinite()) return
-    drawText(textMeasurer = textMeasurer, text = symbol, topLeft = symbolTopLeft, style = symbolStyle)
+    drawTextSafely(
+        textMeasurer = textMeasurer,
+        text = symbol,
+        topLeft = symbolTopLeft,
+        style = symbolStyle,
+        availableWidth = edge,
+        availableHeight = edge,
+    )
+}
+
+internal fun compactReporterBadgeEdge(width: Float, height: Float): Float? {
+    if (!width.isFinite() || !height.isFinite()) return null
+    if (width <= 0f || height <= 0f) return null
+    return (minOf(width, height) - 6f).coerceAtLeast(14f)
 }
