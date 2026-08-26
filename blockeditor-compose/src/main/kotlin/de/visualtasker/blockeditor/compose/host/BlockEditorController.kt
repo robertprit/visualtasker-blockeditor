@@ -51,6 +51,7 @@ import de.visualtasker.blockeditor.registry.BlockCategories
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockDesignBlueprint
 import de.visualtasker.blockeditor.registry.BlockDesignFactory
+import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.CompositeBlockRegistry
 import de.visualtasker.blockeditor.registry.ParameterSourceKind
@@ -94,6 +95,9 @@ class BlockEditorController(
     private val debounceMillis: Long = DEFAULT_DERIVED_OUTPUT_DEBOUNCE_MS,
     private val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : BlockEditorControllerState, AutoCloseable {
+    override val blockRegistry: BlockRegistry
+        get() = registry
+
     private val disposed = AtomicBoolean(false)
     private var debounceJob: Job? = null
     private var lastValidDraft: String = ""

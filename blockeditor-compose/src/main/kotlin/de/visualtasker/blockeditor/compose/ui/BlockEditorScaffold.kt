@@ -90,6 +90,7 @@ fun BlockEditorScaffold(
     codePreview: String,
     blockInfo: BlockInfoSnapshot?,
     showBottomPanel: Boolean,
+    showToolbox: Boolean = true,
     expandedCategory: String?,
     definitionsForCategory: List<BlockDefinition>,
     showBlockFactory: Boolean,
@@ -137,6 +138,7 @@ fun BlockEditorScaffold(
         codePreview = codePreview,
         blockInfo = blockInfo,
         showBottomPanel = showBottomPanel,
+        showToolbox = showToolbox,
         expandedCategory = expandedCategory,
         definitionsForCategory = definitionsForCategory,
         showBlockFactory = showBlockFactory,
@@ -188,6 +190,7 @@ fun BlockEditorScaffold(
     codePreview: String,
     blockInfo: BlockInfoSnapshot?,
     showBottomPanel: Boolean,
+    showToolbox: Boolean = true,
     expandedCategory: String?,
     definitionsForCategory: List<BlockDefinition>,
     showBlockFactory: Boolean,
@@ -274,15 +277,17 @@ fun BlockEditorScaffold(
     }
 
     Row(modifier = modifier.fillMaxSize()) {
-        EditorNavigationRail(
-            expandedCategory = expandedCategory,
-            onCategoryClick = onCategoryClick,
-            onOpenBlockFactory = onOpenBlockFactory,
-            onClearWorkspace = onClearWorkspace,
-            showBlockFactoryEntry = showBlockFactoryEntry,
-            extraCategories = extraCategories,
-            containerColor = toolboxColor,
-        )
+        if (showToolbox) {
+            EditorNavigationRail(
+                expandedCategory = expandedCategory,
+                onCategoryClick = onCategoryClick,
+                onOpenBlockFactory = onOpenBlockFactory,
+                onClearWorkspace = onClearWorkspace,
+                showBlockFactoryEntry = showBlockFactoryEntry,
+                extraCategories = extraCategories,
+                containerColor = toolboxColor,
+            )
+        }
 
         Box(
             modifier = Modifier
@@ -418,7 +423,7 @@ fun BlockEditorScaffold(
                 }
             }
 
-            if (expandedCategory != null) {
+            if (showToolbox && expandedCategory != null) {
                 CategoryPalettePanel(
                     category = expandedCategory,
                     definitions = definitionsForCategory,

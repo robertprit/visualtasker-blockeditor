@@ -26,6 +26,7 @@ interface BlockEditorControllerState {
     val showBlockFactory: Boolean
     val codePreview: String
     val registry: BlockRegistry
+    val blockRegistry: BlockRegistry
 
     fun selectedBlockInfo(): BlockInfoSnapshot?
     fun definitionsForExpandedCategory(): List<BlockDefinition>

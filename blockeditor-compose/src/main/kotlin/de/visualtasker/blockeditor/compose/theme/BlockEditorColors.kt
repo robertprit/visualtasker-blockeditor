@@ -3,6 +3,20 @@ package de.visualtasker.blockeditor.compose.theme
 import androidx.compose.ui.graphics.Color
 import de.visualtasker.blockeditor.registry.BlockCategories
 
+private val categoryOverrides = mutableMapOf<String, Color>()
+
+fun setBlockCategoryColorOverride(category: String, color: Color?) {
+    if (color == null) {
+        categoryOverrides.remove(category)
+    } else {
+        categoryOverrides[category] = color
+    }
+}
+
+fun clearBlockCategoryColorOverrides() {
+    categoryOverrides.clear()
+}
+
 data class BlockEditorColors(
     val event: Color,
     val action: Color,
@@ -22,7 +36,9 @@ data class BlockEditorColors(
     val unsupportedText: Color,
 )
 
-fun blockEditorColors(category: String): Color = when (category) {
+fun blockEditorColors(category: String): Color = categoryOverrides[category] ?: defaultBlockCategoryColor(category)
+
+fun defaultBlockCategoryColor(category: String): Color = when (category) {
     BlockCategories.EVENT -> Color(0xFFB78B00)
     BlockCategories.ACTION -> Color(0xFF3E6F91)
     BlockCategories.EMSCRIPT -> Color(0xFF56687A)
