@@ -11,5 +11,6 @@ sealed interface WorkspaceAction {
     data class Expand(val blockId: BlockId) : WorkspaceAction
     data class UpdateField(val blockId: BlockId, val key: String, val value: FieldValue) : WorkspaceAction
     data class CreateVariable(val variable: VariableDefinition) : WorkspaceAction
+    data class RenameVariable(val variableId: String, val name: String) : WorkspaceAction
     data class DeleteVariable(val variableId: String) : WorkspaceAction
 }

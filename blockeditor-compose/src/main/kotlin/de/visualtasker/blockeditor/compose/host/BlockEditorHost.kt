@@ -69,6 +69,7 @@ fun BlockEditorHost(
         onPointerUp = controller::onPointerUp,
         onFieldChange = controller::updateBlockField,
         onFieldSourceChange = controller::updateBlockFieldSource,
+        onSetReporterVisualMode = controller::setSelectedReporterVisualMode,
         soundEffectsEnabled = uiConfig.soundEffectsEnabled,
         hapticFeedbackEnabled = uiConfig.hapticFeedbackEnabled,
         visualPathProvider = visualPathProvider,

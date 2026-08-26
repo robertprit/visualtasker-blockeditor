@@ -1,5 +1,10 @@
 package de.visualtasker.blockeditor.compose.render
 
+import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.blockeditor.domain.BlockNode
+import de.visualtasker.blockeditor.domain.FieldValue
+import de.visualtasker.blockeditor.registry.BlockDefinition
+import de.visualtasker.blockeditor.registry.BlockTypes
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -96,4 +101,45 @@ class BlockRendererTest {
             ),
         )
     }
+
+    @Test
+    fun `inline operator label uses semantic operation instead of generic op`() {
+        val block = BlockNode(
+            id = BlockId("compare"),
+            type = "emscript:logic.compare",
+            fields = mapOf("operator" to FieldValue.Text("GREATER_OR_EQUAL")),
+        )
+
+        assertEquals(">=", block.inlineOperatorLabel(definition(label = "Compare")))
+    }
+
+    @Test
+    fun `inline operator label keeps legacy symbol documents readable`() {
+        val block = BlockNode(
+            id = BlockId("compare"),
+            type = "emscript:logic.compare",
+            fields = mapOf("operator" to FieldValue.Text("==")),
+        )
+
+        assertEquals("=", block.inlineOperatorLabel(definition(label = "Compare")))
+    }
+
+    @Test
+    fun `variable reporter label uses variable field before generic fallback`() {
+        val block = BlockNode(
+            id = BlockId("counter"),
+            type = "${BlockTypes.VARIABLE_REPORTER_PREFIX}var-123",
+            fields = mapOf("variable" to FieldValue.Text("counter")),
+        )
+
+        assertEquals("counter", block.variableDisplayLabel(definition(label = "Variable")))
+    }
+
+    private fun definition(label: String): BlockDefinition = BlockDefinition(
+        id = "test",
+        label = label,
+        category = "test",
+        hasPrevious = false,
+        hasNext = false,
+    )
 }

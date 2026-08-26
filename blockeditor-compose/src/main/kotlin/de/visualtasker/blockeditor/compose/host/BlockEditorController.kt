@@ -3,6 +3,12 @@ package de.visualtasker.blockeditor.compose.host
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import de.visualtasker.blockeditor.compose.model.ReporterFamily
+import de.visualtasker.blockeditor.compose.model.ReporterVisualMode
+import de.visualtasker.blockeditor.compose.model.blockWithReporterVisualMode
+import de.visualtasker.blockeditor.compose.model.reporterTemplateAsset
+import de.visualtasker.blockeditor.compose.model.reporterVisualModeFor
+import de.visualtasker.blockeditor.compose.model.resolveReporterFamily
 import de.visualtasker.blockeditor.domain.BlockId
 import de.visualtasker.blockeditor.domain.BlockNode
 import de.visualtasker.blockeditor.domain.Connection
@@ -21,6 +27,7 @@ import de.visualtasker.blockeditor.domain.WorkspaceGraph
 import de.visualtasker.blockeditor.domain.WorkspaceReducer
 import de.visualtasker.blockeditor.domain.WorkspaceState
 import de.visualtasker.blockeditor.domain.allConnections
+import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.domain.newBlockId
 import de.visualtasker.blockeditor.domain.rootOffset
 import de.visualtasker.blockeditor.domain.withConnectionUpdated
@@ -107,6 +114,8 @@ class BlockEditorController(
     private var pendingFocusBlockId: BlockId? = null
     private var pendingFocusSelect: Boolean = false
     private var initialCanvasFitApplied: Boolean = false
+    private var pendingValidationPhase: BlockEditorValidationPhase = BlockEditorValidationPhase.INITIAL_LOAD
+    private var pendingDetachActive: Boolean = false
 
     override var selectedBlockIds by mutableStateOf<Set<BlockId>>(emptySet())
         private set
@@ -147,7 +156,11 @@ class BlockEditorController(
     fun onAction(action: WorkspaceAction) {
         if (disposed.get()) return
         val reduced = WorkspaceReducer.reduce(document, action, registry.asFactory())
-        applyPersistentDocumentChange(reduced, previousDocument = document)
+        applyPersistentDocumentChange(
+            reduced,
+            previousDocument = document,
+            phase = BlockEditorValidationPhase.AFTER_DOCUMENT_MUTATION,
+        )
     }
 
     fun onTap(screenPoint: Offset2) {
@@ -172,12 +185,30 @@ class BlockEditorController(
 
     fun onLongPressDragStart(screenPoint: Offset2): Boolean {
         if (disposed.get()) return false
-        val (blockId, zone) = blockTouchZoneAt(screenPoint) ?: return false
-        return when (zone) {
+        val (blockId, rawZone) = blockTouchZoneAt(screenPoint) ?: return false
+        val zone = if (document.blocks[blockId]?.output != null) {
+            BlockTouchZone.RightSingle
+        } else {
+            rawZone
+        }
+        val started = when (zone) {
             BlockTouchZone.LeftGroup -> beginBlockDrag(screenPoint, blockId, DragPullMode.StackBelow)
             BlockTouchZone.RightSingle -> beginBlockDrag(screenPoint, blockId, DragPullMode.Single)
             BlockTouchZone.CenterLabel -> beginBlockDrag(screenPoint, blockId, DragPullMode.Single)
         }
+        if (started) {
+            callbacks.onValidationEvent(
+                BlockEditorValidationEvent(
+                    phase = BlockEditorValidationPhase.DRAG_START,
+                    documentVersion = document.version,
+                    dragActive = true,
+                    snapActive = false,
+                    detachActive = false,
+                    errors = emptyList(),
+                ),
+            )
+        }
+        return started
     }
 
     fun onPointerMove(screenPoint: Offset2) {
@@ -202,6 +233,20 @@ class BlockEditorController(
             session = session,
             snapCandidate = updated.activeSnapCandidate,
         )
+        callbacks.onValidationEvent(
+            BlockEditorValidationEvent(
+                phase = if (updated.activeSnapCandidate != null) {
+                    BlockEditorValidationPhase.SNAP_PREVIEW
+                } else {
+                    BlockEditorValidationPhase.DRAG_MOVE
+                },
+                documentVersion = document.version,
+                dragActive = true,
+                snapActive = updated.activeSnapCandidate != null,
+                detachActive = false,
+                errors = emptyList(),
+            ),
+        )
     }
 
     fun onPointerUp(screenPoint: Offset2) {
@@ -213,16 +258,35 @@ class BlockEditorController(
             activeSnapCandidate = dragRender!!.snapCandidate,
             selectedBlockId = selectedBlockId,
         )
+        callbacks.onValidationEvent(
+            BlockEditorValidationEvent(
+                phase = BlockEditorValidationPhase.BEFORE_DROP,
+                documentVersion = document.version,
+                dragActive = true,
+                snapActive = dragRender!!.snapCandidate != null,
+                detachActive = false,
+                errors = emptyList(),
+            ),
+        )
         val activeDrag = dragRender!!
+        val willDetach = WorkspaceGraph.isValuePlugged(document, activeDrag.session.rootBlockId) ||
+            WorkspaceGraph.previousChain(document, activeDrag.session.rootBlockId) != null ||
+            WorkspaceGraph.nextChain(document, activeDrag.session.rootBlockId) != null ||
+            WorkspaceGraph.slotContaining(document, activeDrag.session.rootBlockId) != null
+        pendingDetachActive = willDetach
         val (droppedDocument, newTransient) = DragOperations.endDrag(transient, document)
         val positionedDocument = preserveMissingRootOffsets(droppedDocument)
         val newDocument = clampDroppedRootToCanvas(positionedDocument, activeDrag)
         dragRender = null
         selectedBlockId = newTransient.selectedBlockId
         if (newDocument != document) {
-            applyPersistentDocumentChange(newDocument)
+            applyPersistentDocumentChange(
+                newDocument,
+                phase = if (willDetach) BlockEditorValidationPhase.AFTER_DETACH else BlockEditorValidationPhase.AFTER_DROP,
+            )
         } else {
             layoutCache = layoutEngine.build(newDocument)
+            pendingDetachActive = false
         }
     }
 
@@ -364,7 +428,9 @@ class BlockEditorController(
             type = type.ifBlank { "Any" },
             scope = VariableScope.Global,
         )
-        onAction(WorkspaceAction.CreateVariable(variable))
+        val withVariable = WorkspaceReducer.reduce(document, WorkspaceAction.CreateVariable(variable), registry.asFactory())
+        if (withVariable == document) return
+        applyPersistentDocumentChange(withVariable, previousDocument = document)
         onAction(
             WorkspaceAction.InstantiateBlock(
                 VariableReporterFactory.reporterId(variable.id),
@@ -372,6 +438,14 @@ class BlockEditorController(
                 120f + (document.rootBlocks.size * 24f),
             ),
         )
+    }
+
+    fun renameVariable(variableId: String, name: String): Boolean {
+        if (disposed.get()) return false
+        val renamed = WorkspaceReducer.reduce(document, WorkspaceAction.RenameVariable(variableId, name), registry.asFactory())
+        if (renamed == document) return false
+        applyPersistentDocumentChange(renamed, previousDocument = document)
+        return true
     }
 
     fun addBlockFromPalette(definition: BlockDefinition) {
@@ -456,6 +530,15 @@ class BlockEditorController(
             slotContext = slotContext,
             chainSummary = chainPart,
             branchCount = block.ifBranchCount().takeIf { block.statementInputs.isNotEmpty() } ?: 0,
+            isReporter = definition.isReporter,
+            reporterVisualMode = reporterVisualModeFor(block),
+            reporterTemplateAsset = resolveReporterFamily(block.type, definition)?.let { family ->
+                val boolValue = when (val value = block.fields["value"]) {
+                    is FieldValue.Bool -> value.value
+                    else -> false
+                }
+                reporterTemplateAsset(family, reporterVisualModeFor(block), boolValue)
+            },
         )
     }
 
@@ -480,6 +563,20 @@ class BlockEditorController(
         val source = ParameterSourceKind.entries.firstOrNull { it.name == rawSource } ?: return
         if (source !in fieldDef.sourceOptions) return
         onAction(WorkspaceAction.UpdateField(blockId, parameterSourceFieldKey(fieldKey), FieldValue.Text(source.name)))
+    }
+
+    fun setSelectedReporterVisualMode(mode: ReporterVisualMode) {
+        if (disposed.get()) return
+        val blockId = selectedBlockId ?: return
+        val block = document.blocks[blockId] ?: return
+        val family = resolveReporterFamily(block.type, registry.getDefinition(block.type)) ?: return
+        val effectiveMode = if (family == ReporterFamily.BOOLEAN) ReporterVisualMode.COMPACT else mode
+        val updatedBlock = blockWithReporterVisualMode(block, effectiveMode)
+        if (updatedBlock == block) return
+        applyPersistentDocumentChange(
+            document.copy(blocks = document.blocks + (blockId to updatedBlock)),
+            previousDocument = document,
+        )
     }
 
     fun replaceSelectedBlockType(targetType: String): Boolean {
@@ -554,7 +651,11 @@ class BlockEditorController(
         if (disposed.get()) return
         dragRender = null
         clearSelection()
-        applyPersistentDocumentChange(newDocument, recordHistory = recordHistory)
+        applyPersistentDocumentChange(
+            newDocument,
+            recordHistory = recordHistory,
+            phase = BlockEditorValidationPhase.AFTER_RESTORE,
+        )
         initialCanvasFitApplied = false
         val focused = focusBlockId?.takeIf { it in document.blocks } ?: return
         if (focusBlockInCanvas(focused, selectFocusedBlock)) {
@@ -579,9 +680,11 @@ class BlockEditorController(
         newDocument: WorkspaceDocument,
         previousDocument: WorkspaceDocument? = null,
         recordHistory: Boolean = true,
+        phase: BlockEditorValidationPhase = BlockEditorValidationPhase.AFTER_DOCUMENT_MUTATION,
     ) {
         if (disposed.get()) return
         if (newDocument == document) return
+        pendingValidationPhase = phase
         val nextState = if (recordHistory) {
             previousDocument?.let { baseline ->
                 workspaceState.copy(document = baseline).record(newDocument)
@@ -873,11 +976,33 @@ class BlockEditorController(
     private fun emitValidationImmediate() {
         if (disposed.get()) return
         val result = Validator.validate(document, registry)
+        callbacks.onValidationEvent(
+            BlockEditorValidationEvent(
+                phase = pendingValidationPhase,
+                documentVersion = document.version,
+                dragActive = dragRender != null,
+                snapActive = dragRender?.snapCandidate != null,
+                detachActive = pendingDetachActive,
+                errors = result.errors,
+            ),
+        )
+        pendingDetachActive = false
+        pendingValidationPhase = BlockEditorValidationPhase.AFTER_DOCUMENT_MUTATION
         callbacks.onValidationErrors(result.errors)
     }
 
     private fun emitEmscriptImmediate() {
         if (disposed.get()) return
+        callbacks.onValidationEvent(
+            BlockEditorValidationEvent(
+                phase = BlockEditorValidationPhase.BEFORE_IR_PROJECTION,
+                documentVersion = document.version,
+                dragActive = dragRender != null,
+                snapActive = dragRender?.snapCandidate != null,
+                detachActive = pendingDetachActive,
+                errors = emptyList(),
+            ),
+        )
         generateDraft(reportFailure = true)?.also(callbacks::onEmscriptDraftChanged)
     }
 
@@ -922,7 +1047,7 @@ class BlockEditorController(
     private fun blockTouchZoneAt(screenPoint: Offset2): Pair<BlockId, BlockTouchZone>? {
         val workspacePoint = viewport.localToWorkspace(screenPoint)
         val hit = hitAt(screenPoint)
-        val hitBlockId = selectableBlockId(hit)
+        val hitBlockId = dragRootBlockId(hit) ?: selectableBlockId(hit)
         val fallbackBlock = layoutCache.flatIndex.visibleBlocks
             .asSequence()
             .sortedByDescending { it.zIndex }
@@ -931,6 +1056,20 @@ class BlockEditorController(
         val bounds = layoutCache.flatIndex.visibleBlocks.find { it.blockId == blockId }?.bounds
         val zone = DragOperations.detectTouchZone(bounds, workspacePoint)
         return blockId to zone
+    }
+
+    private fun dragRootBlockId(hit: HitResult): BlockId? {
+        if (hit !is HitResult.ConnectionHit) return null
+        val (ownerBlockId, connection) = WorkspaceGraph.findConnection(document, hit.connectionId) ?: return null
+        return when (connection.kind) {
+            ConnectionKind.Output -> ownerBlockId
+            ConnectionKind.ValueInput -> {
+                val partner = connection.connectedTo ?: return ownerBlockId
+                val (partnerBlockId, partnerConnection) = WorkspaceGraph.findConnection(document, partner) ?: return ownerBlockId
+                if (partnerConnection.kind == ConnectionKind.Output) partnerBlockId else ownerBlockId
+            }
+            else -> ownerBlockId
+        }
     }
 
     private fun selectableBlockId(hit: HitResult): BlockId? = when (hit) {
@@ -955,19 +1094,14 @@ class BlockEditorController(
         val block = document.blocks[blockId] ?: return false
         val definition = registry.getDefinition(block.type) ?: return false
         val duplicateId = newBlockId()
-        val duplicate = definition.createNode(duplicateId).copy(
-            fields = block.fields,
-            collapsed = block.collapsed,
-            metadata = block.metadata.filterKeys { key ->
-                !key.startsWith("macro.runtime.")
-            },
-        )
+        val duplicate = duplicateNode(block, definition, duplicateId)
         val sourceBounds = layoutCache.flatIndex.visibleBlocks.find { it.blockId == blockId }?.bounds
         val x = (sourceBounds?.x ?: document.rootOffset(blockId)?.x ?: 96f) + 36f
         val y = (sourceBounds?.y ?: document.rootOffset(blockId)?.y ?: 120f) + 36f
-        val withDuplicateBlock = document.copy(
+        val documentWithDuplicateVariable = document.withDuplicateVariable(block, duplicate)
+        val withDuplicateBlock = documentWithDuplicateVariable.copy(
             version = document.version + 1,
-            blocks = document.blocks + (duplicateId to duplicate),
+            blocks = documentWithDuplicateVariable.blocks + (duplicateId to duplicate),
         ).withRootOffset(duplicateId, x, y)
         val updated = withDuplicateBlock.copy(
             rootBlocks = WorkspaceGraph.pruneRootBlocks(withDuplicateBlock, withDuplicateBlock.rootBlocks + duplicateId),
@@ -976,6 +1110,53 @@ class BlockEditorController(
         selectSingle(duplicateId)
         infoPanelBlockId = duplicateId
         return true
+    }
+
+    private fun duplicateNode(
+        block: BlockNode,
+        definition: BlockDefinition,
+        duplicateId: BlockId,
+    ): BlockNode {
+        val copiedFields = if (block.type == VARIABLE_DECLARE_BLOCK_TYPE) {
+            val sourceVariableId = block.fields["variableId"]?.asString().orEmpty()
+            val sourceVariable = document.variables.variables[sourceVariableId]
+            val baseName = sourceVariable?.name ?: block.fields["name"]?.asString().orEmpty().ifBlank { "variable" }
+            val duplicateName = nextVariableName(baseName)
+            val duplicateVariableId = generateVariableId(duplicateName)
+            block.fields +
+                ("variableId" to FieldValue.Text(duplicateVariableId)) +
+                ("name" to FieldValue.Text(duplicateName))
+        } else {
+            block.fields
+        }
+        return definition.createNode(duplicateId).copy(
+            fields = copiedFields,
+            collapsed = block.collapsed,
+            metadata = block.metadata.filterKeys { key ->
+                !key.startsWith("macro.runtime.")
+            },
+        )
+    }
+
+    private fun WorkspaceDocument.withDuplicateVariable(source: BlockNode, duplicate: BlockNode): WorkspaceDocument {
+        if (source.type != VARIABLE_DECLARE_BLOCK_TYPE) return this
+        val variableId = duplicate.fields["variableId"]?.asString().orEmpty()
+        val name = duplicate.fields["name"]?.asString().orEmpty()
+        if (variableId.isBlank() || name.isBlank()) return this
+        val sourceVariableId = source.fields["variableId"]?.asString().orEmpty()
+        val sourceVariable = variables.variables[sourceVariableId]
+        val variable = VariableDefinition(
+            id = variableId,
+            name = name,
+            type = sourceVariable?.type ?: duplicate.fields["type"]?.asString().orEmpty().ifBlank { "Any" },
+            scope = sourceVariable?.scope ?: VariableScope.Global,
+            defaultValue = sourceVariable?.defaultValue,
+        )
+        return copy(
+            variables = variables.copy(
+                variables = variables.variables + (variable.id to variable),
+            ),
+        )
     }
 
     private fun replaceBlockType(blockId: BlockId, targetType: String): Boolean {
@@ -1345,8 +1526,20 @@ class BlockEditorController(
         return candidate
     }
 
+    private fun nextVariableName(baseName: String): String {
+        val base = baseName.trim().takeIf { it.matches(Regex("[A-Za-z_][A-Za-z0-9_]*")) } ?: "variable"
+        var candidate = "${base}Copy"
+        var suffix = 2
+        while (document.variables.variables.values.any { it.name == candidate }) {
+            candidate = "${base}Copy$suffix"
+            suffix++
+        }
+        return candidate
+    }
+
     companion object {
         const val DEFAULT_DERIVED_OUTPUT_DEBOUNCE_MS = 200L
+        private const val VARIABLE_DECLARE_BLOCK_TYPE = "emscript:variable.declare"
 
         /** Controller seeded with [WorkspaceBootstrap.starter]. */
         fun starter(

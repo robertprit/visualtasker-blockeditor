@@ -3,6 +3,7 @@ package de.visualtasker.blockeditor.domain
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
 import de.visualtasker.blockeditor.registry.SampleWorkspaceFactory
+import de.visualtasker.blockeditor.registry.VariableReporterFactory
 import de.visualtasker.blockeditor.registry.asFactory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -170,6 +171,61 @@ class WorkspaceReducerTest {
         assertEquals(firstOutput, afterSecondSlot.blocks[andId]!!.valueInputs.first { it.name == "A" }.connection.connectedTo)
         assertEquals(secondOutput, afterSecondSlot.blocks[andId]!!.valueInputs.first { it.name == "B" }.connection.connectedTo)
         assertEquals(bInput, afterSecondSlot.blocks[secondReporterId]!!.output!!.connectedTo)
+    }
+
+    @Test
+    fun variableRenamePreservesIdAndRejectsInvalidNamesAndCollisions() {
+        val score = VariableDefinition("score_id", "score", "Number", VariableScope.Global)
+        val level = VariableDefinition("level_id", "level", "Number", VariableScope.Global)
+        val document = WorkspaceDocument(
+            id = "variables",
+            variables = VariableRegistry(mapOf(score.id to score, level.id to level)),
+        )
+
+        val renamed = reduce(document, WorkspaceAction.RenameVariable("score_id", "points"))
+
+        assertEquals("score_id", renamed.variables.variables.getValue("score_id").id)
+        assertEquals("points", renamed.variables.variables.getValue("score_id").name)
+        assertEquals("Number", renamed.variables.variables.getValue("score_id").type)
+        assertEquals(renamed, reduce(renamed, WorkspaceAction.RenameVariable("score_id", "not valid")))
+        assertEquals(renamed, reduce(renamed, WorkspaceAction.RenameVariable("score_id", "level")))
+    }
+
+    @Test
+    fun variableCreateRejectsDuplicateIdInvalidNameInvalidTypeAndNameCollision() {
+        val score = VariableDefinition("score_id", "score", "Number", VariableScope.Global)
+        val document = WorkspaceDocument(
+            id = "variables",
+            variables = VariableRegistry(mapOf(score.id to score)),
+        )
+
+        assertEquals(document, reduce(document, WorkspaceAction.CreateVariable(score.copy(name = "points"))))
+        assertEquals(document, reduce(document, WorkspaceAction.CreateVariable(VariableDefinition("new_id", "not valid", "String", VariableScope.Global))))
+        assertEquals(document, reduce(document, WorkspaceAction.CreateVariable(VariableDefinition("new_id", "points", "Object", VariableScope.Global))))
+        assertEquals(document, reduce(document, WorkspaceAction.CreateVariable(VariableDefinition("new_id", "score", "String", VariableScope.Global))))
+
+        val created = reduce(document, WorkspaceAction.CreateVariable(VariableDefinition("points_id", "points", "String", VariableScope.Global)))
+        assertEquals("points", created.variables.variables.getValue("points_id").name)
+    }
+
+    @Test
+    fun deleteVariableRejectsReferencedVariables() {
+        val variable = VariableDefinition("score_id", "score", "Number", VariableScope.Global)
+        val reporter = BlockNode(
+            id = BlockId("score-reporter"),
+            type = VariableReporterFactory.reporterId(variable.id),
+            fields = mapOf("variable" to FieldValue.Text("score")),
+        )
+        val document = WorkspaceDocument(
+            id = "variables",
+            blocks = mapOf(reporter.id to reporter),
+            rootBlocks = listOf(reporter.id),
+            variables = VariableRegistry(mapOf(variable.id to variable)),
+        )
+
+        assertEquals(document, reduce(document, WorkspaceAction.DeleteVariable(variable.id)))
+        val withoutReporter = document.copy(blocks = emptyMap(), rootBlocks = emptyList())
+        assertEquals(emptyMap<String, VariableDefinition>(), reduce(withoutReporter, WorkspaceAction.DeleteVariable(variable.id)).variables.variables)
     }
 
     private fun reduce(document: WorkspaceDocument, action: WorkspaceAction): WorkspaceDocument =

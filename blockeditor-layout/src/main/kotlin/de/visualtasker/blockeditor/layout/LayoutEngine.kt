@@ -143,16 +143,18 @@ class LayoutEngine(
             }
         }
 
+        val allHitPrimitives = hitPrimitives + connectionAnchors.map { it.toHitPrimitive() }
+
         hitIndex.clear()
         anchorIndex.clear()
-        hitPrimitives.forEach { hitIndex.insert(it, it.bounds) }
+        allHitPrimitives.forEach { hitIndex.insert(it, it.bounds) }
         connectionAnchors.forEach { anchorIndex.insert(it, anchorHitBounds(it)) }
 
         return LayoutCache(
             documentVersion = document.version,
             flatIndex = FlatLayoutIndex(
                 visibleBlocks = visibleBlocks,
-                hitPrimitives = hitPrimitives,
+                hitPrimitives = allHitPrimitives,
                 connectionAnchors = connectionAnchors,
                 statementSlots = statementSlots,
                 branchSections = branchSections,
@@ -165,7 +167,7 @@ class LayoutEngine(
                 document = document,
                 flatIndex = FlatLayoutIndex(
                     visibleBlocks = visibleBlocks,
-                    hitPrimitives = hitPrimitives,
+                    hitPrimitives = allHitPrimitives,
                     connectionAnchors = connectionAnchors,
                     statementSlots = statementSlots,
                     branchSections = branchSections,
@@ -423,7 +425,9 @@ class LayoutEngine(
             stack.forEach { childId ->
                 maxZ = layoutChild(childId, slotBounds.x, childY, maxZ)
                 val childLayout = visibleBlocks.find { it.blockId == childId }
-                val childHeight = childLayout?.bounds?.height ?: LayoutConstants.HEADER_HEIGHT
+                val childHeight = childLayout?.subtreeBounds?.height
+                    ?: childLayout?.bounds?.height
+                    ?: LayoutConstants.HEADER_HEIGHT
                 childY += childHeight + LayoutConstants.LINEAR_STACK_GAP
                 bodyBottom = maxOf(bodyBottom, childY)
             }
@@ -779,6 +783,16 @@ class LayoutEngine(
         val d = anchor.radius * 2
         return Rect(anchor.x - anchor.radius, anchor.y - anchor.radius, d, d)
     }
+
+    private fun ConnectionAnchor.toHitPrimitive(): HitPrimitive =
+        HitPrimitive(
+            id = "${ownerBlockId.value}:connection:${connectionId.value}",
+            blockId = ownerBlockId,
+            kind = HitKind.ConnectionAnchor,
+            bounds = anchorHitBounds(this),
+            zIndex = zIndex,
+            connectionId = connectionId,
+        )
 
     private companion object {
         fun LayoutConstants.VALUE_DOCK_GAP(index: Int): Float = OUTPUT_TAB + index * (REPORTER_WIDTH + 4f)

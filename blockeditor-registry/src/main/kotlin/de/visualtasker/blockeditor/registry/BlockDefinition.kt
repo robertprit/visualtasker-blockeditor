@@ -81,6 +81,7 @@ data class ValueInputDefinition(
     val name: String,
     val label: String,
     val accepts: Set<String>,
+    val required: Boolean = true,
 )
 
 @Serializable

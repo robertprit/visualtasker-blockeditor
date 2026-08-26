@@ -1,0 +1,10 @@
+<svg viewBox="0 0 60 60" version="1.1" id="reporter.bool.small" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg" xmlns:bx="https://boxy-svg.com">
+  <defs id="defs1"></defs>
+  <path d="M 19.711 9.799 Q 30.06 -9.8 40.409 9.799 L 56.67 40.596 Q 67.019 60.195 46.322 60.195 L 13.798 60.195 Q -6.899 60.195 3.45 40.596 Z" bx:shape="triangle -6.899 -9.8 73.918 69.995 0.5 0.28 1@8d2b195f" style="fill: rgb(216, 216, 216); stroke: rgb(0, 0, 0); stroke-width: 1.001;"></path>
+  <g transform="matrix(0.958334, 0, 0, -0.833333, 15.948709, 35.922119)" style="">
+    <g transform="matrix(1.84354, 0, 0, -2.100001, -12.223144, 22.80003)" style="">
+      <path d="M24 24H0V0h24v24z" fill="none"></path>
+      <path d="M22 4h-2c-.55 0-1 .45-1 1v9c0 .55.45 1 1 1h2V4zM2.17 11.12c-.11.25-.17.52-.17.8V13c0 1.1.9 2 2 2h5.5l-.92 4.65c-.05.22-.02.46.08.66.23.45.52.86.88 1.22L10 22l6.41-6.41c.38-.38.59-.89.59-1.42V6.34C17 5.05 15.95 4 14.66 4h-8.1c-.71 0-1.36.37-1.72.97l-2.67 6.15z"></path>
+    </g>
+  </g>
+</svg>

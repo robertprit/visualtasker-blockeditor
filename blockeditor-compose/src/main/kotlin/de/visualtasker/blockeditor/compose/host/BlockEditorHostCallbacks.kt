@@ -11,6 +11,7 @@ interface BlockEditorHostCallbacks {
     fun onWorkspaceDocumentChanged(serializedJson: String)
     fun onEmscriptDraftChanged(emscript: String)
     fun onValidationErrors(errors: List<ValidationError>)
+    fun onValidationEvent(event: BlockEditorValidationEvent) = Unit
     fun onEmscriptGenerationFailed(message: String) = Unit
 
     companion object {
@@ -18,6 +19,7 @@ interface BlockEditorHostCallbacks {
             override fun onWorkspaceDocumentChanged(serializedJson: String) = Unit
             override fun onEmscriptDraftChanged(emscript: String) = Unit
             override fun onValidationErrors(errors: List<ValidationError>) = Unit
+            override fun onValidationEvent(event: BlockEditorValidationEvent) = Unit
         }
     }
 }

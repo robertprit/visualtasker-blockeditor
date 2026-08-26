@@ -86,7 +86,7 @@ class BlockVisualPathProviderTest {
         var calls = 0
         val provider = BlockVisualPathProvider {
             calls += 1
-            BlockVisualPathResult.Success(trianglePath())
+            BlockVisualPathResult.LegacyPath(trianglePath())
         }
 
         val statement = resolveBlockVisualPath(

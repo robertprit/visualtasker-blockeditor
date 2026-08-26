@@ -1,10 +1,18 @@
 package de.visualtasker.blockeditor.compose.host
 
 import de.visualtasker.blockeditor.domain.Offset2
+import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.blockeditor.domain.BlockNode
+import de.visualtasker.blockeditor.domain.FieldValue
+import de.visualtasker.blockeditor.domain.VariableDefinition
+import de.visualtasker.blockeditor.domain.VariableRegistry
+import de.visualtasker.blockeditor.domain.VariableScope
 import de.visualtasker.blockeditor.domain.WorkspaceAction
+import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.domain.WorkspaceGraph
 import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.domain.rootOffset
+import de.visualtasker.blockeditor.domain.withRootOffset
 import de.visualtasker.blockeditor.compose.render.contrastTextColor
 import de.visualtasker.blockeditor.compose.theme.darkBlockEditorColors
 import de.visualtasker.blockeditor.compose.theme.lightBlockEditorColors
@@ -23,6 +31,9 @@ import de.visualtasker.blockeditor.registry.FieldOption
 import de.visualtasker.blockeditor.registry.StatementInputDefinition
 import de.visualtasker.blockeditor.registry.StaticBlockRegistry
 import de.visualtasker.blockeditor.registry.ValueInputDefinition
+import de.visualtasker.blockeditor.registry.VariableReporterFactory
+import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
+import de.visualtasker.blockeditor.registry.createNode
 import androidx.compose.ui.graphics.Color
 import de.visualtasker.blockeditor.validation.ValidationError
 import kotlinx.coroutines.CoroutineScope
@@ -483,6 +494,144 @@ class BlockEditorControllerTest {
     }
 
     @Test
+    fun draggingVisibleRightReporterOutputDetachesOnlyRightOperand() {
+        val fixture = operateWithTwoVariables()
+        val controller = BlockEditorController(initialDocument = fixture.document)
+        val rightOutput = controller.layoutCache.flatIndex.connectionAnchors
+            .single { it.connectionId == fixture.rightReporter.output!!.id }
+        val start = Offset2(rightOutput.x, rightOutput.y)
+        val beforeRightBounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == fixture.rightId }.bounds
+        val beforeOperatorOffset = controller.document.rootOffset(fixture.operateId)
+
+        assertTrue(controller.onLongPressDragStart(start))
+        assertEquals(fixture.rightId, controller.dragRender!!.session.rootBlockId)
+        assertEquals(DragPullMode.Single, controller.dragRender!!.session.pullMode)
+        assertEquals(beforeRightBounds.x, controller.dragRender!!.session.originalLayoutPosition.x, 0.01f)
+        assertEquals(beforeRightBounds.y, controller.dragRender!!.session.originalLayoutPosition.y, 0.01f)
+
+        val drop = Offset2(start.x + 180f, start.y + 40f)
+        controller.onPointerMove(drop)
+        controller.onPointerUp(drop)
+
+        val operate = controller.document.blocks[fixture.operateId]!!
+        assertEquals(fixture.leftReporter.output!!.id, operate.valueInputs.first { it.name == "Input1" }.connection.connectedTo)
+        assertNull(operate.valueInputs.first { it.name == "Input2" }.connection.connectedTo)
+        assertNull(controller.document.blocks[fixture.rightId]!!.output!!.connectedTo)
+        assertEquals(beforeOperatorOffset, controller.document.rootOffset(fixture.operateId))
+        assertTrue(fixture.rightId in controller.document.rootBlocks)
+
+        controller.close()
+    }
+
+    @Test
+    fun draggingVisibleLeftReporterOutputIsIndependentOfAnchorOrder() {
+        val fixture = operateWithTwoVariables()
+        val controller = BlockEditorController(initialDocument = fixture.document)
+        val leftOutput = controller.layoutCache.flatIndex.connectionAnchors
+            .reversed()
+            .single { it.connectionId == fixture.leftReporter.output!!.id }
+        val start = Offset2(leftOutput.x, leftOutput.y)
+
+        assertTrue(controller.onLongPressDragStart(start))
+        assertEquals(fixture.leftId, controller.dragRender!!.session.rootBlockId)
+
+        val drop = Offset2(start.x + 160f, start.y + 32f)
+        controller.onPointerMove(drop)
+        controller.onPointerUp(drop)
+
+        val operate = controller.document.blocks[fixture.operateId]!!
+        assertNull(operate.valueInputs.first { it.name == "Input1" }.connection.connectedTo)
+        assertEquals(fixture.rightReporter.output!!.id, operate.valueInputs.first { it.name == "Input2" }.connection.connectedTo)
+        assertNull(controller.document.blocks[fixture.leftId]!!.output!!.connectedTo)
+
+        controller.close()
+    }
+
+    @Test
+    fun draggingNestedOperateReporterKeepsOwnOperandsAndLeavesSiblingReporterAttached() {
+        val fixture = nestedOperateInBooleanParent()
+        val controller = BlockEditorController(initialDocument = fixture.document)
+        val operateOutput = controller.layoutCache.flatIndex.connectionAnchors
+            .single { it.connectionId == fixture.operate.output!!.id }
+        val start = Offset2(operateOutput.x, operateOutput.y)
+
+        assertTrue(controller.onLongPressDragStart(start))
+        assertEquals(fixture.operateId, controller.dragRender!!.session.rootBlockId)
+        assertTrue(fixture.leftId in controller.dragRender!!.session.includedBlocks)
+        assertTrue(fixture.rightId in controller.dragRender!!.session.includedBlocks)
+        assertTrue(fixture.siblingId !in controller.dragRender!!.session.includedBlocks)
+
+        val drop = Offset2(start.x + 220f, start.y + 60f)
+        controller.onPointerMove(drop)
+        controller.onPointerUp(drop)
+
+        val parent = controller.document.blocks[fixture.parentId]!!
+        val operate = controller.document.blocks[fixture.operateId]!!
+        assertNull(parent.valueInputs.first { it.name == "A" }.connection.connectedTo)
+        assertEquals(fixture.sibling.output!!.id, parent.valueInputs.first { it.name == "B" }.connection.connectedTo)
+        assertEquals(fixture.leftReporter.output!!.id, operate.valueInputs.first { it.name == "Input1" }.connection.connectedTo)
+        assertEquals(fixture.rightReporter.output!!.id, operate.valueInputs.first { it.name == "Input2" }.connection.connectedTo)
+        assertTrue(fixture.operateId in controller.document.rootBlocks)
+
+        controller.close()
+    }
+
+    @Test
+    fun draggingParentKeepsReporterConnectionsAttached() {
+        val fixture = nestedOperateInBooleanParent()
+        val controller = BlockEditorController(initialDocument = fixture.document)
+        val parentBounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == fixture.parentId }.bounds
+        val start = Offset2(parentBounds.x + parentBounds.width * 0.5f, parentBounds.y + parentBounds.height * 0.5f)
+
+        assertTrue(controller.onLongPressDragStart(start))
+        assertEquals(fixture.parentId, controller.dragRender!!.session.rootBlockId)
+        assertTrue(fixture.operateId in controller.dragRender!!.session.includedBlocks)
+        assertTrue(fixture.leftId in controller.dragRender!!.session.includedBlocks)
+        assertTrue(fixture.rightId in controller.dragRender!!.session.includedBlocks)
+        assertTrue(fixture.siblingId in controller.dragRender!!.session.includedBlocks)
+        controller.onPointerMove(Offset2(start.x + 180f, start.y + 30f))
+        controller.onPointerUp(Offset2(start.x + 180f, start.y + 30f))
+
+        val parent = controller.document.blocks[fixture.parentId]!!
+        val operate = controller.document.blocks[fixture.operateId]!!
+        assertEquals(fixture.operate.output!!.id, parent.valueInputs.first { it.name == "A" }.connection.connectedTo)
+        assertEquals(fixture.sibling.output!!.id, parent.valueInputs.first { it.name == "B" }.connection.connectedTo)
+        assertEquals(fixture.leftReporter.output!!.id, operate.valueInputs.first { it.name == "Input1" }.connection.connectedTo)
+        assertEquals(fixture.rightReporter.output!!.id, operate.valueInputs.first { it.name == "Input2" }.connection.connectedTo)
+
+        controller.close()
+    }
+
+    @Test
+    fun tapOnConnectedReporterDoesNotDetachButDragCreatesSingleUndoableDetach() {
+        val fixture = operateWithTwoVariables()
+        val controller = BlockEditorController(initialDocument = fixture.document)
+        val rightOutput = controller.layoutCache.flatIndex.connectionAnchors
+            .single { it.connectionId == fixture.rightReporter.output!!.id }
+        val start = Offset2(rightOutput.x, rightOutput.y)
+        val initialHistory = controller.historySize
+
+        controller.onTap(start)
+        assertEquals(fixture.rightReporter.output!!.id, controller.document.blocks[fixture.operateId]!!.valueInputs.first { it.name == "Input2" }.connection.connectedTo)
+        assertEquals(initialHistory, controller.historySize)
+
+        assertTrue(controller.onLongPressDragStart(start))
+        controller.onPointerMove(Offset2(start.x + 140f, start.y + 40f))
+        controller.onPointerMove(Offset2(start.x + 180f, start.y + 60f))
+        assertEquals(initialHistory, controller.historySize)
+        controller.onPointerUp(Offset2(start.x + 180f, start.y + 60f))
+
+        assertEquals(initialHistory + 1, controller.historySize)
+        assertNull(controller.document.blocks[fixture.operateId]!!.valueInputs.first { it.name == "Input2" }.connection.connectedTo)
+        assertTrue(controller.undo())
+        assertEquals(fixture.rightReporter.output!!.id, controller.document.blocks[fixture.operateId]!!.valueInputs.first { it.name == "Input2" }.connection.connectedTo)
+        assertTrue(controller.redo())
+        assertNull(controller.document.blocks[fixture.operateId]!!.valueInputs.first { it.name == "Input2" }.connection.connectedTo)
+
+        controller.close()
+    }
+
+    @Test
     fun rootDragDropClampsPositionToVisibleWorkspaceBounds() {
         val controller = BlockEditorController(
             initialDocument = WorkspaceBootstrap.empty(),
@@ -624,6 +773,82 @@ class BlockEditorControllerTest {
     }
 
     @Test
+    fun renameVariableKeepsStableIdAndParticipatesInUndoRedo() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.createVariable("score", "Number")
+        val variableId = controller.document.variables.variables.values.single().id
+
+        assertTrue(controller.renameVariable(variableId, "points"))
+
+        assertEquals(variableId, controller.document.variables.variables.values.single().id)
+        assertEquals("points", controller.document.variables.variables.getValue(variableId).name)
+
+        controller.undo()
+        assertEquals("score", controller.document.variables.variables.getValue(variableId).name)
+
+        controller.redo()
+        assertEquals("points", controller.document.variables.variables.getValue(variableId).name)
+
+        assertFalse(controller.renameVariable(variableId, "not valid"))
+        assertEquals("points", controller.document.variables.variables.getValue(variableId).name)
+
+        controller.close()
+    }
+
+    @Test
+    fun duplicatingVariableGetterKeepsReferencedVariableId() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.createVariable("score", "Number")
+        val variableId = controller.document.variables.variables.values.single().id
+        val reporterId = controller.document.rootBlocks.single()
+        val bounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == reporterId }.bounds
+
+        controller.onDoubleTap(Offset2(bounds.x + bounds.width * 0.5f, bounds.y + 12f))
+
+        val reporters = controller.document.blocks.values.filter { it.type.startsWith(BlockTypes.VARIABLE_REPORTER_PREFIX) }
+        assertEquals(2, reporters.size)
+        assertTrue(reporters.all { it.type == VariableReporterFactory.reporterId(variableId) })
+        assertEquals(1, controller.document.variables.variables.size)
+
+        controller.close()
+    }
+
+    @Test
+    fun duplicatingVariableDeclarationCreatesNewVariableId() {
+        val registry = CompositeBlockRegistry().apply {
+            register(variableDeclareDefinition())
+        }
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceDocument(
+                id = "duplicate-declaration",
+                variables = VariableRegistry(
+                    mapOf("score" to VariableDefinition("score", "score", "Number", VariableScope.Global)),
+                ),
+            ),
+            registry = registry,
+        )
+
+        controller.addBlockFromPalette(requireNotNull(registry.getDefinition("emscript:variable.declare")))
+        val declareId = controller.document.rootBlocks.single()
+        val bounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == declareId }.bounds
+
+        controller.onDoubleTap(Offset2(bounds.x + bounds.width * 0.5f, bounds.y + 12f))
+
+        val declarations = controller.document.blocks.values.filter { it.type == "emscript:variable.declare" }
+        val variableIds = declarations.map { it.fields.getValue("variableId").asString() }.toSet()
+        assertEquals(2, declarations.size)
+        assertEquals(2, variableIds.size)
+        assertTrue("score" in variableIds)
+        assertEquals(setOf("score", "scoreCopy"), controller.document.variables.variables.values.map { it.name }.toSet())
+
+        controller.close()
+    }
+
+    @Test
     fun singleDraggingBlockOutOfStartStackKeepsGhostUntilDropThenBridgesGap() {
         val controller = BlockEditorController(
             initialDocument = WorkspaceBootstrap.starter(),
@@ -735,6 +960,47 @@ class BlockEditorControllerTest {
         assertEquals(ifId to BlockTypes.SLOT_ELSE, de.visualtasker.blockeditor.domain.WorkspaceGraph.slotContaining(controller.document, elseChild))
         assertFalse(thenChild in controller.document.rootBlocks)
         assertFalse(elseChild in controller.document.rootBlocks)
+
+        controller.close()
+    }
+
+    @Test
+    fun draggingStatementToElseBranchSnapsToConcreteElseConnection() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.onCanvasSizeChange(Offset2(720f, 540f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.CONTROL_IF_ELSE, 96f, 120f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 360f, 320f))
+        val ifId = controller.document.rootBlocks[0]
+        val actionId = controller.document.rootBlocks[1]
+        val actionBounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == actionId }.bounds
+        val start = Offset2(actionBounds.x + actionBounds.width * 0.5f, actionBounds.y + actionBounds.height * 0.5f)
+        val sourceAnchor = controller.layoutCache.flatIndex.connectionAnchors
+            .single { it.connectionId == controller.document.blocks.getValue(actionId).previous!!.id }
+        val elseInput = controller.document.blocks.getValue(ifId).statementInputs.single { it.name == BlockTypes.SLOT_ELSE }
+        val elseAnchor = controller.layoutCache.flatIndex.connectionAnchors
+            .single { it.connectionId == elseInput.connection.id }
+        val thenInput = controller.document.blocks.getValue(ifId).statementInputs.single { it.name == BlockTypes.SLOT_THEN }
+
+        assertTrue(controller.onLongPressDragStart(start))
+        val drop = Offset2(
+            start.x + (elseAnchor.x - sourceAnchor.x),
+            start.y + (elseAnchor.y - sourceAnchor.y),
+        )
+        controller.onPointerMove(drop)
+
+        assertEquals(elseInput.connection.id, controller.dragRender!!.snapCandidate!!.targetConnectionId)
+        assertEquals(controller.document.blocks.getValue(actionId).previous!!.id, controller.dragRender!!.snapCandidate!!.sourceConnectionId)
+
+        controller.onPointerUp(drop)
+
+        val ifBlock = controller.document.blocks.getValue(ifId)
+        assertEquals(controller.document.blocks.getValue(actionId).previous!!.id, ifBlock.statementInputs.single { it.name == BlockTypes.SLOT_ELSE }.connection.connectedTo)
+        assertNull(ifBlock.statementInputs.single { it.name == BlockTypes.SLOT_THEN }.connection.connectedTo)
+        assertEquals(thenInput.connection.id, controller.document.blocks.getValue(ifId).statementInputs.single { it.name == BlockTypes.SLOT_THEN }.connection.id)
+        assertEquals(ifId to BlockTypes.SLOT_ELSE, WorkspaceGraph.slotContaining(controller.document, actionId))
+        assertFalse(actionId in controller.document.rootBlocks)
 
         controller.close()
     }
@@ -1356,6 +1622,124 @@ class BlockEditorControllerTest {
         controller.close()
     }
 
+    private fun operateWithTwoVariables(): OperateFixture {
+        val operateId = BlockId("operate")
+        val leftId = BlockId("v1")
+        val rightId = BlockId("v2")
+        var operate = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_OPERATE)!!
+            .createNode(operateId)
+            .withRootOffset(40f, 40f)
+        val left = variableReporter(leftId, "v1")
+        val right = variableReporter(rightId, "v2")
+        val leftInput = operate.valueInputs.first { it.name == "Input1" }.connection
+        val rightInput = operate.valueInputs.first { it.name == "Input2" }.connection
+        operate = operate.copy(
+            valueInputs = operate.valueInputs.map { input ->
+                when (input.name) {
+                    "Input1" -> input.copy(connection = leftInput.copy(connectedTo = left.output!!.id))
+                    "Input2" -> input.copy(connection = rightInput.copy(connectedTo = right.output!!.id))
+                    else -> input
+                }
+            },
+        )
+        val connectedLeft = left.copy(output = left.output!!.copy(connectedTo = leftInput.id))
+        val connectedRight = right.copy(output = right.output!!.copy(connectedTo = rightInput.id))
+        return OperateFixture(
+            document = WorkspaceDocument(
+                id = "operate-two-vars",
+                blocks = mapOf(
+                    operateId to operate,
+                    leftId to connectedLeft,
+                    rightId to connectedRight,
+                ),
+                rootBlocks = listOf(operateId, leftId, rightId),
+            ),
+            operateId = operateId,
+            leftId = leftId,
+            rightId = rightId,
+            operate = operate,
+            leftReporter = connectedLeft,
+            rightReporter = connectedRight,
+        )
+    }
+
+    private fun nestedOperateInBooleanParent(): NestedOperateFixture {
+        val operateFixture = operateWithTwoVariables()
+        val parentId = BlockId("compare")
+        val siblingId = BlockId("v3")
+        var parent = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_AND)!!
+            .createNode(parentId)
+            .withRootOffset(24f, 24f)
+        val sibling = variableReporter(siblingId, "v3")
+        val inputA = parent.valueInputs.first { it.name == "A" }.connection
+        val inputB = parent.valueInputs.first { it.name == "B" }.connection
+        parent = parent.copy(
+            valueInputs = parent.valueInputs.map { input ->
+                when (input.name) {
+                    "A" -> input.copy(connection = inputA.copy(connectedTo = operateFixture.operate.output!!.id))
+                    "B" -> input.copy(connection = inputB.copy(connectedTo = sibling.output!!.id))
+                    else -> input
+                }
+            },
+        )
+        val operate = operateFixture.operate.copy(
+            output = operateFixture.operate.output!!.copy(connectedTo = inputA.id),
+        )
+        val connectedSibling = sibling.copy(output = sibling.output!!.copy(connectedTo = inputB.id))
+        return NestedOperateFixture(
+            document = WorkspaceDocument(
+                id = "nested-operate",
+                blocks = mapOf(
+                    parentId to parent,
+                    operateFixture.operateId to operate,
+                    operateFixture.leftId to operateFixture.leftReporter,
+                    operateFixture.rightId to operateFixture.rightReporter,
+                    siblingId to connectedSibling,
+                ),
+                rootBlocks = listOf(parentId, operateFixture.operateId, operateFixture.leftId, operateFixture.rightId, siblingId),
+            ),
+            parentId = parentId,
+            operateId = operateFixture.operateId,
+            leftId = operateFixture.leftId,
+            rightId = operateFixture.rightId,
+            siblingId = siblingId,
+            parent = parent,
+            operate = operate,
+            leftReporter = operateFixture.leftReporter,
+            rightReporter = operateFixture.rightReporter,
+            sibling = connectedSibling,
+        )
+    }
+
+    private fun variableReporter(id: BlockId, name: String): BlockNode =
+        DefaultBlockRegistry.getDefinition(BlockTypes.VARIABLE_GET)!!
+            .createNode(id)
+            .copy(fields = mapOf("variable" to FieldValue.Text(name)))
+
+    private data class OperateFixture(
+        val document: WorkspaceDocument,
+        val operateId: BlockId,
+        val leftId: BlockId,
+        val rightId: BlockId,
+        val operate: BlockNode,
+        val leftReporter: BlockNode,
+        val rightReporter: BlockNode,
+    )
+
+    private data class NestedOperateFixture(
+        val document: WorkspaceDocument,
+        val parentId: BlockId,
+        val operateId: BlockId,
+        val leftId: BlockId,
+        val rightId: BlockId,
+        val siblingId: BlockId,
+        val parent: BlockNode,
+        val operate: BlockNode,
+        val leftReporter: BlockNode,
+        val rightReporter: BlockNode,
+        val sibling: BlockNode,
+    )
+
     private class RecordingCallbacks : BlockEditorHostCallbacks {
         val documentChanges = mutableListOf<String>()
         val emscriptDrafts = mutableListOf<String>()
@@ -1393,3 +1777,23 @@ private fun BlockEditorController.selectBlockCenter(blockId: de.visualtasker.blo
     val bounds = layoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.bounds
     onTap(Offset2(bounds.x + bounds.width * 0.5f, bounds.y + 12f))
 }
+
+private fun variableDeclareDefinition(): BlockDefinition =
+    BlockDefinition(
+        id = "emscript:variable.declare",
+        label = "let",
+        category = BlockCategories.VARIABLE,
+        hasPrevious = true,
+        hasNext = true,
+        fields = listOf(
+            FieldDefinition("variableId", "id", defaultValue = "score"),
+            FieldDefinition("name", "name", defaultValue = "score"),
+            FieldDefinition("type", "type", FieldKind.CHOICE, "Number", options = listOf(
+                FieldOption("String", "String"),
+                FieldOption("Number", "Number"),
+                FieldOption("Bool", "Bool"),
+                FieldOption("Any", "Any"),
+            )),
+        ),
+        valueInputs = listOf(ValueInputDefinition("initialValue", "=", setOf("Number", "Any"))),
+    )

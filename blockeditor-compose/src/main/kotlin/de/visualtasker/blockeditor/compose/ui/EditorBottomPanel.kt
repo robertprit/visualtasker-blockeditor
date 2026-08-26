@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import de.visualtasker.blockeditor.compose.model.ReporterVisualMode
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoField
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoSnapshot
 import de.visualtasker.blockeditor.compose.viewmodel.label
@@ -48,6 +50,7 @@ fun EditorBottomPanel(
     blockInfo: BlockInfoSnapshot?,
     onFieldChange: (String, String) -> Unit,
     onFieldSourceChange: (String, String) -> Unit,
+    onSetReporterVisualMode: (ReporterVisualMode) -> Unit = {},
     onToggleVisible: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -87,6 +90,7 @@ fun EditorBottomPanel(
                     info = blockInfo,
                     onFieldChange = onFieldChange,
                     onFieldSourceChange = onFieldSourceChange,
+                    onSetReporterVisualMode = onSetReporterVisualMode,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -115,6 +119,7 @@ fun BlockInfoCard(
     info: BlockInfoSnapshot?,
     onFieldChange: (String, String) -> Unit,
     onFieldSourceChange: (String, String) -> Unit,
+    onSetReporterVisualMode: (ReporterVisualMode) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -139,6 +144,25 @@ fun BlockInfoCard(
         InfoRow("Typ", info.label)
         InfoRow("ID", info.typeId, mono = true)
         CategoryBadge(info.categoryLabel, accent)
+        if (info.isReporter) {
+            Text(
+                text = "Reporter-Darstellung",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = info.reporterVisualMode == ReporterVisualMode.COMPACT,
+                    onClick = { onSetReporterVisualMode(ReporterVisualMode.COMPACT) },
+                    label = { Text("Kompakt") },
+                )
+                FilterChip(
+                    selected = info.reporterVisualMode == ReporterVisualMode.DETAILED,
+                    onClick = { onSetReporterVisualMode(ReporterVisualMode.DETAILED) },
+                    label = { Text("Ausführlich") },
+                )
+            }
+        }
         if (info.fields.isNotEmpty()) {
             Text(
                 text = "Parameter",

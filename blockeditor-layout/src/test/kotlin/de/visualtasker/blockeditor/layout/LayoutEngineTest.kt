@@ -224,6 +224,33 @@ class LayoutEngineTest {
     }
 
     @Test
+    fun connectionHitPrimitivesKeepConcreteConnectionIds() {
+        val operateId = BlockId("operate")
+        val operate = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_OPERATE)!!
+            .createNode(operateId)
+            .withRootOffset(0f, 0f)
+        val document = WorkspaceDocument(
+            id = "connection-hit-primitives",
+            blocks = mapOf(operateId to operate),
+            rootBlocks = listOf(operateId),
+        )
+
+        val cache = engine.build(document)
+        val connectionHits = cache.flatIndex.hitPrimitives
+            .filter { it.blockId == operateId && it.kind == HitKind.ConnectionAnchor }
+            .associateBy { it.connectionId }
+        val anchors = cache.flatIndex.connectionAnchors
+            .filter { it.ownerBlockId == operateId }
+
+        assertEquals(anchors.map { it.connectionId }.toSet(), connectionHits.keys)
+        anchors.forEach { anchor ->
+            val hit = connectionHits.getValue(anchor.connectionId)
+            assertEquals(anchor.x - anchor.radius, hit.bounds.x, 0.001f)
+            assertEquals(anchor.y - anchor.radius, hit.bounds.y, 0.001f)
+        }
+    }
+
+    @Test
     fun ifElseContainer_usesIndependentSlotHeightsAcrossBranches() {
         val cache = layoutControl(BlockTypes.CONTROL_IF_ELSE)
         val controlId = BlockId("control")
@@ -300,6 +327,54 @@ class LayoutEngineTest {
             "Else branch stays at minimum height when empty",
             LayoutConstants.STATEMENT_MIN_HEIGHT,
             slotHeights[BlockTypes.SLOT_ELSE],
+        )
+    }
+
+    @Test
+    fun branchSlotPlacementUsesRecursiveSubtreeHeight() {
+        val outerId = BlockId("outer")
+        val innerId = BlockId("inner")
+        val actionAId = BlockId("action-a")
+        val actionBId = BlockId("action-b")
+        val ifDef = DefaultBlockRegistry.getDefinition(BlockTypes.CONTROL_IF_ELSE)!!
+        val actionDef = DefaultBlockRegistry.getDefinition(BlockTypes.ACTION_WAIT)!!
+        var outer = ifDef.createNode(outerId).withRootOffset(0f, 0f)
+        var inner = ifDef.createNode(innerId)
+        var actionA = actionDef.createNode(actionAId)
+        var actionB = actionDef.createNode(actionBId)
+        val outerThen = outer.statementInputs.first { it.name == BlockTypes.SLOT_THEN }.connection
+        val innerThen = inner.statementInputs.first { it.name == BlockTypes.SLOT_THEN }.connection
+        val innerElse = inner.statementInputs.first { it.name == BlockTypes.SLOT_ELSE }.connection
+        outer = outer.copy(
+            statementInputs = outer.statementInputs.map {
+                if (it.name == BlockTypes.SLOT_THEN) it.copy(connection = outerThen.copy(connectedTo = inner.previous!!.id)) else it
+            },
+        )
+        inner = inner.copy(
+            previous = inner.previous!!.copy(connectedTo = outerThen.id),
+            statementInputs = inner.statementInputs.map {
+                when (it.name) {
+                    BlockTypes.SLOT_THEN -> it.copy(connection = innerThen.copy(connectedTo = actionA.previous!!.id))
+                    BlockTypes.SLOT_ELSE -> it.copy(connection = innerElse.copy(connectedTo = actionB.previous!!.id))
+                    else -> it
+                }
+            },
+        )
+        actionA = actionA.copy(previous = actionA.previous!!.copy(connectedTo = innerThen.id))
+        actionB = actionB.copy(previous = actionB.previous!!.copy(connectedTo = innerElse.id))
+        val document = WorkspaceDocument(
+            id = "nested-branch-layout",
+            blocks = mapOf(outerId to outer, innerId to inner, actionAId to actionA, actionBId to actionB),
+            rootBlocks = listOf(outerId),
+        )
+
+        val cache = engine.build(document)
+        val innerLayout = cache.flatIndex.visibleBlocks.first { it.blockId == innerId }
+        val outerElseSlot = cache.flatIndex.statementSlots.first { it.blockId == outerId && it.slotName == BlockTypes.SLOT_ELSE }
+
+        assertTrue(
+            "Outer ELSE slot must start below the full nested IF subtree",
+            outerElseSlot.bounds.y >= innerLayout.subtreeBounds.bottom + LayoutConstants.STACK_VERTICAL_GAP,
         )
     }
 

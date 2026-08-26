@@ -169,10 +169,8 @@ object WorkspaceSerializer {
         next = next?.toDto(),
         output = output?.toDto(),
         valueInputs = valueInputs
-            .sortedBy { it.name }
             .map { ValueInputDto(it.name, it.connection.toDto()) },
         statementInputs = statementInputs
-            .sortedBy { it.name }
             .map { StatementInputDto(it.name, it.connection.toDto()) },
         collapsed = collapsed,
         metadata = metadata.entries

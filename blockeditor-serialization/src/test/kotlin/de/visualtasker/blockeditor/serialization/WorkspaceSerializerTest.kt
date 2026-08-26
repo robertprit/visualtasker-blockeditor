@@ -1,12 +1,16 @@
 package de.visualtasker.blockeditor.serialization
 
 import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.blockeditor.domain.BlockNode
 import de.visualtasker.blockeditor.domain.FieldValue
 import de.visualtasker.blockeditor.domain.Offset2
 import de.visualtasker.blockeditor.domain.WorkspaceAction
 import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.domain.WorkspacePoint
 import de.visualtasker.blockeditor.domain.WorkspaceReducer
+import de.visualtasker.blockeditor.domain.VariableDefinition
+import de.visualtasker.blockeditor.domain.VariableRegistry
+import de.visualtasker.blockeditor.domain.VariableScope
 import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.domain.rootOffset
 import de.visualtasker.blockeditor.domain.withRootOffset
@@ -68,6 +72,49 @@ class WorkspaceSerializerTest {
         assertTrue(json.contains("\"rootPositions\""))
         assertEquals(WorkspacePoint(42f, 84f), restored.rootPositions[rootId])
         assertEquals(document.rootOffset(rootId), restored.rootOffset(rootId))
+    }
+
+    @Test
+    fun variablesAndStableBindingsRoundTrip() {
+        val getter = BlockNode(
+            id = BlockId("getter"),
+            type = "variable.reporter.score-id",
+            fields = mapOf("variable" to FieldValue.Text("score")),
+        )
+        val setter = BlockNode(
+            id = BlockId("setter"),
+            type = "emscript:variable.assign",
+            fields = mapOf(
+                "variableId" to FieldValue.Text("score-id"),
+                "name" to FieldValue.Text("score"),
+                "value" to FieldValue.Text("0"),
+            ),
+        )
+        val document = WorkspaceDocument(
+            id = "variable-roundtrip",
+            blocks = mapOf(getter.id to getter, setter.id to setter),
+            rootBlocks = listOf(getter.id, setter.id),
+            variables = VariableRegistry(
+                mapOf(
+                    "score-id" to VariableDefinition(
+                        id = "score-id",
+                        name = "score",
+                        type = "Number",
+                        scope = VariableScope.Script,
+                        defaultValue = "0",
+                    ),
+                ),
+            ),
+        )
+
+        val restored = WorkspaceSerializer.deserialize(WorkspaceSerializer.serialize(document))
+
+        assertEquals("score-id", restored.variables.variables.getValue("score-id").id)
+        assertEquals("score", restored.variables.variables.getValue("score-id").name)
+        assertEquals("Number", restored.variables.variables.getValue("score-id").type)
+        assertEquals("0", restored.variables.variables.getValue("score-id").defaultValue)
+        assertEquals("variable.reporter.score-id", restored.blocks.getValue(getter.id).type)
+        assertEquals("score-id", restored.blocks.getValue(setter.id).fields.getValue("variableId").asString())
     }
 
     @Test
@@ -160,6 +207,30 @@ class WorkspaceSerializerTest {
         assertEquals(first, second)
         assertTrue(first.contains("\"valueInputs\""))
         assertTrue(first.contains("\"statementInputs\""))
+    }
+
+    @Test
+    fun branchInputOrder_roundTripsWithoutAlphabeticResort() {
+        val ifId = BlockId("if-elif-else")
+        val block = DefaultBlockRegistry.getDefinition(BlockTypes.CONTROL_IF_ELSEIF_ELSE)!!
+            .createNode(ifId)
+            .withRootOffset(10f, 20f)
+        val document = WorkspaceDocument(
+            id = "branch-order",
+            blocks = mapOf(ifId to block),
+            rootBlocks = listOf(ifId),
+        )
+
+        val restored = WorkspaceSerializer.deserialize(WorkspaceSerializer.serialize(document))
+
+        assertEquals(
+            listOf(BlockTypes.SLOT_THEN, BlockTypes.SLOT_ELIF, BlockTypes.SLOT_ELSE),
+            restored.blocks.getValue(ifId).statementInputs.map { it.name },
+        )
+        assertEquals(
+            listOf("CONDITION", "ELIF_CONDITION"),
+            restored.blocks.getValue(ifId).valueInputs.map { it.name },
+        )
     }
 
     @Test

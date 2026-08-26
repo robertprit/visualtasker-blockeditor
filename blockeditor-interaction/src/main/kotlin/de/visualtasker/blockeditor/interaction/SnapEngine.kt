@@ -1,6 +1,7 @@
 package de.visualtasker.blockeditor.interaction
 
 import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.blockeditor.domain.Connection
 import de.visualtasker.blockeditor.domain.ConnectionKind
 import de.visualtasker.blockeditor.domain.Offset2
 import de.visualtasker.blockeditor.domain.WorkspaceGraph
@@ -37,6 +38,7 @@ class SnapEngine(
                 if (areAlreadyConnected(document, source, target)) continue
                 if (target.kind !in compatible) continue
                 if (!kindsCompatible(source.kind, target.kind)) continue
+                if (!valueTypesCompatible(document, source, target)) continue
                 if (WorkspaceGraph.isDescendantOf(document, target.ownerBlockId, dragSession.rootBlockId)) continue
                 if (shouldSkipParentSlotTarget(layout, dragSession, document, target)) continue
                 if (shouldSkipInsertAboveParentContainer(document, dragSession, target)) continue
@@ -253,6 +255,43 @@ class SnapEngine(
             ConnectionKind.ValueInput -> b == ConnectionKind.Output
             ConnectionKind.StatementInput -> b == ConnectionKind.Previous
         }
+
+    private fun valueTypesCompatible(
+        document: de.visualtasker.blockeditor.domain.WorkspaceDocument,
+        source: ConnectionAnchor,
+        target: ConnectionAnchor,
+    ): Boolean {
+        val outputAnchor = when (source.kind) {
+            ConnectionKind.Output -> source
+            ConnectionKind.ValueInput -> target.takeIf { it.kind == ConnectionKind.Output }
+            else -> return true
+        } ?: return true
+        val inputAnchor = when (source.kind) {
+            ConnectionKind.Output -> target.takeIf { it.kind == ConnectionKind.ValueInput }
+            ConnectionKind.ValueInput -> source
+            else -> return true
+        } ?: return true
+        val output = WorkspaceGraph.findConnection(document, outputAnchor.connectionId)?.second
+        val input = WorkspaceGraph.findConnection(document, inputAnchor.connectionId)?.second
+        return if (output != null && input != null) {
+            connectionTypesCompatible(output, input)
+        } else {
+            anchorTypesCompatible(outputAnchor, inputAnchor)
+        }
+    }
+
+    private fun connectionTypesCompatible(output: Connection, input: Connection): Boolean {
+        val outputType = output.provides ?: output.accepts.firstOrNull() ?: return true
+        if (input.accepts.isEmpty()) return true
+        if (outputType == "Any" || "Any" in input.accepts) return true
+        return outputType in input.accepts
+    }
+
+    private fun anchorTypesCompatible(output: ConnectionAnchor, input: ConnectionAnchor): Boolean {
+        val outputType = output.type ?: return true
+        val inputType = input.type ?: return true
+        return outputType == "Any" || inputType == "Any" || outputType == inputType
+    }
 
     private fun ConnectionAnchor.withVirtualOffset(offset: Offset2): ConnectionAnchor =
         copy(x = x + offset.x, y = y + offset.y)

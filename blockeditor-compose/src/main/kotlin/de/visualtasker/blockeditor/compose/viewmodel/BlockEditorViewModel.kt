@@ -9,6 +9,7 @@ import de.visualtasker.blockeditor.compose.host.BlockEditorPanelCloseState
 import de.visualtasker.blockeditor.compose.host.BlockEditorPanelCloseTarget
 import de.visualtasker.blockeditor.compose.host.topMostCloseTarget
 import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.blockeditor.domain.ConnectionKind
 import de.visualtasker.blockeditor.domain.Offset2
 import de.visualtasker.blockeditor.domain.WorkspaceAction
 import de.visualtasker.blockeditor.domain.WorkspaceDocument
@@ -56,6 +57,10 @@ data class BlockInfoSnapshot(
     val slotContext: String?,
     val chainSummary: String,
     val branchCount: Int = 0,
+    val isReporter: Boolean = false,
+    val reporterVisualMode: de.visualtasker.blockeditor.compose.model.ReporterVisualMode =
+        de.visualtasker.blockeditor.compose.model.ReporterVisualMode.COMPACT,
+    val reporterTemplateAsset: String? = null,
 )
 
 /** Visuelle Drag-Daten inkl. Layout-Vorschau ohne gezogene Blöcke. */
@@ -153,8 +158,8 @@ class BlockEditorViewModel(
     fun onLongPressDragStart(screenPoint: Offset2): Boolean {
         val hit = hitAt(screenPoint)
         EditorDebugLog.d("Pointer", "longPress screen=$screenPoint hit=${hitSummary(hit)}")
-        if (hit !is HitResult.BlockHit) return false
-        return beginBlockDrag(screenPoint, hit.blockId)
+        val blockId = dragRootBlockId(hit) ?: (hit as? HitResult.BlockHit)?.blockId ?: return false
+        return beginBlockDrag(screenPoint, blockId)
     }
 
     fun onPointerMove(screenPoint: Offset2) {
@@ -472,6 +477,7 @@ class BlockEditorViewModel(
         is WorkspaceAction.Expand -> "Expand ${action.blockId.value}"
         is WorkspaceAction.UpdateField -> "UpdateField ${action.blockId.value}.${action.key}"
         is WorkspaceAction.CreateVariable -> "CreateVariable ${action.variable.name}"
+        is WorkspaceAction.RenameVariable -> "RenameVariable ${action.variableId}"
         is WorkspaceAction.DeleteVariable -> "DeleteVariable ${action.variableId}"
     }
 
@@ -485,6 +491,20 @@ class BlockEditorViewModel(
         is HitResult.FieldHit -> hit.blockId
         is HitResult.StatementSlotHit -> hit.blockId
         else -> null
+    }
+
+    private fun dragRootBlockId(hit: HitResult): BlockId? {
+        if (hit !is HitResult.ConnectionHit) return null
+        val (ownerBlockId, connection) = WorkspaceGraph.findConnection(document, hit.connectionId) ?: return null
+        return when (connection.kind) {
+            ConnectionKind.Output -> ownerBlockId
+            ConnectionKind.ValueInput -> {
+                val partner = connection.connectedTo ?: return ownerBlockId
+                val (partnerBlockId, partnerConnection) = WorkspaceGraph.findConnection(document, partner) ?: return ownerBlockId
+                if (partnerConnection.kind == ConnectionKind.Output) partnerBlockId else ownerBlockId
+            }
+            else -> ownerBlockId
+        }
     }
 
     private fun selectSingle(blockId: BlockId) {

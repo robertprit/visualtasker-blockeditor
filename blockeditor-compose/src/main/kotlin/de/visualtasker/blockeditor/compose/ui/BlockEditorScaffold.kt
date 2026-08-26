@@ -122,6 +122,7 @@ fun BlockEditorScaffold(
     onPointerUp: (Offset2) -> Unit,
     onFieldChange: (String, String) -> Unit,
     onFieldSourceChange: (String, String) -> Unit = { _, _ -> },
+    onSetReporterVisualMode: (de.visualtasker.blockeditor.compose.model.ReporterVisualMode) -> Unit = {},
     modifier: Modifier = Modifier,
     soundEffectsEnabled: Boolean = false,
     hapticFeedbackEnabled: Boolean = false,
@@ -168,6 +169,7 @@ fun BlockEditorScaffold(
         onPointerUp = onPointerUp,
         onFieldChange = onFieldChange,
         onFieldSourceChange = onFieldSourceChange,
+        onSetReporterVisualMode = onSetReporterVisualMode,
         modifier = modifier,
         soundEffectsEnabled = soundEffectsEnabled,
         hapticFeedbackEnabled = hapticFeedbackEnabled,
@@ -218,6 +220,7 @@ fun BlockEditorScaffold(
     onPointerUp: (Offset2) -> Unit,
     onFieldChange: (String, String) -> Unit,
     onFieldSourceChange: (String, String) -> Unit = { _, _ -> },
+    onSetReporterVisualMode: (de.visualtasker.blockeditor.compose.model.ReporterVisualMode) -> Unit = {},
     modifier: Modifier = Modifier,
     soundEffectsEnabled: Boolean = false,
     hapticFeedbackEnabled: Boolean = false,
@@ -409,6 +412,7 @@ fun BlockEditorScaffold(
                         blockInfo = blockInfo,
                         onFieldChange = onFieldChange,
                         onFieldSourceChange = onFieldSourceChange,
+                        onSetReporterVisualMode = onSetReporterVisualMode,
                         onToggleVisible = onToggleBottomPanel,
                     )
                 }

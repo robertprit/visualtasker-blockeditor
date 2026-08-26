@@ -1,9 +1,13 @@
 package de.visualtasker.blockeditor.interaction
 
 import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.blockeditor.domain.BlockNode
+import de.visualtasker.blockeditor.domain.Connection
 import de.visualtasker.blockeditor.domain.ConnectionId
 import de.visualtasker.blockeditor.domain.ConnectionKind
 import de.visualtasker.blockeditor.domain.Offset2
+import de.visualtasker.blockeditor.domain.ValueInput
+import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.layout.ConnectionAnchor
 import de.visualtasker.blockeditor.layout.FlatLayoutIndex
 import de.visualtasker.blockeditor.layout.LayoutEngine
@@ -265,6 +269,90 @@ class SnapEngineTest {
                 y = aAnchor.y - outputAnchor.y,
             ),
             originalAnchors = layout.connectionAnchors.filter { it.ownerBlockId == secondReporterId },
+        )
+
+        val candidate = snapEngine.findSnapCandidate(layout, dragSession, document)
+
+        assertNull(candidate)
+    }
+
+    @Test
+    fun findSnapCandidate_rejectsIncompatibleValueTypesBeforeDrop() {
+        val sourceId = BlockId("number-reporter")
+        val targetId = BlockId("boolean-consumer")
+        val sourceConnection = ConnectionId("number-output")
+        val targetConnection = ConnectionId("boolean-input")
+        val document = WorkspaceDocument(
+            id = "typed-value-snap",
+            blocks = mapOf(
+                sourceId to BlockNode(
+                    id = sourceId,
+                    type = "custom.numberReporter",
+                    output = Connection(
+                        id = sourceConnection,
+                        owner = sourceId,
+                        kind = ConnectionKind.Output,
+                        provides = "Number",
+                    ),
+                ),
+                targetId to BlockNode(
+                    id = targetId,
+                    type = "custom.booleanConsumer",
+                    valueInputs = listOf(
+                        ValueInput(
+                            name = "CONDITION",
+                            connection = Connection(
+                                id = targetConnection,
+                                owner = targetId,
+                                kind = ConnectionKind.ValueInput,
+                                accepts = setOf("Boolean"),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            rootBlocks = listOf(sourceId, targetId),
+        )
+        val sourceAnchor = ConnectionAnchor(
+            connectionId = sourceConnection,
+            ownerBlockId = sourceId,
+            kind = ConnectionKind.Output,
+            type = "Number",
+            x = 0f,
+            y = 0f,
+            radius = 8f,
+            zIndex = 1,
+        )
+        val targetAnchor = ConnectionAnchor(
+            connectionId = targetConnection,
+            ownerBlockId = targetId,
+            kind = ConnectionKind.ValueInput,
+            type = "Boolean",
+            x = 6f,
+            y = 0f,
+            radius = 8f,
+            zIndex = 0,
+        )
+        val anchorIndex = SpatialIndex<ConnectionAnchor>()
+        anchorIndex.insert(targetAnchor, de.visualtasker.blockeditor.domain.Rect(-2f, -8f, 16f, 16f))
+        val layout = FlatLayoutIndex(
+            visibleBlocks = emptyList(),
+            hitPrimitives = emptyList(),
+            connectionAnchors = listOf(sourceAnchor, targetAnchor),
+            statementSlots = emptyList(),
+            branchSections = emptyList(),
+            hitIndex = SpatialIndex(),
+            anchorIndex = anchorIndex,
+        )
+        val dragSession = DragSession(
+            rootBlockId = sourceId,
+            includedBlocks = setOf(sourceId),
+            pullMode = DragPullMode.Single,
+            startPointer = Offset2(0f, 0f),
+            currentPointer = Offset2(0f, 0f),
+            originalLayoutPosition = Offset2(0f, 0f),
+            dragOffset = Offset2(0f, 0f),
+            originalAnchors = listOf(sourceAnchor),
         )
 
         val candidate = snapEngine.findSnapCandidate(layout, dragSession, document)

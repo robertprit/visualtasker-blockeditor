@@ -23,6 +23,7 @@ data class HitPrimitive(
     val zIndex: Int,
     val fieldName: String? = null,
     val inputName: String? = null,
+    val connectionId: ConnectionId? = null,
 )
 
 data class ConnectionAnchor(

@@ -16,7 +16,14 @@ object BlockTypes {
     const val LOGIC_AND = "logic.and"
     const val LOGIC_OR = "logic.or"
     const val LOGIC_OPERATE = "logic.operate"
+    const val LOGIC_COMPARE = "logic.compare"
+    const val LITERAL_NUMBER = "literal.number"
+    const val LITERAL_STRING = "literal.string"
+    const val LITERAL_BOOLEAN = "literal.boolean"
     const val VARIABLE_GET = "variable.get"
+    const val VARIABLE_REPORTER = "variable.reporter"
+    const val VARIABLES_GET = "variables.get"
+    const val VARIABLE_VALUE = "variable.value"
     const val VARIABLE_SET = "variable.set"
     const val VARIABLE_REPORTER_PREFIX = "variable.reporter."
     const val CUSTOM_PREFIX = "custom."
@@ -267,6 +274,66 @@ object DefaultBlockRegistry : BlockRegistry {
                 ValueInputDefinition("Input1", "A", setOf("Any", "Number", "Boolean")),
                 ValueInputDefinition("Input2", "B", setOf("Any", "Number", "Boolean")),
             ),
+        ),
+        BlockDefinition(
+            id = BlockTypes.LOGIC_COMPARE,
+            label = "Compare",
+            category = "logic",
+            hasPrevious = false,
+            hasNext = false,
+            outputType = "Boolean",
+            isReporter = true,
+            inputsInline = true,
+            fields = listOf(
+                FieldDefinition(
+                    key = "operator",
+                    label = "operator",
+                    kind = FieldKind.CHOICE,
+                    defaultValue = "GREATER_OR_EQUAL",
+                    options = listOf(
+                        FieldOption("EQUAL", "=="),
+                        FieldOption("NOT_EQUAL", "!="),
+                        FieldOption("LESS", "<"),
+                        FieldOption("LESS_OR_EQUAL", "<="),
+                        FieldOption("GREATER", ">"),
+                        FieldOption("GREATER_OR_EQUAL", ">="),
+                    ),
+                ),
+            ),
+            valueInputs = listOf(
+                ValueInputDefinition("LEFT", "left", setOf("Any", "Number", "Boolean")),
+                ValueInputDefinition("RIGHT", "right", setOf("Any", "Number", "Boolean")),
+            ),
+        ),
+        BlockDefinition(
+            id = BlockTypes.LITERAL_NUMBER,
+            label = "Number",
+            category = "logic",
+            hasPrevious = false,
+            hasNext = false,
+            outputType = "Number",
+            isReporter = true,
+            fields = listOf(FieldDefinition("value", "value", FieldKind.NUMBER, "0")),
+        ),
+        BlockDefinition(
+            id = BlockTypes.LITERAL_STRING,
+            label = "String",
+            category = "logic",
+            hasPrevious = false,
+            hasNext = false,
+            outputType = "Text",
+            isReporter = true,
+            fields = listOf(FieldDefinition("value", "value", FieldKind.TEXT, "")),
+        ),
+        BlockDefinition(
+            id = BlockTypes.LITERAL_BOOLEAN,
+            label = "Boolean",
+            category = "logic",
+            hasPrevious = false,
+            hasNext = false,
+            outputType = "Boolean",
+            isReporter = true,
+            fields = listOf(FieldDefinition("value", "value", FieldKind.BOOLEAN, "false")),
         ),
         BlockDefinition(
             id = BlockTypes.VARIABLE_GET,

@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
@@ -17,8 +18,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import de.visualtasker.blockeditor.compose.theme.BlockEditorColors
 import de.visualtasker.blockeditor.domain.BlockNode
+import de.visualtasker.blockeditor.domain.FieldValue
 import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.compose.icons.drawBlockTypeIcon
+import de.visualtasker.blockeditor.compose.model.ReporterFamily
+import de.visualtasker.blockeditor.compose.model.ReporterVisualMode
+import de.visualtasker.blockeditor.compose.model.reporterVisualModeFor
+import de.visualtasker.blockeditor.compose.model.resolveReporterFamily
 import de.visualtasker.blockeditor.compose.shapes.BlockShapes
 import de.visualtasker.blockeditor.layout.BranchSectionKind
 import de.visualtasker.blockeditor.layout.BranchSectionLayout
@@ -141,9 +147,41 @@ internal fun DrawScope.drawBlock(
         val label = block.structuralLabel(definition, "Unsupported: ${blockType.substringAfterLast('.')}")
         val isReporter = definition?.isReporter == true
         val isInlineReporter = isReporter && definition?.inputsInline == true
+        val reporterMode = reporterVisualModeFor(block)
+        val reporterFamily = resolveReporterFamily(blockType, definition)
+        val boolValue = when (val value = block.fields["value"]) {
+            is FieldValue.Bool -> value.value
+            is FieldValue.Text -> value.value.equals("true", ignoreCase = true)
+            else -> false
+        }
+
+        if (isReporter && reporterMode == ReporterVisualMode.COMPACT && reporterFamily != null) {
+            when (reporterFamily) {
+                ReporterFamily.BOOLEAN -> {
+                    val iconSize = (minOf(width, height) - 6f).coerceAtLeast(14f)
+                    val iconTopLeft = Offset((width - iconSize) / 2f, (height - iconSize) / 2f)
+                    drawBooleanTriangleIcon(
+                        value = boolValue,
+                        topLeft = iconTopLeft,
+                        tint = textColor,
+                        size = iconSize,
+                    )
+                }
+                else -> {
+                    drawReporterCompactBadge(
+                        family = reporterFamily,
+                        width = width,
+                        height = height,
+                        tint = textColor,
+                        textMeasurer = textMeasurer,
+                    )
+                }
+            }
+            return@translate
+        }
 
         if (isInlineReporter && inlineReporterLayout != null) {
-            val operator = "op"
+            val operator = block.inlineOperatorLabel(definition)
             val operatorStyle = TextStyle(
                 color = textColor,
                 fontSize = 13.sp,
@@ -189,10 +227,10 @@ internal fun DrawScope.drawBlock(
 
         val isVariableReporter = isReporter && (
             blockType.startsWith(BlockTypes.VARIABLE_REPORTER_PREFIX) ||
-                blockType == BlockTypes.VARIABLE_GET
+            blockType == BlockTypes.VARIABLE_GET
             )
         if (isVariableReporter) {
-            val displayName = "var"
+            val displayName = block.variableDisplayLabel(definition)
             val textStyle = TextStyle(
                 color = textColor,
                 fontSize = 13.sp,
@@ -265,6 +303,38 @@ internal fun DrawScope.drawBlock(
             availableHeight = drawableTextHeight,
         )
     }
+}
+
+internal fun BlockNode.inlineOperatorLabel(definition: BlockDefinition?): String {
+    val raw = fields["operator"]?.asString()?.trim().orEmpty()
+    return stableOperatorLabel(raw)
+        ?: definition?.label?.takeIf { it.isNotBlank() }
+        ?: "op"
+}
+
+internal fun BlockNode.variableDisplayLabel(definition: BlockDefinition?): String =
+    fields["variable"]?.asString()?.takeIf { it.isNotBlank() }
+        ?: fields["name"]?.asString()?.takeIf { it.isNotBlank() }
+        ?: definition?.label?.takeIf { it.isNotBlank() }
+        ?: type.removePrefix(BlockTypes.VARIABLE_REPORTER_PREFIX).takeIf { it != type && it.isNotBlank() }
+        ?: "var"
+
+private fun stableOperatorLabel(raw: String): String? = when (raw) {
+    "ADD", "add", "+" -> "+"
+    "SUBTRACT", "subtract", "-" -> "-"
+    "MULTIPLY", "multiply", "*" -> "x"
+    "DIVIDE", "divide", "/" -> "/"
+    "MODULO", "modulo", "%" -> "%"
+    "EQUAL", "EQUALS", "eq", "==" -> "="
+    "NOT_EQUAL", "NOT_EQUALS", "ne", "!=" -> "!="
+    "LESS", "LESS_THAN", "lt", "<" -> "<"
+    "LESS_OR_EQUAL", "LESS_THAN_OR_EQUALS", "lte", "<=" -> "<="
+    "GREATER", "GREATER_THAN", "gt", ">" -> ">"
+    "GREATER_OR_EQUAL", "GREATER_THAN_OR_EQUALS", "gte", ">=" -> ">="
+    "AND", "and" -> "AND"
+    "OR", "or" -> "OR"
+    "NOT", "not" -> "NOT"
+    else -> null
 }
 
 private fun DrawScope.drawGroupDragIndicator(
@@ -443,4 +513,83 @@ private fun truncateLabel(
         truncated = truncated.dropLast(1)
     }
     return if (truncated.length < label.length) "$truncated…" else truncated
+}
+
+private fun DrawScope.drawBooleanTriangleIcon(
+    value: Boolean,
+    topLeft: Offset,
+    tint: Color,
+    size: Float,
+) {
+    val triangle = Path().apply {
+        if (value) {
+            moveTo(topLeft.x + size / 2f, topLeft.y + 2f)
+            lineTo(topLeft.x + size - 2f, topLeft.y + size - 2f)
+            lineTo(topLeft.x + 2f, topLeft.y + size - 2f)
+        } else {
+            moveTo(topLeft.x + 2f, topLeft.y + 2f)
+            lineTo(topLeft.x + size - 2f, topLeft.y + 2f)
+            lineTo(topLeft.x + size / 2f, topLeft.y + size - 2f)
+        }
+        close()
+    }
+    drawPath(path = triangle, color = tint.copy(alpha = 0.92f), style = Fill)
+    drawPath(path = triangle, color = tint.copy(alpha = 0.55f), style = Stroke(width = 1.8f))
+}
+
+private fun DrawScope.drawReporterCompactBadge(
+    family: ReporterFamily,
+    width: Float,
+    height: Float,
+    tint: Color,
+    textMeasurer: TextMeasurer,
+) {
+    val edge = (minOf(width, height) - 6f).coerceAtLeast(14f)
+    val chipTopLeft = Offset((width - edge) / 2f, (height - edge) / 2f)
+    val shapeColor = tint.copy(alpha = 0.18f)
+    val shapeStroke = tint.copy(alpha = 0.58f)
+    when (family) {
+        ReporterFamily.STRING, ReporterFamily.OPERATOR_STRING -> {
+            drawRoundRect(shapeColor, chipTopLeft, Size(edge, edge), CornerRadius(3f, 3f))
+            drawRoundRect(shapeStroke, chipTopLeft, Size(edge, edge), CornerRadius(3f, 3f), style = Stroke(1.8f))
+        }
+        ReporterFamily.NUMBER, ReporterFamily.OPERATOR_NUM -> {
+            val radius = CornerRadius(edge / 2.6f, edge / 2.6f)
+            drawRoundRect(shapeColor, chipTopLeft, Size(edge, edge), radius)
+            drawRoundRect(shapeStroke, chipTopLeft, Size(edge, edge), radius, style = Stroke(1.8f))
+        }
+        ReporterFamily.ANY, ReporterFamily.OPERATOR_ANY -> {
+            val center = Offset(chipTopLeft.x + edge / 2f, chipTopLeft.y + edge / 2f)
+            drawCircle(shapeColor, edge / 2f, center)
+            drawCircle(shapeStroke, edge / 2f, center, style = Stroke(1.8f))
+        }
+        ReporterFamily.CUSTOM, ReporterFamily.OPERATOR_CUSTOM, ReporterFamily.OPERATOR_BOOL -> {
+            val diamond = Path().apply {
+                moveTo(chipTopLeft.x + edge / 2f, chipTopLeft.y)
+                lineTo(chipTopLeft.x + edge, chipTopLeft.y + edge / 2f)
+                lineTo(chipTopLeft.x + edge / 2f, chipTopLeft.y + edge)
+                lineTo(chipTopLeft.x, chipTopLeft.y + edge / 2f)
+                close()
+            }
+            drawPath(diamond, shapeColor, style = Fill)
+            drawPath(diamond, shapeStroke, style = Stroke(1.8f))
+        }
+        ReporterFamily.BOOLEAN -> return
+    }
+    val symbol = when (family) {
+        ReporterFamily.STRING, ReporterFamily.OPERATOR_STRING -> "S"
+        ReporterFamily.NUMBER, ReporterFamily.OPERATOR_NUM -> "N"
+        ReporterFamily.ANY, ReporterFamily.OPERATOR_ANY -> "ANY"
+        ReporterFamily.CUSTOM, ReporterFamily.OPERATOR_CUSTOM -> "C"
+        ReporterFamily.OPERATOR_BOOL -> "B"
+        ReporterFamily.BOOLEAN -> return
+    }
+    val symbolStyle = TextStyle(color = tint, fontSize = 11.sp)
+    val layout = textMeasurer.measure(symbol, symbolStyle)
+    val symbolTopLeft = Offset(
+        chipTopLeft.x + (edge - layout.size.width) / 2f,
+        chipTopLeft.y + (edge - layout.size.height) / 2f,
+    )
+    if (!symbolTopLeft.x.isFinite() || !symbolTopLeft.y.isFinite()) return
+    drawText(textMeasurer = textMeasurer, text = symbol, topLeft = symbolTopLeft, style = symbolStyle)
 }

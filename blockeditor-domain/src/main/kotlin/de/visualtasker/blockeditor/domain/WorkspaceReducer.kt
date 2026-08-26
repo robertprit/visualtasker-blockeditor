@@ -9,6 +9,9 @@ fun interface BlockFactory {
 fun newBlockId(): BlockId = BlockId(UUID.randomUUID().toString())
 
 object WorkspaceReducer {
+    private val variableNamePattern = Regex("[A-Za-z_][A-Za-z0-9_]*")
+    private val supportedVariableTypes = setOf("STRING", "NUMBER", "BOOL", "BOOLEAN", "ANY")
+
     fun reduce(
         document: WorkspaceDocument,
         action: WorkspaceAction,
@@ -24,6 +27,7 @@ object WorkspaceReducer {
         is WorkspaceAction.Expand -> setCollapsed(document, action.blockId, false)
         is WorkspaceAction.UpdateField -> updateField(document, action.blockId, action.key, action.value)
         is WorkspaceAction.CreateVariable -> createVariable(document, action.variable)
+        is WorkspaceAction.RenameVariable -> renameVariable(document, action.variableId, action.name)
         is WorkspaceAction.DeleteVariable -> deleteVariable(document, action.variableId)
     }
 
@@ -391,10 +395,28 @@ object WorkspaceReducer {
 
     private fun createVariable(document: WorkspaceDocument, variable: VariableDefinition): WorkspaceDocument {
         if (variable.id in document.variables.variables) return document
+        if (!variable.isValid()) return document
+        val normalized = variable.copy(name = variable.name.trim(), type = variable.type.trim())
+        if (document.hasVariableNameCollision(normalized.id, normalized.name, normalized.scope)) return document
         return bump(
             document.copy(
                 variables = document.variables.copy(
-                    variables = document.variables.variables + (variable.id to variable),
+                    variables = document.variables.variables + (normalized.id to normalized),
+                ),
+            ),
+        )
+    }
+
+    private fun renameVariable(document: WorkspaceDocument, variableId: String, name: String): WorkspaceDocument {
+        val variable = document.variables.variables[variableId] ?: return document
+        val trimmed = name.trim()
+        if (!trimmed.isValidVariableName()) return document
+        if (document.hasVariableNameCollision(variableId, trimmed, variable.scope)) return document
+        if (variable.name == trimmed) return document
+        return bump(
+            document.copy(
+                variables = document.variables.copy(
+                    variables = document.variables.variables + (variableId to variable.copy(name = trimmed)),
                 ),
             ),
         )
@@ -402,6 +424,7 @@ object WorkspaceReducer {
 
     private fun deleteVariable(document: WorkspaceDocument, variableId: String): WorkspaceDocument {
         if (variableId !in document.variables.variables) return document
+        if (document.blocks.values.any { it.referencesVariable(variableId) }) return document
         return bump(
             document.copy(
                 variables = document.variables.copy(
@@ -410,4 +433,27 @@ object WorkspaceReducer {
             ),
         )
     }
+
+    private fun VariableDefinition.isValid(): Boolean =
+        id.isNotBlank() &&
+            name.trim().isValidVariableName() &&
+            type.isValidVariableType()
+
+    private fun WorkspaceDocument.hasVariableNameCollision(variableId: String, name: String, scope: VariableScope): Boolean =
+        variables.variables.values.any { variable ->
+            variable.id != variableId &&
+                variable.scope == scope &&
+                variable.name == name
+        }
+
+    private fun BlockNode.referencesVariable(variableId: String): Boolean {
+        if (type == "variable.reporter.$variableId") return true
+        if (fields["variableId"]?.asString() == variableId) return true
+        return fields["variable"]?.asString() == variableId
+    }
+
+    private fun String.isValidVariableName(): Boolean = matches(variableNamePattern)
+
+    private fun String.isValidVariableType(): Boolean =
+        trim().uppercase() in supportedVariableTypes
 }

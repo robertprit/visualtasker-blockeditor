@@ -25,12 +25,16 @@ object Validator {
             definition.valueInputs.forEach { inputDef ->
                 val input = block.valueInputs.find { it.name == inputDef.name }
                 if (input == null) {
-                    errors += MissingRequiredInput(blockId, inputDef.name)
+                    if (inputDef.required) {
+                        errors += MissingRequiredInput(blockId, inputDef.name)
+                    }
                     return@forEach
                 }
                 val connected = input.connection.connectedTo
                 if (connected == null) {
-                    errors += MissingRequiredInput(blockId, inputDef.name)
+                    if (inputDef.required) {
+                        errors += MissingRequiredInput(blockId, inputDef.name)
+                    }
                 } else {
                     val (valueBlockId, outputConn) = WorkspaceGraph.findConnection(document, connected)
                         ?: run {
@@ -39,7 +43,7 @@ object Validator {
                         }
                     val valueBlock = document.blocks[valueBlockId]
                     val outputType = outputConn.provides ?: valueBlock?.let { registry.getDefinition(it.type)?.outputType }
-                    if (outputType != null && inputDef.accepts.isNotEmpty() && outputType !in inputDef.accepts) {
+                    if (!isTypeCompatible(outputType, inputDef.accepts)) {
                         errors += TypeMismatch(blockId, inputDef.name, inputDef.accepts, outputType)
                     }
                 }
@@ -150,5 +154,11 @@ object Validator {
         }
 
         return dfs(startId)
+    }
+
+    private fun isTypeCompatible(outputType: String?, acceptedTypes: Set<String>): Boolean {
+        if (outputType == null || acceptedTypes.isEmpty()) return true
+        if (outputType == "Any" || "Any" in acceptedTypes) return true
+        return outputType in acceptedTypes
     }
 }
