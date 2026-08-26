@@ -2,6 +2,7 @@ package de.visualtasker.blockeditor.compose.ui
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import de.visualtasker.blockeditor.compose.theme.blockEditorColors
 import de.visualtasker.blockeditor.compose.theme.darkBlockEditorColors
 import de.visualtasker.blockeditor.compose.theme.lightBlockEditorColors
 import de.visualtasker.blockeditor.domain.BlockId
@@ -11,6 +12,7 @@ import de.visualtasker.blockeditor.domain.withRootOffset
 import de.visualtasker.blockeditor.domain.rootOffset
 import de.visualtasker.blockeditor.compose.host.BlockEditorController
 import de.visualtasker.blockeditor.registry.BlockTypes
+import de.visualtasker.blockeditor.registry.BlockCategories
 import de.visualtasker.blockeditor.registry.SampleWorkspaceFactory
 import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
 import org.junit.Assert.assertEquals
@@ -38,6 +40,22 @@ class BlockEditorVisualContractTest {
             assertTrue(colors.gridDot.alpha in 0.10f..0.50f)
             assertTrue(colors.snapHighlight.alpha in 0.20f..0.70f)
         }
+    }
+
+    @Test
+    fun `command reference categories use distinct calm block colors`() {
+        val categories = listOf(
+            BlockCategories.INPUT,
+            BlockCategories.PERCEPTION,
+            BlockCategories.LOGIC,
+            BlockCategories.VARIABLES,
+            BlockCategories.FLOW,
+            BlockCategories.RUNTIME,
+        )
+        val colors = categories.map(::blockEditorColors)
+
+        assertEquals(categories.size, colors.distinct().size)
+        assertTrue(colors.none { color -> color.red > 0.9f && color.green < 0.2f && color.blue < 0.2f })
     }
 
     @Test

@@ -82,14 +82,14 @@ class BlockVisualPathProviderTest {
     }
 
     @Test
-    fun `provider can override every visual shape family`() {
+    fun `provider can override every visual block shape`() {
         var calls = 0
         val provider = BlockVisualPathProvider {
             calls += 1
-            BlockVisualPathResult.Unsupported
+            BlockVisualPathResult.Success(trianglePath())
         }
 
-        resolveBlockVisualPath(
+        val statement = resolveBlockVisualPath(
             statementDefinition(),
             Size(120f, 44f),
             emptyList(),
@@ -100,14 +100,14 @@ class BlockVisualPathProviderTest {
                 de.visualtasker.blockeditor.registry.StatementInputDefinition("DO", "do"),
             ),
         )
-        resolveBlockVisualPath(
+        val container = resolveBlockVisualPath(
             containerDefinition,
             Size(120f, 88f),
             emptyList(),
             provider,
         )
         val inlineStatementDefinition = statementDefinition(inputsInline = true)
-        resolveBlockVisualPath(
+        val inlineStatement = resolveBlockVisualPath(
             inlineStatementDefinition,
             Size(120f, 44f),
             emptyList(),
@@ -115,6 +115,9 @@ class BlockVisualPathProviderTest {
         )
 
         assertEquals(3, calls)
+        assertEquals(trianglePath().getBounds(), statement.getBounds())
+        assertEquals(trianglePath().getBounds(), container.getBounds())
+        assertEquals(trianglePath().getBounds(), inlineStatement.getBounds())
     }
 
     @Test

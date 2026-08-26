@@ -140,7 +140,7 @@ internal fun DrawScope.drawBlock(
         val blockType = definition?.id ?: block.type
         val label = block.structuralLabel(definition, "Unsupported: ${blockType.substringAfterLast('.')}")
         val isReporter = definition?.isReporter == true
-        val isInlineReporter = definition?.inputsInline == true
+        val isInlineReporter = isReporter && definition?.inputsInline == true
 
         if (isInlineReporter && inlineReporterLayout != null) {
             val operator = "op"
