@@ -557,6 +557,10 @@ class BlockEditorController(
         if (disposed.get()) return
         val blockId = selectedBlockId ?: return
         val block = document.blocks[blockId] ?: return
+        if (fieldKey == "displayMode" && resolveReporterFamily(block.type, registry.getDefinition(block.type)) != null) {
+            setSelectedReporterVisualMode(ReporterVisualMode.fromMetadata(rawValue))
+            return
+        }
         val fieldDef = (registry.getDefinition(block.type)?.fields.orEmpty() + CommonBlockInfoFields)
             .find { it.key == fieldKey }
             ?: return

@@ -3,6 +3,7 @@ package de.visualtasker.blockeditor.compose.viewmodel
 import de.visualtasker.blockeditor.domain.BlockNode
 import de.visualtasker.blockeditor.domain.FieldValue
 import de.visualtasker.blockeditor.domain.asString
+import de.visualtasker.blockeditor.compose.model.reporterVisualModeFor
 import de.visualtasker.blockeditor.registry.FieldDefinition
 import de.visualtasker.blockeditor.registry.FieldKind
 import de.visualtasker.blockeditor.registry.FieldOption
@@ -72,7 +73,11 @@ internal fun FieldDefinition.parseInfoValue(rawValue: String): FieldValue? = whe
 }
 
 internal fun FieldDefinition.toBlockInfoField(block: BlockNode): BlockInfoField {
-    val value = block.infoValue(this)
+    val value = if (key == "displayMode") {
+        reporterVisualModeFor(block).name.lowercase()
+    } else {
+        block.infoValue(this)
+    }
     val source = block.infoSource(this)
     return BlockInfoField(
         key = key,

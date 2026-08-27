@@ -14,6 +14,8 @@ import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.domain.rootOffset
 import de.visualtasker.blockeditor.domain.withRootOffset
 import de.visualtasker.blockeditor.compose.render.contrastTextColor
+import de.visualtasker.blockeditor.compose.model.REPORTER_VISUAL_MODE_METADATA_KEY
+import de.visualtasker.blockeditor.compose.model.ReporterVisualMode
 import de.visualtasker.blockeditor.compose.theme.darkBlockEditorColors
 import de.visualtasker.blockeditor.compose.theme.lightBlockEditorColors
 import de.visualtasker.blockeditor.compose.viewmodel.parameterSourceFieldKey
@@ -208,6 +210,32 @@ class BlockEditorControllerTest {
         assertEquals("orange", controller.document.blocks[blockId]!!.fields["color"]!!.asString())
         assertTrue(controller.redo())
         assertEquals("violet", controller.document.blocks[blockId]!!.fields["color"]!!.asString())
+
+        controller.close()
+    }
+
+    @Test
+    fun displayModeFieldUpdatesReporterVisualMetadata() {
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+        )
+        controller.createVariable("counter", "Number")
+        val blockId = controller.document.blocks.entries.first {
+            it.value.type.startsWith(BlockTypes.VARIABLE_REPORTER_PREFIX)
+        }.key
+        controller.selectBlockCenter(blockId)
+
+        controller.updateBlockField("displayMode", "detailed")
+
+        val block = controller.document.blocks.getValue(blockId)
+        assertEquals(ReporterVisualMode.DETAILED.name, block.metadata[REPORTER_VISUAL_MODE_METADATA_KEY])
+        assertEquals("detailed", controller.selectedBlockInfo()!!.fields.single { it.key == "displayMode" }.value)
+
+        controller.updateBlockField("displayMode", "compact")
+
+        val compactBlock = controller.document.blocks.getValue(blockId)
+        assertEquals(ReporterVisualMode.COMPACT.name, compactBlock.metadata[REPORTER_VISUAL_MODE_METADATA_KEY])
+        assertEquals("compact", controller.selectedBlockInfo()!!.fields.single { it.key == "displayMode" }.value)
 
         controller.close()
     }

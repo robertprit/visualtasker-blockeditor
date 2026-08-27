@@ -165,7 +165,7 @@ class BlockVisualPathProviderTest {
         )
         assertTrue(
             BlockPathCache.shape(statementDefinition(id = "em_on_start", hasPrevious = false)) ==
-                BlockVisualShape.Container,
+                BlockVisualShape.Statement,
         )
     }
 

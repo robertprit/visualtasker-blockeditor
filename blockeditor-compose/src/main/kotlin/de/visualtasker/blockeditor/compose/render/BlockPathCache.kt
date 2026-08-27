@@ -33,7 +33,6 @@ internal object BlockPathCache {
             definition?.isReporter == true && definition.inputsInline -> "ir"
             definition?.isReporter == true -> "r"
             definition.isStartStatement() -> "ss"
-            definition.isDecorativeEventContainer() -> "ec"
             definition?.statementInputs?.isNotEmpty() == true -> "c"
             else -> "s"
         }
@@ -44,7 +43,6 @@ internal object BlockPathCache {
     fun shape(definition: BlockDefinition?): BlockVisualShape = when {
         definition?.isReporter == true && definition.inputsInline -> BlockVisualShape.InlineReporter
         definition?.isReporter == true -> BlockVisualShape.Reporter
-        definition.isDecorativeEventContainer() -> BlockVisualShape.Container
         definition?.statementInputs?.isNotEmpty() == true -> BlockVisualShape.Container
         else -> BlockVisualShape.Statement
     }
@@ -57,11 +55,6 @@ internal object BlockPathCache {
         definition?.isReporter == true && definition.inputsInline -> BlockShapes.inlineReporterPath(size)
         definition?.isReporter == true -> BlockShapes.reporterPath(size)
         definition.isStartStatement() -> BlockShapes.startStatementPath(size)
-        definition.isDecorativeEventContainer() -> BlockShapes.decorativeContainerPath(
-            size,
-            LayoutConstants.HEADER_HEIGHT,
-            LayoutConstants.FOOTER_HEIGHT,
-        )
         definition?.statementInputs?.isNotEmpty() == true -> {
             val dividers = branchDividerYs.ifEmpty {
                 ContainerBranchLayout.branchDividerYs(definition)
@@ -76,9 +69,6 @@ internal object BlockPathCache {
         else -> BlockShapes.statementPath(size)
     }
 
-    private fun BlockDefinition?.isDecorativeEventContainer(): Boolean =
-        this?.id == "em_on_start" && statementInputs.isEmpty()
-
     private fun BlockDefinition?.isStartStatement(): Boolean =
-        this?.id == BlockTypes.EVENT_START && statementInputs.isEmpty()
+        (this?.id == BlockTypes.EVENT_START || this?.id == "em_on_start") && statementInputs.isEmpty()
 }
