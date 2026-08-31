@@ -400,6 +400,52 @@ private fun DrawScope.drawReporterDockSlot(
     }
 }
 
+internal fun DrawScope.drawInlineReporterDockSlotOverlays(
+    block: BlockNode,
+    inlineReporterLayout: InlineReporterLayout,
+) {
+    listOf(
+        inlineReporterLayout.leftInputName to inlineReporterLayout.leftSlot,
+        inlineReporterLayout.rightInputName to inlineReporterLayout.rightSlot,
+    ).forEach { (inputName, slot) ->
+        val valueInput = block.valueInputs.find { it.name == inputName }
+        val connected = valueInput?.connection?.connectedTo != null
+        val style = reporterDockVisualStyle(
+            dataType = valueInput?.connection?.accepts?.firstOrNull(),
+            connected = connected,
+        )
+        val strokeWidth = if (connected) 2.4f else 1.8f
+        val innerHeight = (slot.height - strokeWidth * 2f).coerceAtLeast(0f)
+
+        if (!connected) {
+            drawRoundRect(
+                color = style.accent.copy(alpha = 0.14f),
+                topLeft = Offset(slot.x, slot.y),
+                size = Size(slot.width, slot.height),
+                cornerRadius = CornerRadius(slot.height / 2f, slot.height / 2f),
+                style = Fill,
+            )
+        }
+        drawRoundRect(
+            color = style.accent.copy(alpha = if (connected) 0.72f else 0.9f),
+            topLeft = Offset(slot.x, slot.y),
+            size = Size(slot.width, slot.height),
+            cornerRadius = CornerRadius(slot.height / 2f, slot.height / 2f),
+            style = Stroke(width = strokeWidth),
+        )
+        drawRoundRect(
+            color = Color.White.copy(alpha = if (connected) 0.24f else 0.16f),
+            topLeft = Offset(slot.x + strokeWidth, slot.y + strokeWidth),
+            size = Size(
+                (slot.width - strokeWidth * 2f).coerceAtLeast(0f),
+                innerHeight,
+            ),
+            cornerRadius = CornerRadius(innerHeight / 2f, innerHeight / 2f),
+            style = Stroke(width = 0.9f),
+        )
+    }
+}
+
 private fun BlockNode.structuralLabel(
     definition: BlockDefinition?,
     fallback: String,

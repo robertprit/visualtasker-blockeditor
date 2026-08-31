@@ -15,8 +15,9 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.rememberTextMeasurer
-import de.visualtasker.blockeditor.compose.render.drawBlock
 import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
+import de.visualtasker.blockeditor.compose.render.drawBlock
+import de.visualtasker.blockeditor.compose.render.drawInlineReporterDockSlotOverlays
 import de.visualtasker.blockeditor.compose.theme.BlockEditorColors
 import de.visualtasker.blockeditor.compose.theme.defaultBlockEditorColors
 import de.visualtasker.blockeditor.domain.BlockId
@@ -147,6 +148,16 @@ fun EditorCanvasLayer(
                         } else {
                             drawStaticBlock()
                         }
+                    }
+                staticLayout.flatIndex.inlineReporterLayouts
+                    .sortedBy { it.zIndex }
+                    .forEach { inlineLayout ->
+                        if (movesWithDrag(inlineLayout.blockId) && inlineLayout.blockId != ghostRootId) return@forEach
+                        val block = document.blocks[inlineLayout.blockId] ?: return@forEach
+                        drawInlineReporterDockSlotOverlays(
+                            block = block,
+                            inlineReporterLayout = inlineLayout,
+                        )
                     }
 
                 if (dragRender != null && dragOffset != null) {
