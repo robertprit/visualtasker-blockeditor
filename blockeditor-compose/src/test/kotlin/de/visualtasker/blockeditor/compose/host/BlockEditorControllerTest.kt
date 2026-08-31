@@ -10,6 +10,7 @@ import de.visualtasker.blockeditor.domain.VariableScope
 import de.visualtasker.blockeditor.domain.WorkspaceAction
 import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.domain.WorkspaceGraph
+import de.visualtasker.blockeditor.domain.WorkspaceReducer
 import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.domain.rootOffset
 import de.visualtasker.blockeditor.domain.withRootOffset
@@ -35,6 +36,7 @@ import de.visualtasker.blockeditor.registry.StaticBlockRegistry
 import de.visualtasker.blockeditor.registry.ValueInputDefinition
 import de.visualtasker.blockeditor.registry.VariableReporterFactory
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
+import de.visualtasker.blockeditor.registry.asFactory
 import de.visualtasker.blockeditor.registry.createNode
 import androidx.compose.ui.graphics.Color
 import de.visualtasker.blockeditor.validation.ValidationError
@@ -284,6 +286,114 @@ class BlockEditorControllerTest {
         assertTrue(controller.redo())
         assertEquals(1, controller.document.blocks.size)
         assertEquals(3, callbacks.documentChanges.size)
+
+        controller.close()
+    }
+
+    @Test
+    fun undoRedoCoversAddDeleteMoveDockUndockBranchFieldAndAutoArrange() {
+        assertUndoRedoRestores(
+            mutate = { controller ->
+                controller.addBlockFromPalette(DefaultBlockRegistry.getDefinition(BlockTypes.ACTION_WAIT)!!)
+            },
+            changed = { before, after -> after.blocks.size == before.blocks.size + 1 },
+        )
+        assertUndoRedoRestores(
+            seed = {
+                singleBlockDocument(BlockTypes.ACTION_WAIT, BlockId("wait"))
+            },
+            mutate = { controller ->
+                controller.selectBlockCenter(BlockId("wait"))
+                controller.deleteSelectedBlock()
+            },
+            changed = { before, after -> after.blocks.size == before.blocks.size - 1 },
+        )
+        assertUndoRedoRestores(
+            seed = {
+                singleBlockDocument(BlockTypes.ACTION_WAIT, BlockId("wait"))
+            },
+            mutate = { controller ->
+                controller.onAction(WorkspaceAction.MoveRoot(BlockId("wait"), 180f, 240f))
+            },
+            changed = { before, after -> before.rootOffset(BlockId("wait")) != after.rootOffset(BlockId("wait")) },
+        )
+        assertUndoRedoRestores(
+            seed = ::dockableReporterDocument,
+            mutate = { controller ->
+                val reporter = controller.document.blocks.getValue(BlockId("number"))
+                val compare = controller.document.blocks.getValue(BlockId("compare"))
+                controller.onAction(WorkspaceAction.Connect(reporter.output!!.id, compare.valueInputs.first { it.name == "LEFT" }.connection.id))
+            },
+            changed = { _, after ->
+                after.blocks.getValue(BlockId("compare")).valueInputs.first { it.name == "LEFT" }.connection.connectedTo != null
+            },
+        )
+        assertUndoRedoRestores(
+            seed = {
+                dockableReporterDocument().let { doc ->
+                    val reporter = doc.blocks.getValue(BlockId("number"))
+                    val compare = doc.blocks.getValue(BlockId("compare"))
+                    WorkspaceReducer.reduce(
+                        doc,
+                        WorkspaceAction.Connect(reporter.output!!.id, compare.valueInputs.first { it.name == "LEFT" }.connection.id),
+                        DefaultBlockRegistry.asFactory(),
+                    )
+                }
+            },
+            mutate = { controller ->
+                controller.onAction(WorkspaceAction.Disconnect(controller.document.blocks.getValue(BlockId("number")).output!!.id))
+            },
+            changed = { _, after ->
+                after.blocks.getValue(BlockId("compare")).valueInputs.first { it.name == "LEFT" }.connection.connectedTo == null
+            },
+        )
+        assertUndoRedoRestores(
+            seed = {
+                singleBlockDocument(BlockTypes.CONTROL_IF, BlockId("if"))
+            },
+            mutate = { controller ->
+                controller.selectBlockCenter(BlockId("if"))
+                controller.addSelectedIfBranch(BlockTypes.CONTROL_IF, BlockTypes.CONTROL_IF_ELSE)
+            },
+            changed = { before, after -> before.blocks.getValue(BlockId("if")).statementInputs.size != after.blocks.getValue(BlockId("if")).statementInputs.size },
+        )
+        assertUndoRedoRestores(
+            seed = {
+                singleBlockDocument(BlockTypes.ACTION_WAIT, BlockId("wait"))
+            },
+            mutate = { controller ->
+                controller.selectBlockCenter(BlockId("wait"))
+                controller.updateBlockField("ms", "750")
+            },
+            changed = { before, after -> before.blocks.getValue(BlockId("wait")).fields != after.blocks.getValue(BlockId("wait")).fields },
+        )
+        assertUndoRedoRestores(
+            seed = ::multiRootDocument,
+            mutate = { controller ->
+                controller.onCanvasSizeChange(Offset2(480f, 360f))
+                controller.autoArrangeWorkspace()
+            },
+            changed = { before, after -> before.rootPositions != after.rootPositions },
+        )
+    }
+
+    @Test
+    fun createVariableAndReporterIsSingleUndoableAction() {
+        val controller = BlockEditorController(initialDocument = WorkspaceBootstrap.empty())
+
+        controller.createVariable("score", "Number")
+
+        assertEquals(1, controller.historySize)
+        assertEquals(1, controller.document.variables.variables.size)
+        assertEquals(1, controller.document.blocks.size)
+
+        assertTrue(controller.undo())
+        assertEquals(0, controller.document.variables.variables.size)
+        assertEquals(0, controller.document.blocks.size)
+
+        assertTrue(controller.redo())
+        assertEquals(1, controller.document.variables.variables.size)
+        assertEquals(1, controller.document.blocks.size)
 
         controller.close()
     }
@@ -1651,6 +1761,81 @@ class BlockEditorControllerTest {
 
         assertFalse(controller.closeTopMostPanel())
         controller.close()
+    }
+
+    private fun assertUndoRedoRestores(
+        seed: () -> WorkspaceDocument = { WorkspaceBootstrap.empty() },
+        mutate: (BlockEditorController) -> Unit,
+        changed: (WorkspaceDocument, WorkspaceDocument) -> Boolean,
+    ) {
+        val controller = BlockEditorController(initialDocument = seed())
+        val before = controller.document
+
+        mutate(controller)
+
+        val after = controller.document
+        assertTrue("Mutation should change document", changed(before, after))
+        assertEquals("Mutation should create one undo entry", 1, controller.historySize)
+        assertEquals("Mutation should clear redo stack", 0, controller.redoSize)
+
+        assertTrue(controller.undo())
+        assertEquals(before, controller.document)
+        assertEquals(0, controller.historySize)
+        assertEquals(1, controller.redoSize)
+
+        assertTrue(controller.redo())
+        assertEquals(after, controller.document)
+        assertEquals(1, controller.historySize)
+        assertEquals(0, controller.redoSize)
+
+        controller.close()
+    }
+
+    private fun singleBlockDocument(type: String, id: BlockId): WorkspaceDocument {
+        val block = DefaultBlockRegistry.getDefinition(type)!!
+            .createNode(id)
+        return WorkspaceDocument(
+            id = "single-${id.value}",
+            blocks = mapOf(id to block),
+            rootBlocks = listOf(id),
+        ).withRootOffset(id, 96f, 120f)
+    }
+
+    private fun dockableReporterDocument(): WorkspaceDocument {
+        val compareId = BlockId("compare")
+        val numberId = BlockId("number")
+        val compare = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_COMPARE)!!
+            .createNode(compareId)
+        val number = DefaultBlockRegistry.getDefinition(BlockTypes.LITERAL_NUMBER)!!
+            .createNode(numberId)
+        var document = WorkspaceDocument(
+            id = "dockable-reporter",
+            blocks = mapOf(
+                compareId to compare,
+                numberId to number,
+            ),
+            rootBlocks = listOf(compareId, numberId),
+        )
+        document = document.withRootOffset(compareId, 96f, 120f)
+        document = document.withRootOffset(numberId, 96f, 200f)
+        return document
+    }
+
+    private fun multiRootDocument(): WorkspaceDocument {
+        val firstId = BlockId("first")
+        val secondId = BlockId("second")
+        val waitDefinition = DefaultBlockRegistry.getDefinition(BlockTypes.ACTION_WAIT)!!
+        var document = WorkspaceDocument(
+            id = "multi-root",
+            blocks = mapOf(
+                firstId to waitDefinition.createNode(firstId),
+                secondId to waitDefinition.createNode(secondId),
+            ),
+            rootBlocks = listOf(firstId, secondId),
+        )
+        document = document.withRootOffset(firstId, 320f, 280f)
+        document = document.withRootOffset(secondId, 40f, 40f)
+        return document
     }
 
     private fun operateWithTwoVariables(): OperateFixture {

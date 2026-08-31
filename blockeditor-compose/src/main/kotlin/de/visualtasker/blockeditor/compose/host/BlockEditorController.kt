@@ -460,16 +460,20 @@ class BlockEditorController(
             type = type.ifBlank { "Any" },
             scope = VariableScope.Global,
         )
-        val withVariable = WorkspaceReducer.reduce(document, WorkspaceAction.CreateVariable(variable), registry.asFactory())
+        val baseline = document
+        val withVariable = WorkspaceReducer.reduce(baseline, WorkspaceAction.CreateVariable(variable), registry.asFactory())
         if (withVariable == document) return
-        applyPersistentDocumentChange(withVariable, previousDocument = document)
-        onAction(
+        syncVariableReporters(withVariable.variables)
+        val withReporter = WorkspaceReducer.reduce(
+            withVariable,
             WorkspaceAction.InstantiateBlock(
                 VariableReporterFactory.reporterId(variable.id),
                 96f,
-                120f + (document.rootBlocks.size * 24f),
+                120f + (baseline.rootBlocks.size * 24f),
             ),
+            registry.asFactory(),
         )
+        applyPersistentDocumentChange(withReporter, previousDocument = baseline)
     }
 
     fun renameVariable(variableId: String, name: String): Boolean {
