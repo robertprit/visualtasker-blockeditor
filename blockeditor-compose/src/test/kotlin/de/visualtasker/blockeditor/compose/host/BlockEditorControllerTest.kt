@@ -400,6 +400,39 @@ class BlockEditorControllerTest {
     }
 
     @Test
+    fun selectedControlBlockCanCollapseExpandAndParticipatesInUndoRedo() {
+        val blockId = BlockId("if")
+        val controller = BlockEditorController(
+            initialDocument = singleBlockDocument(BlockTypes.CONTROL_IF_ELSE, blockId),
+        )
+        val expandedHeight = controller.layoutCache.flatIndex.visibleBlocks
+            .single { it.blockId == blockId }
+            .bounds.height
+
+        controller.selectBlockCenter(blockId)
+
+        assertTrue(controller.canToggleSelectedBlockCollapse)
+        assertFalse(controller.selectedBlockCollapsed)
+        assertTrue(controller.toggleSelectedBlockCollapse())
+        assertTrue(controller.selectedBlockCollapsed)
+        assertEquals(1, controller.historySize)
+        assertTrue(
+            controller.layoutCache.flatIndex.visibleBlocks
+                .single { it.blockId == blockId }
+                .bounds.height < expandedHeight,
+        )
+
+        assertTrue(controller.undo())
+        assertFalse(controller.selectedBlockCollapsed)
+        assertTrue(controller.redo())
+        assertTrue(controller.selectedBlockCollapsed)
+        assertTrue(controller.toggleSelectedBlockCollapse())
+        assertFalse(controller.selectedBlockCollapsed)
+
+        controller.close()
+    }
+
+    @Test
     fun replaceWorkspaceDocumentCreatesSingleUndoablePersistentChange() {
         val callbacks = RecordingCallbacks()
         val controller = BlockEditorController(

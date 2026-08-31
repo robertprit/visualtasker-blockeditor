@@ -161,6 +161,16 @@ class BlockEditorController(
     val redoSize: Int
         get() = workspaceState.history.redoStack.size
 
+    val selectedBlockCollapsed: Boolean
+        get() = selectedBlockId?.let { document.blocks[it]?.collapsed } == true
+
+    val canToggleSelectedBlockCollapse: Boolean
+        get() {
+            val block = selectedBlockId?.let(document.blocks::get) ?: return false
+            val definition = registry.getDefinition(block.type) ?: return false
+            return !definition.isReporter || definition.inputsInline || block.statementInputs.isNotEmpty()
+        }
+
     init {
         syncVariableReporters(initialDocument.variables)
         emitInitialDerivedOutputs()
@@ -429,6 +439,25 @@ class BlockEditorController(
     fun dismissCategory() {
         if (disposed.get()) return
         expandedCategory = null
+    }
+
+    fun toggleSelectedBlockCollapse(): Boolean {
+        if (disposed.get()) return false
+        val blockId = selectedBlockId ?: return false
+        if (!canToggleSelectedBlockCollapse) return false
+        val action = if (document.blocks[blockId]?.collapsed == true) {
+            WorkspaceAction.Expand(blockId)
+        } else {
+            WorkspaceAction.Collapse(blockId)
+        }
+        val updated = WorkspaceReducer.reduce(document, action, registry.asFactory())
+        if (updated == document) return false
+        applyPersistentDocumentChange(
+            updated,
+            previousDocument = document,
+            phase = BlockEditorValidationPhase.AFTER_DOCUMENT_MUTATION,
+        )
+        return true
     }
 
     override fun definitionsForExpandedCategory(): List<BlockDefinition> {

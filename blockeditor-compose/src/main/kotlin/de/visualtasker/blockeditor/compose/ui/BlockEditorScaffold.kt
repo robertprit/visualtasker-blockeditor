@@ -27,6 +27,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.ZoomIn
@@ -93,6 +95,8 @@ fun BlockEditorScaffold(
     viewport: ViewportState,
     dragRender: DragRenderState?,
     selectedBlockIds: Set<BlockId>,
+    selectedBlockCollapsed: Boolean = false,
+    canToggleSelectedBlockCollapse: Boolean = false,
     codePreview: String,
     blockInfo: BlockInfoSnapshot?,
     showBottomPanel: Boolean,
@@ -120,6 +124,7 @@ fun BlockEditorScaffold(
     onSaveWorkspace: (() -> Unit)? = null,
     onUndo: () -> Boolean,
     onRedo: () -> Boolean,
+    onToggleSelectedBlockCollapse: () -> Boolean = { false },
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
     onDeleteSelectedBlock: () -> Boolean,
@@ -144,6 +149,8 @@ fun BlockEditorScaffold(
         viewport = viewport,
         dragRender = dragRender,
         selectedBlockIds = selectedBlockIds,
+        selectedBlockCollapsed = selectedBlockCollapsed,
+        canToggleSelectedBlockCollapse = canToggleSelectedBlockCollapse,
         codePreview = codePreview,
         blockInfo = blockInfo,
         showBottomPanel = showBottomPanel,
@@ -171,6 +178,7 @@ fun BlockEditorScaffold(
         onSaveWorkspace = onSaveWorkspace,
         onUndo = onUndo,
         onRedo = onRedo,
+        onToggleSelectedBlockCollapse = onToggleSelectedBlockCollapse,
         onZoomIn = onZoomIn,
         onZoomOut = onZoomOut,
         onDeleteSelectedBlock = onDeleteSelectedBlock,
@@ -199,6 +207,8 @@ fun BlockEditorScaffold(
     viewport: ViewportState,
     dragRender: DragRenderState?,
     selectedBlockIds: Set<BlockId>,
+    selectedBlockCollapsed: Boolean = false,
+    canToggleSelectedBlockCollapse: Boolean = false,
     codePreview: String,
     blockInfo: BlockInfoSnapshot?,
     showBottomPanel: Boolean,
@@ -226,6 +236,7 @@ fun BlockEditorScaffold(
     onSaveWorkspace: (() -> Unit)? = null,
     onUndo: () -> Boolean,
     onRedo: () -> Boolean,
+    onToggleSelectedBlockCollapse: () -> Boolean = { false },
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
     onDeleteSelectedBlock: () -> Boolean,
@@ -433,6 +444,8 @@ fun BlockEditorScaffold(
                     )
                     BlockEditorIconBar(
                         selectedBlockAvailable = selectedBlockIds.isNotEmpty(),
+                        selectedBlockCollapsed = selectedBlockCollapsed,
+                        canToggleSelectedBlockCollapse = canToggleSelectedBlockCollapse,
                         onFitWorkspace = {
                             onFitWorkspace()
                             playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
@@ -467,6 +480,19 @@ fun BlockEditorScaffold(
                             onRedo().also { changed ->
                                 if (changed) {
                                     playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                                }
+                            }
+                        },
+                        onToggleSelectedBlockCollapse = {
+                            onToggleSelectedBlockCollapse().also { changed ->
+                                if (changed) {
+                                    playEditorFeedback(
+                                        platformView,
+                                        haptic,
+                                        if (selectedBlockCollapsed) BlockEditorFeedbackEvent.Expanded else BlockEditorFeedbackEvent.Collapsed,
+                                        soundEffectsEnabled,
+                                        hapticFeedbackEnabled,
+                                    )
                                 }
                             }
                         },
@@ -609,6 +635,8 @@ private fun autoPanViewportIfNeeded(
 @Composable
 private fun BlockEditorIconBar(
     selectedBlockAvailable: Boolean,
+    selectedBlockCollapsed: Boolean,
+    canToggleSelectedBlockCollapse: Boolean,
     onFitWorkspace: () -> Unit,
     onAutoArrangeWorkspace: () -> Unit,
     onSaveWorkspace: (() -> Unit)?,
@@ -617,6 +645,7 @@ private fun BlockEditorIconBar(
     showBlockFactoryEntry: Boolean,
     onUndo: () -> Boolean,
     onRedo: () -> Boolean,
+    onToggleSelectedBlockCollapse: () -> Boolean,
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
     onDeleteSelectedBlock: () -> Unit,
@@ -651,6 +680,13 @@ private fun BlockEditorIconBar(
                 description = "Wiederholen",
                 icon = Icons.AutoMirrored.Filled.Redo,
                 onClick = { onRedo() },
+            )
+            BlockEditorToolbarIconButton(
+                description = if (selectedBlockCollapsed) "Block ausklappen" else "Block einklappen",
+                icon = if (selectedBlockCollapsed) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess,
+                enabled = canToggleSelectedBlockCollapse,
+                selected = selectedBlockCollapsed,
+                onClick = { onToggleSelectedBlockCollapse() },
             )
             BlockEditorToolbarIconButton(
                 description = "Verkleinern",

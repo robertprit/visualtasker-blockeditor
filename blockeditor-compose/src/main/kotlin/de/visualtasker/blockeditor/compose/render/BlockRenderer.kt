@@ -260,6 +260,8 @@ internal fun DrawScope.drawBlock(
         val hasHeaderCondition = branchSections.any { it.kind == BranchSectionKind.HeaderCondition }
         val maxTextWidth = if (hasHeaderCondition) {
             (LayoutConstants.NESTED_INDENT - labelX - 4f).coerceAtLeast(0f)
+        } else if (block.collapsed && !isReporter) {
+            (width - labelX - LayoutConstants.SLOT_PADDING - 36f).coerceAtLeast(0f)
         } else {
             (width - labelX - LayoutConstants.SLOT_PADDING).coerceAtLeast(0f)
         }
@@ -288,6 +290,33 @@ internal fun DrawScope.drawBlock(
             availableWidth = drawableTextWidth,
             availableHeight = drawableTextHeight,
         )
+        if (block.collapsed && !isReporter) {
+            val markerWidth = 28f
+            val markerHeight = 18f
+            val markerLeft = (width - markerWidth - LayoutConstants.SLOT_PADDING).coerceAtLeast(labelX)
+            val markerTop = (headerHeight - markerHeight) / 2f
+            drawRoundRect(
+                color = textColor.copy(alpha = 0.18f),
+                topLeft = Offset(markerLeft, markerTop),
+                size = Size(markerWidth, markerHeight),
+                cornerRadius = CornerRadius(markerHeight / 2f, markerHeight / 2f),
+                style = Fill,
+            )
+            val markerStyle = TextStyle(color = textColor.copy(alpha = 0.82f), fontSize = 12.sp)
+            val markerTextSize = safeDrawableTextSize(markerWidth, markerHeight) ?: return@translate
+            val markerLayout = measureTextSafely(textMeasurer, "...", markerStyle, markerTextSize)
+            drawTextSafely(
+                textMeasurer = textMeasurer,
+                text = "...",
+                topLeft = Offset(
+                    markerLeft + (markerWidth - markerLayout.size.width) / 2f,
+                    markerTop + (markerHeight - markerLayout.size.height) / 2f,
+                ),
+                style = markerStyle,
+                availableWidth = markerTextSize.width,
+                availableHeight = markerTextSize.height,
+            )
+        }
     }
 }
 
