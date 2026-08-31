@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import de.visualtasker.blockeditor.compose.layers.EditorCanvasLayer
+import de.visualtasker.blockeditor.compose.host.BlockPaletteInsertMode
 import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
 import de.visualtasker.blockeditor.compose.theme.defaultBlockEditorColors
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoSnapshot
@@ -70,6 +71,7 @@ import de.visualtasker.blockeditor.compose.viewmodel.DragRenderState
 import de.visualtasker.blockeditor.domain.BlockId
 import de.visualtasker.blockeditor.domain.Offset2
 import de.visualtasker.blockeditor.domain.WorkspaceDocument
+import de.visualtasker.blockeditor.domain.WorkspaceGraph
 import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.layout.LayoutCache
 import de.visualtasker.blockeditor.registry.BlockDefinition
@@ -111,6 +113,7 @@ fun BlockEditorScaffold(
     showBottomPanelToggle: Boolean = true,
     showBlockFactoryEntry: Boolean = true,
     gridEnabled: Boolean = true,
+    paletteInsertMode: BlockPaletteInsertMode = BlockPaletteInsertMode.TapToAdd,
     extraCategories: List<BlockCategories.CategoryMeta> = emptyList(),
     onFitWorkspace: () -> Unit,
     onAutoArrangeWorkspace: () -> Unit,
@@ -161,6 +164,7 @@ fun BlockEditorScaffold(
         showBottomPanelToggle = showBottomPanelToggle,
         showBlockFactoryEntry = showBlockFactoryEntry,
         gridEnabled = gridEnabled,
+        paletteInsertMode = paletteInsertMode,
         extraCategories = extraCategories,
         onFitWorkspace = onFitWorkspace,
         onAutoArrangeWorkspace = onAutoArrangeWorkspace,
@@ -215,6 +219,7 @@ fun BlockEditorScaffold(
     showBottomPanelToggle: Boolean = true,
     showBlockFactoryEntry: Boolean = true,
     gridEnabled: Boolean = true,
+    paletteInsertMode: BlockPaletteInsertMode = BlockPaletteInsertMode.TapToAdd,
     extraCategories: List<BlockCategories.CategoryMeta> = emptyList(),
     onFitWorkspace: () -> Unit,
     onAutoArrangeWorkspace: () -> Unit,
@@ -389,11 +394,21 @@ fun BlockEditorScaffold(
                                     }
                                 } else {
                                     val hadSnapCandidate = dragRender?.snapCandidate != null
+                                    val hadAttachment = dragRender?.session?.rootBlockId?.let { rootBlockId ->
+                                        WorkspaceGraph.isValuePlugged(document, rootBlockId) ||
+                                            WorkspaceGraph.previousChain(document, rootBlockId) != null ||
+                                            WorkspaceGraph.nextChain(document, rootBlockId) != null ||
+                                            WorkspaceGraph.slotContaining(document, rootBlockId) != null
+                                    } == true
                                     onUp.value(it)
                                     playEditorFeedback(
                                         platformView,
                                         haptic,
-                                        if (hadSnapCandidate) BlockEditorFeedbackEvent.Connected else BlockEditorFeedbackEvent.Command,
+                                        when {
+                                            hadSnapCandidate -> BlockEditorFeedbackEvent.Docked
+                                            hadAttachment -> BlockEditorFeedbackEvent.Undocked
+                                            else -> BlockEditorFeedbackEvent.Dropped
+                                        },
                                         soundEffectsEnabled,
                                         hapticFeedbackEnabled,
                                     )

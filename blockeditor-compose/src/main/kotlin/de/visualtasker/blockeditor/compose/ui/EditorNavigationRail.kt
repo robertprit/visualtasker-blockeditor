@@ -2,6 +2,8 @@ package de.visualtasker.blockeditor.compose.ui
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DragIndicator
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -32,6 +39,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
@@ -41,7 +50,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -49,11 +60,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import de.visualtasker.blockeditor.compose.host.BlockPaletteInsertMode
 import de.visualtasker.blockeditor.compose.icons.BlockIcons
 import de.visualtasker.blockeditor.compose.icons.CategoryIcons
 import de.visualtasker.blockeditor.registry.BlockCategories
 import de.visualtasker.blockeditor.registry.BlockDefinition
+import de.visualtasker.blockeditor.registry.BlockTypes
 
 @Composable
 fun EditorNavigationRail(
@@ -114,6 +129,8 @@ fun EditorNavigationRail(
 fun CategoryPalettePanel(
     category: String?,
     definitions: List<BlockDefinition>,
+    allDefinitions: List<BlockDefinition> = definitions,
+    insertMode: BlockPaletteInsertMode = BlockPaletteInsertMode.TapToAdd,
     onAddBlock: (BlockDefinition) -> Unit,
     onCreateVariable: ((name: String, type: String) -> Unit)? = null,
     onDismiss: () -> Unit,
@@ -124,7 +141,60 @@ fun CategoryPalettePanel(
     val meta = BlockCategories.metaFor(category)
     val accent = Color(meta.accentArgb)
     var showCreateVariableDialog by remember { mutableStateOf(false) }
+    var query by remember(category) { mutableStateOf("") }
+    var activeCategory by remember(category) { mutableStateOf<String?>(category) }
+    val favoriteIds = remember { mutableStateListOf<String>() }
+    val recentIds = remember { mutableStateListOf<String>() }
     val variableTypes = remember { listOf("Any", "Number", "Boolean") }
+    val paletteDefinitions = remember(allDefinitions) {
+        allDefinitions
+            .filter { it.paletteVisible }
+            .filter { it.category != BlockCategories.VARIABLE || it.id != BlockTypes.VARIABLE_GET }
+            .distinctBy { it.id }
+            .sortedWith(
+                compareBy<BlockDefinition>(
+                    { BlockCategories.metaFor(it.category).label },
+                    { it.paletteOrder },
+                    { it.label.lowercase() },
+                ),
+            )
+    }
+    val categories = remember(paletteDefinitions) {
+        paletteDefinitions
+            .map { BlockCategories.metaFor(it.category) }
+            .distinctBy { it.id }
+            .sortedBy { it.label.lowercase() }
+    }
+    val filteredDefinitions = remember(paletteDefinitions, activeCategory, query) {
+        val needle = query.trim().lowercase()
+        paletteDefinitions.filter { definition ->
+            (activeCategory == null || definition.category == activeCategory) &&
+                (needle.isEmpty() ||
+                    definition.label.lowercase().contains(needle) ||
+                    definition.id.lowercase().contains(needle))
+        }
+    }
+    val favoriteDefinitions = remember(paletteDefinitions, favoriteIds.toList()) {
+        favoriteIds.mapNotNull { id -> paletteDefinitions.firstOrNull { it.id == id } }
+    }
+    val recentDefinitions = remember(paletteDefinitions, recentIds.toList()) {
+        recentIds.mapNotNull { id -> paletteDefinitions.firstOrNull { it.id == id } }
+    }
+
+    LaunchedEffect(category) {
+        activeCategory = category
+    }
+
+    fun addFromPalette(definition: BlockDefinition) {
+        recentIds.remove(definition.id)
+        recentIds.add(0, definition.id)
+        while (recentIds.size > 6) recentIds.removeAt(recentIds.lastIndex)
+        onAddBlock(definition)
+    }
+
+    fun toggleFavorite(definition: BlockDefinition) {
+        if (definition.id in favoriteIds) favoriteIds.remove(definition.id) else favoriteIds.add(definition.id)
+    }
 
     if (showCreateVariableDialog && onCreateVariable != null) {
         CreateVariableDialog(
@@ -164,7 +234,11 @@ fun CategoryPalettePanel(
                         color = accent,
                     )
                     Text(
-                        text = "Tippe einen Block-Chip zum Hinzufügen",
+                        text = if (insertMode == BlockPaletteInsertMode.DragFromPalette) {
+                            "Drag-from-palette vorbereitet"
+                        } else {
+                            "Tippe einen Block-Chip zum Hinzufügen"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -188,32 +262,88 @@ fun CategoryPalettePanel(
                     ),
                 )
             }
-            CompatibleWrappingRow(
-                horizontalSpacing = 8.dp,
-                verticalSpacing = 8.dp,
-                modifier = Modifier.padding(top = 4.dp),
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Suche") },
+                leadingIcon = {
+                    Icon(Icons.Filled.Search, contentDescription = null)
+                },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Suche löschen")
+                        }
+                    }
+                },
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                definitions.forEach { definition ->
+                FilterChip(
+                    selected = activeCategory == null,
+                    onClick = { activeCategory = null },
+                    label = { Text("Alle") },
+                )
+                categories.forEach { categoryMeta ->
+                    val categoryAccent = Color(categoryMeta.accentArgb)
                     FilterChip(
-                        selected = false,
-                        onClick = { onAddBlock(definition) },
-                        label = { Text(definition.label) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = BlockIcons.forBlockType(definition.id),
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        },
+                        selected = activeCategory == categoryMeta.id,
+                        onClick = { activeCategory = categoryMeta.id },
+                        label = { Text(categoryMeta.label) },
                         colors = FilterChipDefaults.filterChipColors(
-                            containerColor = accent.copy(alpha = 0.14f),
-                            labelColor = MaterialTheme.colorScheme.onSurface,
-                            iconColor = accent,
+                            selectedContainerColor = categoryAccent.copy(alpha = 0.22f),
+                            selectedLabelColor = MaterialTheme.colorScheme.onSurface,
                         ),
                     )
                 }
             }
-            if (definitions.isEmpty()) {
+            if (favoriteDefinitions.isNotEmpty()) {
+                PaletteSection(
+                    title = "Favoriten",
+                    icon = Icons.Filled.Star,
+                    definitions = favoriteDefinitions,
+                    favoriteIds = favoriteIds,
+                    accent = accent,
+                    insertMode = insertMode,
+                    onToggleFavorite = ::toggleFavorite,
+                    onPick = ::addFromPalette,
+                )
+            }
+            if (recentDefinitions.isNotEmpty()) {
+                PaletteSection(
+                    title = "Recent",
+                    icon = Icons.Filled.History,
+                    definitions = recentDefinitions,
+                    favoriteIds = favoriteIds,
+                    accent = accent,
+                    insertMode = insertMode,
+                    onToggleFavorite = ::toggleFavorite,
+                    onPick = ::addFromPalette,
+                )
+            }
+            CompatibleWrappingRow(
+                horizontalSpacing = 6.dp,
+                verticalSpacing = 6.dp,
+                modifier = Modifier.padding(top = 4.dp),
+            ) {
+                filteredDefinitions.forEach { definition ->
+                    PaletteBlockChip(
+                        definition = definition,
+                        favorite = definition.id in favoriteIds,
+                        accent = Color(BlockCategories.metaFor(definition.category).accentArgb),
+                        insertMode = insertMode,
+                        onToggleFavorite = { toggleFavorite(definition) },
+                        onPick = { addFromPalette(definition) },
+                    )
+                }
+            }
+            if (filteredDefinitions.isEmpty()) {
                 AssistChip(
                     onClick = {},
                     enabled = false,
@@ -226,6 +356,105 @@ fun CategoryPalettePanel(
             }
         }
     }
+}
+
+@Composable
+private fun PaletteSection(
+    title: String,
+    icon: ImageVector,
+    definitions: List<BlockDefinition>,
+    favoriteIds: List<String>,
+    accent: Color,
+    insertMode: BlockPaletteInsertMode,
+    onToggleFavorite: (BlockDefinition) -> Unit,
+    onPick: (BlockDefinition) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+            Text(title, style = MaterialTheme.typography.labelLarge)
+        }
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            definitions.forEach { definition ->
+                PaletteBlockChip(
+                    definition = definition,
+                    favorite = definition.id in favoriteIds,
+                    accent = Color(BlockCategories.metaFor(definition.category).accentArgb),
+                    insertMode = insertMode,
+                    onToggleFavorite = { onToggleFavorite(definition) },
+                    onPick = { onPick(definition) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PaletteBlockChip(
+    definition: BlockDefinition,
+    favorite: Boolean,
+    accent: Color,
+    insertMode: BlockPaletteInsertMode,
+    onToggleFavorite: () -> Unit,
+    onPick: () -> Unit,
+) {
+    val dragModifier = if (insertMode == BlockPaletteInsertMode.DragFromPalette) {
+        Modifier.pointerInput(definition.id) {
+            detectDragGesturesAfterLongPress(
+                onDragEnd = onPick,
+                onDragCancel = {},
+                onDragStart = {},
+                onDrag = { change, _ -> change.consume() },
+            )
+        }
+    } else {
+        Modifier
+    }
+    InputChip(
+        modifier = dragModifier,
+        selected = false,
+        onClick = {
+            if (insertMode == BlockPaletteInsertMode.TapToAdd) {
+                onPick()
+            }
+        },
+        label = { Text(definition.label, maxLines = 1) },
+        leadingIcon = {
+            Icon(
+                imageVector = if (insertMode == BlockPaletteInsertMode.DragFromPalette) {
+                    Icons.Filled.DragIndicator
+                } else {
+                    BlockIcons.forBlockType(definition.id)
+                },
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+            )
+        },
+        trailingIcon = {
+            IconButton(
+                onClick = onToggleFavorite,
+                modifier = Modifier.size(24.dp),
+            ) {
+                Icon(
+                    imageVector = if (favorite) Icons.Filled.Star else Icons.Filled.StarBorder,
+                    contentDescription = if (favorite) "Favorit entfernen" else "Favorit hinzufügen",
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        },
+        colors = InputChipDefaults.inputChipColors(
+            containerColor = accent.copy(alpha = 0.14f),
+            labelColor = MaterialTheme.colorScheme.onSurface,
+            leadingIconColor = accent,
+            trailingIconColor = accent,
+        ),
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

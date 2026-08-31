@@ -11,7 +11,11 @@ internal enum class BlockEditorFeedbackEvent {
     SnapEntered,
     SnapChanged,
     SnapLost,
-    Connected,
+    Docked,
+    Undocked,
+    Dropped,
+    Collapsed,
+    Expanded,
     RejectedDrop,
     Deleted,
     Command,
@@ -39,7 +43,11 @@ internal fun playEditorFeedback(
         BlockEditorFeedbackEvent.SnapEntered -> Triple(ToneGenerator.TONE_PROP_ACK, 24, 18)
         BlockEditorFeedbackEvent.SnapChanged -> Triple(ToneGenerator.TONE_PROP_ACK, 18, 16)
         BlockEditorFeedbackEvent.SnapLost -> Triple(ToneGenerator.TONE_PROP_NACK, 28, 16)
-        BlockEditorFeedbackEvent.Connected -> Triple(ToneGenerator.TONE_PROP_BEEP, 44, 32)
+        BlockEditorFeedbackEvent.Docked -> Triple(ToneGenerator.TONE_PROP_ACK, 44, 32)
+        BlockEditorFeedbackEvent.Undocked -> Triple(ToneGenerator.TONE_PROP_NACK, 34, 22)
+        BlockEditorFeedbackEvent.Dropped -> Triple(ToneGenerator.TONE_PROP_BEEP, 30, 20)
+        BlockEditorFeedbackEvent.Collapsed -> Triple(ToneGenerator.TONE_PROP_BEEP, 24, 18)
+        BlockEditorFeedbackEvent.Expanded -> Triple(ToneGenerator.TONE_PROP_ACK, 28, 18)
         BlockEditorFeedbackEvent.RejectedDrop -> Triple(ToneGenerator.TONE_PROP_NACK, 48, 28)
         BlockEditorFeedbackEvent.Deleted -> Triple(ToneGenerator.TONE_PROP_NACK, 54, 32)
         BlockEditorFeedbackEvent.DragStarted,
@@ -52,4 +60,3 @@ internal fun playEditorFeedback(
         platformView.postDelayed({ generator.release() }, (durationMs + 40).toLong())
     }
 }
-

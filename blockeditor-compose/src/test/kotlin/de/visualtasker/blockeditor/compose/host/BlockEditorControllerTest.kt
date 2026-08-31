@@ -63,6 +63,7 @@ class BlockEditorControllerTest {
         assertTrue(BlockEditorHostUiConfig().showToolbox)
         assertTrue(BlockEditorHostUiConfig().gridEnabled)
         assertTrue(BlockEditorHostUiConfig().extraCategories.isEmpty())
+        assertEquals(BlockPaletteInsertMode.TapToAdd, BlockEditorHostUiConfig().paletteInsertMode)
     }
 
     @Test
