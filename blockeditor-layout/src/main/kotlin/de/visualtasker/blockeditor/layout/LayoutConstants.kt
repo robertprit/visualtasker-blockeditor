@@ -26,6 +26,7 @@ object LayoutConstants {
     const val BRANCH_SHELF = HEADER_HEIGHT
     /** Unterer Innenradius des C-Blocks – zusätzliche Reserve für den letzten Zweig. */
     const val CORNER_RADIUS = 16f
+    const val CONTROL_CONTAINER_WIDTH = 164f
     const val INLINE_OUTPUT_TAB = 10f
     const val INLINE_OPERATOR_WIDTH = 32f
     const val INLINE_SLOT_GAP = 6f

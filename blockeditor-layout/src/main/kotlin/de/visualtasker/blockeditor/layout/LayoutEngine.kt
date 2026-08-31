@@ -318,7 +318,7 @@ class LayoutEngine(
         branchSections: MutableList<BranchSectionLayout>,
         layoutChild: (BlockId, Float, Float, Int) -> Int,
     ): Int {
-        val width = LayoutConstants.CONTAINER_WIDTH
+        val width = controlContainerWidth(document, block, definition)
         var slotY = y + LayoutConstants.HEADER_HEIGHT + LayoutConstants.SLOT_PADDING
         var maxZ = zStart + 1
         var bodyBottom = slotY
@@ -735,7 +735,39 @@ class LayoutEngine(
         definition?.inputsInline == true -> inlineReporterWidth(document, block)
         definition?.isReporter == true -> LayoutConstants.REPORTER_WIDTH
         definition.isDecorativeEventContainer() -> LayoutConstants.STANDARD_WIDTH
-        definition?.statementInputs?.isNotEmpty() == true || block.statementInputs.isNotEmpty() -> LayoutConstants.STANDARD_WIDTH
+        definition?.statementInputs?.isNotEmpty() == true -> controlContainerWidth(document, block, definition)
+        block.statementInputs.isNotEmpty() -> LayoutConstants.CONTROL_CONTAINER_WIDTH
+        else -> LayoutConstants.STANDARD_WIDTH
+    }
+
+    private fun controlContainerWidth(
+        document: WorkspaceDocument,
+        block: BlockNode,
+        definition: BlockDefinition,
+    ): Float {
+        val widestChild = statementInputDefinitions(definition, block)
+            .flatMap { slotDef -> WorkspaceGraph.statementStack(document, block.id, slotDef.name) }
+            .maxOfOrNull { childId ->
+                val child = document.blocks[childId] ?: return@maxOfOrNull 0f
+                estimatedStackBlockWidth(document, child, registry.getDefinition(child.type))
+            }
+            ?: 0f
+
+        return maxOf(
+            LayoutConstants.CONTROL_CONTAINER_WIDTH,
+            LayoutConstants.NESTED_INDENT + widestChild + LayoutConstants.SLOT_PADDING,
+        )
+    }
+
+    private fun estimatedStackBlockWidth(
+        document: WorkspaceDocument,
+        block: BlockNode,
+        definition: BlockDefinition?,
+    ): Float = when {
+        definition?.inputsInline == true -> inlineReporterWidth(document, block)
+        definition?.isReporter == true -> LayoutConstants.REPORTER_WIDTH
+        definition.isDecorativeEventContainer() -> LayoutConstants.STANDARD_WIDTH
+        definition?.statementInputs?.isNotEmpty() == true -> controlContainerWidth(document, block, definition)
         else -> LayoutConstants.STANDARD_WIDTH
     }
 

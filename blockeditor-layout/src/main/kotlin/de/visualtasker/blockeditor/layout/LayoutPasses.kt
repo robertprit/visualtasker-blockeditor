@@ -23,6 +23,7 @@ class LayoutMeasurePass(
 
     private fun measuredWidth(definition: BlockDefinition?): Float = when {
         definition?.isReporter == true -> LayoutConstants.REPORTER_WIDTH
+        definition?.statementInputs?.isNotEmpty() == true -> LayoutConstants.CONTROL_CONTAINER_WIDTH
         else -> LayoutConstants.STANDARD_WIDTH
     }
 

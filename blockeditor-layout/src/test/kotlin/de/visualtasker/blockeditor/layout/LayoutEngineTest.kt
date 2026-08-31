@@ -136,6 +136,33 @@ class LayoutEngineTest {
     }
 
     @Test
+    fun emptyControlContainersUseCompactWidth() {
+        listOf(
+            BlockTypes.CONTROL_IF,
+            BlockTypes.CONTROL_IF_ELSEIF_ELSE,
+            BlockTypes.CONTROL_REPEAT,
+            BlockTypes.CONTROL_WHILE,
+        ).forEach { type ->
+            val cache = layoutControl(type)
+            val layout = cache.flatIndex.visibleBlocks.first { it.blockId == BlockId("control") }
+
+            assertEquals(LayoutConstants.CONTROL_CONTAINER_WIDTH, layout.bounds.width, 0.001f)
+        }
+    }
+
+    @Test
+    fun controlContainersGrowToFitBranchStatements() {
+        val cache = layoutRepeat(listOf("a"))
+        val control = cache.flatIndex.visibleBlocks.first { it.blockId == BlockId("repeat") }
+
+        assertEquals(
+            LayoutConstants.NESTED_INDENT + LayoutConstants.STANDARD_WIDTH + LayoutConstants.SLOT_PADDING,
+            control.bounds.width,
+            0.001f,
+        )
+    }
+
+    @Test
     fun ifElseIfElseContainer_exposesValueInputHits() {
         val cache = layoutControl(BlockTypes.CONTROL_IF_ELSEIF_ELSE)
         val hits = cache.flatIndex.hitPrimitives
