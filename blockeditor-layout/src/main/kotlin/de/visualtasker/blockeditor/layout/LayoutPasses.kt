@@ -14,20 +14,22 @@ class LayoutMeasurePass(
                 val definition = registry.getDefinition(block.type)
                 MeasuredBlockLayout(
                     blockId = block.id,
-                    width = measuredWidth(definition),
+                    width = measuredWidth(block.collapsed, definition),
                     height = measuredHeight(block.collapsed, definition),
                     collapsed = block.collapsed,
                 )
             },
         )
 
-    private fun measuredWidth(definition: BlockDefinition?): Float = when {
+    private fun measuredWidth(collapsed: Boolean, definition: BlockDefinition?): Float = when {
+        collapsed && definition?.isReporter == true -> LayoutConstants.COLLAPSED_REPORTER_WIDTH
         definition?.isReporter == true -> LayoutConstants.REPORTER_WIDTH
         definition?.statementInputs?.isNotEmpty() == true -> LayoutConstants.CONTROL_CONTAINER_WIDTH
         else -> LayoutConstants.STANDARD_WIDTH
     }
 
     private fun measuredHeight(collapsed: Boolean, definition: BlockDefinition?): Float = when {
+        collapsed && definition?.isReporter == true -> LayoutConstants.COLLAPSED_REPORTER_HEIGHT
         collapsed -> LayoutConstants.COLLAPSED_HEIGHT
         definition?.isReporter == true -> LayoutConstants.REPORTER_HEIGHT
         else -> LayoutConstants.HEADER_HEIGHT

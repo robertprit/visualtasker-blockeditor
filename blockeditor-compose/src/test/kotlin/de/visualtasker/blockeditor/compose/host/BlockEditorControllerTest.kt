@@ -23,6 +23,7 @@ import de.visualtasker.blockeditor.compose.viewmodel.parameterSourceFieldKey
 import de.visualtasker.blockeditor.emscript.WorkspaceCodeGenerator
 import de.visualtasker.blockeditor.interaction.DragPullMode
 import de.visualtasker.blockeditor.interaction.ViewportState
+import de.visualtasker.blockeditor.layout.LayoutConstants
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.BlockCategories
 import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
@@ -428,6 +429,32 @@ class BlockEditorControllerTest {
         assertTrue(controller.selectedBlockCollapsed)
         assertTrue(controller.toggleSelectedBlockCollapse())
         assertFalse(controller.selectedBlockCollapsed)
+
+        controller.close()
+    }
+
+    @Test
+    fun selectedReporterCollapseUsesCompactBounds() {
+        val blockId = BlockId("reporter")
+        val controller = BlockEditorController(
+            initialDocument = singleBlockDocument(BlockTypes.VARIABLE_GET, blockId),
+        )
+        val expandedBounds = controller.layoutCache.flatIndex.visibleBlocks
+            .single { it.blockId == blockId }
+            .bounds
+
+        controller.selectBlockCenter(blockId)
+
+        assertTrue(controller.canToggleSelectedBlockCollapse)
+        assertTrue(controller.toggleSelectedBlockCollapse())
+        val collapsedBounds = controller.layoutCache.flatIndex.visibleBlocks
+            .single { it.blockId == blockId }
+            .bounds
+
+        assertTrue(collapsedBounds.width < expandedBounds.width)
+        assertTrue(collapsedBounds.height < expandedBounds.height)
+        assertEquals(LayoutConstants.COLLAPSED_REPORTER_WIDTH, collapsedBounds.width, 0.001f)
+        assertEquals(LayoutConstants.COLLAPSED_REPORTER_HEIGHT, collapsedBounds.height, 0.001f)
 
         controller.close()
     }

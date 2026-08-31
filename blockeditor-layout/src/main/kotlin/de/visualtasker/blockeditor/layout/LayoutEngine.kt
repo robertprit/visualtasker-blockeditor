@@ -37,7 +37,12 @@ class LayoutEngine(
             val block = document.blocks[blockId] ?: return zStart
             val definition = registry.getDefinition(block.type)
             if (block.collapsed) {
-                val bounds = Rect(x, y, blockWidth(document, definition, block), LayoutConstants.COLLAPSED_HEIGHT)
+                val bounds = Rect(
+                    x = x,
+                    y = y,
+                    width = collapsedBlockWidth(document, definition, block),
+                    height = collapsedBlockHeight(definition),
+                )
                 visibleBlocks += BlockLayout(blockId, bounds, bounds, zStart, collapsed = true)
                 hitPrimitives += HitPrimitive(
                     id = "${blockId.value}:body",
@@ -738,6 +743,20 @@ class LayoutEngine(
         definition?.statementInputs?.isNotEmpty() == true -> controlContainerWidth(document, block, definition)
         block.statementInputs.isNotEmpty() -> LayoutConstants.CONTROL_CONTAINER_WIDTH
         else -> LayoutConstants.STANDARD_WIDTH
+    }
+
+    private fun collapsedBlockWidth(
+        document: WorkspaceDocument,
+        definition: BlockDefinition?,
+        block: BlockNode,
+    ): Float = when {
+        definition?.isReporter == true -> LayoutConstants.COLLAPSED_REPORTER_WIDTH
+        else -> blockWidth(document, definition, block)
+    }
+
+    private fun collapsedBlockHeight(definition: BlockDefinition?): Float = when {
+        definition?.isReporter == true -> LayoutConstants.COLLAPSED_REPORTER_HEIGHT
+        else -> LayoutConstants.COLLAPSED_HEIGHT
     }
 
     private fun controlContainerWidth(

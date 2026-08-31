@@ -127,7 +127,7 @@ internal fun DrawScope.drawBlock(
             else -> false
         }
 
-        if (isReporter && reporterMode == ReporterVisualMode.COMPACT && reporterFamily != null) {
+        if (isReporter && (block.collapsed || reporterMode == ReporterVisualMode.COMPACT) && reporterFamily != null) {
             when (reporterFamily) {
                 ReporterFamily.BOOLEAN -> {
                     val iconSize = (minOf(width, height) - 6f).coerceAtLeast(14f)
@@ -149,6 +149,26 @@ internal fun DrawScope.drawBlock(
                     )
                 }
             }
+            return@translate
+        }
+
+        if (isReporter && block.collapsed) {
+            val markerStyle = TextStyle(color = textColor.copy(alpha = 0.86f), fontSize = 12.sp)
+            val markerTextSize = safeDrawableTextSize(width, height) ?: return@translate
+            val markerLayout = measureTextSafely(textMeasurer, "...", markerStyle, markerTextSize)
+            drawTextSafely(
+                textMeasurer = textMeasurer,
+                text = "...",
+                topLeft = centeredTextTopLeft(
+                    containerWidth = width,
+                    containerHeight = height,
+                    contentWidth = markerLayout.size.width.toFloat(),
+                    contentHeight = markerLayout.size.height.toFloat(),
+                ) ?: return@translate,
+                style = markerStyle,
+                availableWidth = markerTextSize.width,
+                availableHeight = markerTextSize.height,
+            )
             return@translate
         }
 

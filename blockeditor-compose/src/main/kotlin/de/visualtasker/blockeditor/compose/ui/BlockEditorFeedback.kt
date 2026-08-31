@@ -2,6 +2,7 @@ package de.visualtasker.blockeditor.compose.ui
 
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.view.HapticFeedbackConstants
 import android.view.SoundEffectConstants
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -36,6 +37,29 @@ internal fun playEditorFeedback(
             else -> HapticFeedbackType.LongPress
         }
         haptic.performHapticFeedback(hapticType)
+        val platformHaptic = when (event) {
+            BlockEditorFeedbackEvent.SnapEntered,
+            BlockEditorFeedbackEvent.SnapChanged,
+            -> HapticFeedbackConstants.TEXT_HANDLE_MOVE
+            BlockEditorFeedbackEvent.SnapLost,
+            -> HapticFeedbackConstants.LONG_PRESS
+            BlockEditorFeedbackEvent.Docked,
+            BlockEditorFeedbackEvent.Dropped,
+            BlockEditorFeedbackEvent.Collapsed,
+            BlockEditorFeedbackEvent.Expanded,
+            -> HapticFeedbackConstants.VIRTUAL_KEY
+            BlockEditorFeedbackEvent.Undocked,
+            BlockEditorFeedbackEvent.RejectedDrop,
+            BlockEditorFeedbackEvent.Deleted,
+            -> HapticFeedbackConstants.LONG_PRESS
+            BlockEditorFeedbackEvent.DragStarted,
+            BlockEditorFeedbackEvent.Command,
+            -> HapticFeedbackConstants.KEYBOARD_TAP
+        }
+        platformView.performHapticFeedback(
+            platformHaptic,
+            HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
+        )
     }
     if (!soundEnabled) return
     platformView.playSoundEffect(SoundEffectConstants.CLICK)
@@ -55,7 +79,7 @@ internal fun playEditorFeedback(
         -> Triple(ToneGenerator.TONE_PROP_BEEP, 30, 24)
     }
     runCatching {
-        val generator = ToneGenerator(AudioManager.STREAM_SYSTEM, volume)
+        val generator = ToneGenerator(AudioManager.STREAM_NOTIFICATION, volume)
         generator.startTone(tone, durationMs)
         platformView.postDelayed({ generator.release() }, (durationMs + 40).toLong())
     }

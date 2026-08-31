@@ -168,7 +168,7 @@ class BlockEditorController(
         get() {
             val block = selectedBlockId?.let(document.blocks::get) ?: return false
             val definition = registry.getDefinition(block.type) ?: return false
-            return !definition.isReporter || definition.inputsInline || block.statementInputs.isNotEmpty()
+            return definition.isReporter || definition.inputsInline || block.statementInputs.isNotEmpty()
         }
 
     init {
