@@ -279,6 +279,7 @@ fun BlockEditorScaffold(
     var blockDragActive by remember { mutableStateOf(false) }
     var latestDragPoint by remember { mutableStateOf<Offset2?>(null) }
     var canvasSize by remember { mutableStateOf(Offset2(0f, 0f)) }
+    var toolboxRailVisible by remember { mutableStateOf(false) }
     val gridVisible = gridEnabled
     val deleteCandidate = blockDragActive &&
         latestDragPoint?.let { isInTrashZone(it, canvasSize, trashSizePx, trashMarginPx) } == true
@@ -288,9 +289,11 @@ fun BlockEditorScaffold(
     val toolboxColor = scheme.surfaceContainerLowest
     val workspaceShape = RoundedCornerShape(30.dp)
     BackHandler(
-        enabled = showBlockFactory || expandedCategory != null || showBottomPanel,
+        enabled = showBlockFactory || expandedCategory != null || showBottomPanel || toolboxRailVisible,
     ) {
-        onCloseTopMostPanel()
+        if (!onCloseTopMostPanel() && toolboxRailVisible) {
+            toolboxRailVisible = false
+        }
     }
 
     val currentSnapTarget = dragRender?.snapCandidate?.targetConnectionId?.value
@@ -315,18 +318,6 @@ fun BlockEditorScaffold(
 
     Box(modifier = modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize()) {
-            if (showToolbox) {
-                EditorNavigationRail(
-                    expandedCategory = expandedCategory,
-                    onCategoryClick = onCategoryClick,
-                    extraCategories = extraCategories,
-                    containerColor = toolboxColor,
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(BlockEditorNavigationRailWidthDp),
-                )
-            }
-
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -437,6 +428,12 @@ fun BlockEditorScaffold(
                     )
                     BlockEditorIconBar(
                         selectedBlockAvailable = selectedBlockIds.isNotEmpty(),
+                        toolboxAvailable = showToolbox,
+                        toolboxVisible = toolboxRailVisible,
+                        onToggleToolbox = {
+                            toolboxRailVisible = !toolboxRailVisible
+                            playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                        },
                         onFitWorkspace = {
                             onFitWorkspace()
                             playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
@@ -516,21 +513,34 @@ fun BlockEditorScaffold(
 
         if (showToolbox) {
             AnimatedVisibility(
-                visible = expandedCategory != null,
+                visible = toolboxRailVisible,
                 enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(),
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(start = BlockEditorNavigationRailWidthDp, top = 6.dp, bottom = 6.dp),
+                    .padding(top = 6.dp, bottom = 6.dp),
             ) {
-                CategoryPalettePanel(
-                    category = expandedCategory,
-                    definitions = definitionsForCategory,
-                    onAddBlock = onAddBlock,
-                    onCreateVariable = onCreateVariable,
-                    onDismiss = onDismissCategory,
-                    containerColor = toolboxColor,
-                )
+                Row(modifier = Modifier.fillMaxHeight()) {
+                    EditorNavigationRail(
+                        expandedCategory = expandedCategory,
+                        onCategoryClick = onCategoryClick,
+                        extraCategories = extraCategories,
+                        containerColor = toolboxColor,
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(BlockEditorNavigationRailWidthDp),
+                    )
+                    if (expandedCategory != null) {
+                        CategoryPalettePanel(
+                            category = expandedCategory,
+                            definitions = definitionsForCategory,
+                            onAddBlock = onAddBlock,
+                            onCreateVariable = onCreateVariable,
+                            onDismiss = onDismissCategory,
+                            containerColor = toolboxColor,
+                        )
+                    }
+                }
             }
         }
     }
@@ -632,6 +642,9 @@ private fun autoPanViewportIfNeeded(
 @Composable
 private fun BlockEditorIconBar(
     selectedBlockAvailable: Boolean,
+    toolboxAvailable: Boolean,
+    toolboxVisible: Boolean,
+    onToggleToolbox: () -> Unit,
     onFitWorkspace: () -> Unit,
     onAutoArrangeWorkspace: () -> Unit,
     onSaveWorkspace: (() -> Unit)?,
@@ -658,6 +671,14 @@ private fun BlockEditorIconBar(
                 .padding(horizontal = 4.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
+            if (toolboxAvailable) {
+                BlockEditorToolbarIconButton(
+                    description = if (toolboxVisible) "Toolbox ausblenden" else "Toolbox einblenden",
+                    icon = Icons.Filled.GridView,
+                    selected = toolboxVisible,
+                    onClick = onToggleToolbox,
+                )
+            }
             if (onSaveWorkspace != null) {
                 BlockEditorToolbarIconButton(
                     description = "Speichern",
