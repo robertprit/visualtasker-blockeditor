@@ -9,8 +9,9 @@ kotlin {
 
 dependencies {
     implementation(project(":blockeditor-domain"))
+    implementation(project(":blockeditor-registry"))
     implementation(libs.kotlinx.serialization.json)
-    testImplementation(project(":blockeditor-registry"))
+    testImplementation(project(":blockeditor-emscript"))
     testImplementation(libs.junit)
 }
 

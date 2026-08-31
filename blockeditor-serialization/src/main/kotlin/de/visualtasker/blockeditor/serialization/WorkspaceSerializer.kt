@@ -14,10 +14,16 @@ import de.visualtasker.blockeditor.domain.VariableScope
 import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.domain.WorkspacePoint
 import de.visualtasker.blockeditor.domain.rootOffset
+import de.visualtasker.blockeditor.registry.BlockRegistry
+import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 const val WORKSPACE_SCHEMA_VERSION = 1
 
@@ -124,6 +130,64 @@ object WorkspaceSerializer {
     fun serialize(document: WorkspaceDocument): String =
         json.encodeToString(document.toDto())
 
+    fun decode(
+        raw: String,
+        registry: BlockRegistry = DefaultBlockRegistry,
+    ): WorkspaceDecodeResult {
+        if (raw.isBlank()) {
+            return WorkspaceDecodeResult.Malformed(
+                reason = "Workspace document is blank.",
+                diagnostics = listOf(
+                    WorkspaceCompatibilityDiagnostic(
+                        severity = WorkspaceCompatibilitySeverity.ERROR,
+                        code = "workspace.blank",
+                        message = "Workspace document is blank.",
+                    ),
+                ),
+            )
+        }
+        val schemaVersion = rawSchemaVersion(raw)
+        if (schemaVersion != null && schemaVersion > WORKSPACE_SCHEMA_VERSION) {
+            return WorkspaceDecodeResult.UnsupportedSchema(
+                version = schemaVersion,
+                diagnostics = listOf(
+                    WorkspaceCompatibilityDiagnostic(
+                        severity = WorkspaceCompatibilitySeverity.ERROR,
+                        code = "workspace.schema.unsupported",
+                        message = "Unsupported workspace schema version $schemaVersion; expected $WORKSPACE_SCHEMA_VERSION.",
+                    ),
+                ),
+            )
+        }
+        val document = try {
+            deserialize(raw)
+        } catch (error: WorkspaceSerializationException) {
+            return WorkspaceDecodeResult.Malformed(
+                reason = error.message ?: "Malformed workspace JSON.",
+                diagnostics = listOf(
+                    WorkspaceCompatibilityDiagnostic(
+                        severity = WorkspaceCompatibilitySeverity.ERROR,
+                        code = "workspace.malformed",
+                        message = error.message ?: "Malformed workspace JSON.",
+                    ),
+                ),
+            )
+        }
+        val diagnostics = buildList {
+            if (schemaVersion == null) {
+                add(
+                    WorkspaceCompatibilityDiagnostic(
+                        severity = WorkspaceCompatibilitySeverity.INFO,
+                        code = "workspace.schema.migrated",
+                        message = "Workspace without schemaVersion was loaded as schema $WORKSPACE_SCHEMA_VERSION.",
+                    ),
+                )
+            }
+            addAll(document.compatibilityDiagnostics(registry))
+        }
+        return WorkspaceDecodeResult.Decoded(document, diagnostics)
+    }
+
     fun deserialize(raw: String): WorkspaceDocument {
         if (raw.isBlank()) {
             throw WorkspaceSerializationException("Workspace document is blank.")
@@ -142,6 +206,78 @@ object WorkspaceSerializer {
             )
         }
         return dto.toDomain()
+    }
+
+    private fun rawSchemaVersion(raw: String): Int? = runCatching {
+        val element = json.parseToJsonElement(raw)
+        (element.jsonObject["schemaVersion"] ?: return@runCatching null)
+            .jsonPrimitive
+            .intOrNull
+    }.getOrNull()
+
+    private fun WorkspaceDocument.compatibilityDiagnostics(
+        registry: BlockRegistry,
+    ): List<WorkspaceCompatibilityDiagnostic> = buildList {
+        blocks.values.forEach { block ->
+            val definition = registry.getDefinition(block.type)
+            if (definition == null) {
+                add(
+                    WorkspaceCompatibilityDiagnostic(
+                        severity = WorkspaceCompatibilitySeverity.ERROR,
+                        code = "block.type.missing-definition",
+                        message = "Block ${block.id.value} references unavailable block definition '${block.type}'.",
+                        blockId = block.id.value,
+                    ),
+                )
+                return@forEach
+            }
+            val definitionValueInputs = definition.valueInputs.map { it.name }.toSet()
+            val blockValueInputs = block.valueInputs.map { it.name }.toSet()
+            val definitionStatementInputs = definition.statementInputs.map { it.name }.toSet()
+            val blockStatementInputs = block.statementInputs.map { it.name }.toSet()
+            if (!blockValueInputs.containsAll(definitionValueInputs)) {
+                add(
+                    WorkspaceCompatibilityDiagnostic(
+                        severity = WorkspaceCompatibilitySeverity.ERROR,
+                        code = "block.shape.missing-value-input",
+                        message = "Block ${block.id.value} is missing value inputs ${(definitionValueInputs - blockValueInputs).sorted()}.",
+                        blockId = block.id.value,
+                    ),
+                )
+            }
+            if (!blockStatementInputs.containsAll(definitionStatementInputs)) {
+                add(
+                    WorkspaceCompatibilityDiagnostic(
+                        severity = WorkspaceCompatibilitySeverity.ERROR,
+                        code = "block.shape.missing-statement-input",
+                        message = "Block ${block.id.value} is missing statement inputs ${(definitionStatementInputs - blockStatementInputs).sorted()}.",
+                        blockId = block.id.value,
+                    ),
+                )
+            }
+            val extraValueInputs = blockValueInputs - definitionValueInputs
+            val extraStatementInputs = blockStatementInputs - definitionStatementInputs
+            if (extraValueInputs.isNotEmpty() || extraStatementInputs.isNotEmpty()) {
+                add(
+                    WorkspaceCompatibilityDiagnostic(
+                        severity = WorkspaceCompatibilitySeverity.WARNING,
+                        code = "block.shape.extra-inputs",
+                        message = "Block ${block.id.value} carries plugin/dynamic inputs value=${extraValueInputs.sorted()} statement=${extraStatementInputs.sorted()}.",
+                        blockId = block.id.value,
+                    ),
+                )
+            }
+        }
+        rootBlocks.filter { it !in blocks }.forEach { rootId ->
+            add(
+                WorkspaceCompatibilityDiagnostic(
+                    severity = WorkspaceCompatibilitySeverity.ERROR,
+                    code = "workspace.root.missing-block",
+                    message = "Root block ${rootId.value} is not present in blocks.",
+                    blockId = rootId.value,
+                ),
+            )
+        }
     }
 
     private fun WorkspaceDocument.toDto(): WorkspaceDocumentDto = WorkspaceDocumentDto(

@@ -14,6 +14,7 @@ import de.visualtasker.blockeditor.domain.VariableScope
 import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.domain.rootOffset
 import de.visualtasker.blockeditor.domain.withRootOffset
+import de.visualtasker.blockeditor.emscript.EmscriptGenerator
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
 import de.visualtasker.blockeditor.registry.SampleWorkspaceFactory
@@ -283,5 +284,102 @@ class WorkspaceSerializerTest {
         assertFalse(json.contains("viewport"))
         assertFalse(json.contains("selection"))
         assertTrue(json.contains("\"version\":${starter.version + 5}"))
+    }
+
+    @Test
+    fun decode_withoutSchemaVersionReportsMigrationDiagnostic() {
+        val legacyJson = WorkspaceSerializer.serialize(WorkspaceBootstrap.starter())
+            .replace(""""schemaVersion":$WORKSPACE_SCHEMA_VERSION,""", "")
+
+        val decoded = WorkspaceSerializer.decode(legacyJson)
+
+        assertTrue(decoded is WorkspaceDecodeResult.Decoded)
+        assertEquals(
+            "workspace.schema.migrated",
+            decoded.diagnostics.single().code,
+        )
+    }
+
+    @Test
+    fun decode_futureSchemaReportsUnsupportedWithoutLoadingDocument() {
+        val futureJson = WorkspaceSerializer.serialize(WorkspaceBootstrap.starter())
+            .replace(
+                """"schemaVersion":$WORKSPACE_SCHEMA_VERSION""",
+                """"schemaVersion":${WORKSPACE_SCHEMA_VERSION + 1}""",
+            )
+
+        val decoded = WorkspaceSerializer.decode(futureJson)
+
+        assertTrue(decoded is WorkspaceDecodeResult.UnsupportedSchema)
+        assertEquals("workspace.schema.unsupported", decoded.diagnostics.single().code)
+    }
+
+    @Test
+    fun decode_missingPluginDefinitionKeepsDocumentAndReportsDiagnostic() {
+        val missingPluginBlock = BlockNode(
+            id = BlockId("plugin-block"),
+            type = "plugin.vision.missing",
+        )
+        val document = WorkspaceDocument(
+            id = "missing-plugin",
+            blocks = mapOf(missingPluginBlock.id to missingPluginBlock),
+            rootBlocks = listOf(missingPluginBlock.id),
+        )
+
+        val decoded = WorkspaceSerializer.decode(WorkspaceSerializer.serialize(document))
+
+        assertTrue(decoded is WorkspaceDecodeResult.Decoded)
+        assertEquals("block.type.missing-definition", decoded.diagnostics.single().code)
+        assertEquals("plugin-block", decoded.diagnostics.single().blockId)
+    }
+
+    @Test
+    fun decode_incompatibleBlockShapeReportsMissingInputDiagnostic() {
+        val blockId = BlockId("compare")
+        val compare = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_COMPARE)!!
+            .createNode(blockId)
+            .copy(valueInputs = emptyList())
+        val document = WorkspaceDocument(
+            id = "incompatible-shape",
+            blocks = mapOf(blockId to compare),
+            rootBlocks = listOf(blockId),
+        )
+
+        val decoded = WorkspaceSerializer.decode(WorkspaceSerializer.serialize(document))
+
+        assertTrue(decoded is WorkspaceDecodeResult.Decoded)
+        assertTrue(decoded.diagnostics.any { it.code == "block.shape.missing-value-input" })
+    }
+
+    @Test
+    fun decodedWorkspaceRoundTripsThroughSerializerAndEmscript() {
+        val factory = DefaultBlockRegistry.asFactory()
+        var document = WorkspaceBootstrap.starter()
+        val startId = document.rootBlocks.single()
+        document = WorkspaceReducer.reduce(
+            document,
+            WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 40f, 96f),
+            factory,
+        )
+        val waitId = document.rootBlocks.first { it != startId }
+        document = WorkspaceReducer.reduce(
+            document,
+            WorkspaceAction.Connect(
+                document.blocks.getValue(startId).next!!.id,
+                document.blocks.getValue(waitId).previous!!.id,
+            ),
+            factory,
+        )
+
+        val first = WorkspaceSerializer.serialize(document)
+        val decoded = WorkspaceSerializer.decode(first) as WorkspaceDecodeResult.Decoded
+        val second = WorkspaceSerializer.serialize(decoded.document)
+        val redecoded = WorkspaceSerializer.decode(second) as WorkspaceDecodeResult.Decoded
+        val emscript = EmscriptGenerator().generate(redecoded.document)
+
+        assertEquals(first, second)
+        assertTrue(decoded.diagnostics.isEmpty())
+        assertTrue(redecoded.diagnostics.isEmpty())
+        assertTrue(emscript.contains("WAIT 500"))
     }
 }
