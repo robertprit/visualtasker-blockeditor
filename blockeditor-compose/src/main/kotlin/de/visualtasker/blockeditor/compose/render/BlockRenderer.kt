@@ -80,26 +80,6 @@ internal fun DrawScope.drawBlock(
         )
         branchSections.forEach { section ->
             val bounds = section.bounds
-            val sectionColor = when (section.kind) {
-                BranchSectionKind.HeaderCondition,
-                BranchSectionKind.ElifCondition,
-                -> Color.Black.copy(alpha = 0.22f)
-                BranchSectionKind.BranchDivider -> Color.Black.copy(alpha = 0.28f)
-            }
-            drawRoundRect(
-                color = sectionColor,
-                topLeft = Offset(bounds.x, bounds.y),
-                size = Size(bounds.width, bounds.height),
-                cornerRadius = renderMetrics.branchSectionCorner,
-            )
-            if (section.kind == BranchSectionKind.BranchDivider) {
-                drawLine(
-                    color = strokeColor.copy(alpha = 0.7f),
-                    start = Offset(bounds.x, bounds.y + bounds.height / 2f),
-                    end = Offset(bounds.x + bounds.width, bounds.y + bounds.height / 2f),
-                    strokeWidth = 2f,
-                )
-            }
             val sectionTextSize = safeDrawableTextSize(
                 width = bounds.width - LayoutConstants.SLOT_PADDING * 2,
                 height = bounds.height,
