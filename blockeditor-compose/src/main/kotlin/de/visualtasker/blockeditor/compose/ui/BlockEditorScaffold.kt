@@ -3,11 +3,6 @@
 package de.visualtasker.blockeditor.compose.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -87,7 +82,6 @@ import kotlinx.coroutines.launch
 
 internal val BlockEditorToolbarTouchTargetDp = 48.dp
 internal val BlockEditorTrashDropTargetSizeDp = 96.dp
-private val BlockEditorNavigationRailWidthDp = 80.dp
 
 @Composable
 fun BlockEditorScaffold(
@@ -279,21 +273,17 @@ fun BlockEditorScaffold(
     var blockDragActive by remember { mutableStateOf(false) }
     var latestDragPoint by remember { mutableStateOf<Offset2?>(null) }
     var canvasSize by remember { mutableStateOf(Offset2(0f, 0f)) }
-    var toolboxRailVisible by remember { mutableStateOf(false) }
     val gridVisible = gridEnabled
     val deleteCandidate = blockDragActive &&
         latestDragPoint?.let { isInTrashZone(it, canvasSize, trashSizePx, trashMarginPx) } == true
     var previousSnapTarget by remember { mutableStateOf<String?>(null) }
 
     val workspaceOutlineColor = scheme.outlineVariant.copy(alpha = 0.55f)
-    val toolboxColor = scheme.surfaceContainerLowest
     val workspaceShape = RoundedCornerShape(30.dp)
     BackHandler(
-        enabled = showBlockFactory || expandedCategory != null || showBottomPanel || toolboxRailVisible,
+        enabled = showBlockFactory || expandedCategory != null || showBottomPanel,
     ) {
-        if (!onCloseTopMostPanel() && toolboxRailVisible) {
-            toolboxRailVisible = false
-        }
+        onCloseTopMostPanel()
     }
 
     val currentSnapTarget = dragRender?.snapCandidate?.targetConnectionId?.value
@@ -428,12 +418,6 @@ fun BlockEditorScaffold(
                     )
                     BlockEditorIconBar(
                         selectedBlockAvailable = selectedBlockIds.isNotEmpty(),
-                        toolboxAvailable = showToolbox,
-                        toolboxVisible = toolboxRailVisible,
-                        onToggleToolbox = {
-                            toolboxRailVisible = !toolboxRailVisible
-                            playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
-                        },
                         onFitWorkspace = {
                             onFitWorkspace()
                             playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
@@ -511,38 +495,6 @@ fun BlockEditorScaffold(
             }
         }
 
-        if (showToolbox) {
-            AnimatedVisibility(
-                visible = toolboxRailVisible,
-                enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
-                exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(top = 6.dp, bottom = 6.dp),
-            ) {
-                Row(modifier = Modifier.fillMaxHeight()) {
-                    EditorNavigationRail(
-                        expandedCategory = expandedCategory,
-                        onCategoryClick = onCategoryClick,
-                        extraCategories = extraCategories,
-                        containerColor = toolboxColor,
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(BlockEditorNavigationRailWidthDp),
-                    )
-                    if (expandedCategory != null) {
-                        CategoryPalettePanel(
-                            category = expandedCategory,
-                            definitions = definitionsForCategory,
-                            onAddBlock = onAddBlock,
-                            onCreateVariable = onCreateVariable,
-                            onDismiss = onDismissCategory,
-                            containerColor = toolboxColor,
-                        )
-                    }
-                }
-            }
-        }
     }
 
     BlockDesignFactorySheet(
@@ -642,9 +594,6 @@ private fun autoPanViewportIfNeeded(
 @Composable
 private fun BlockEditorIconBar(
     selectedBlockAvailable: Boolean,
-    toolboxAvailable: Boolean,
-    toolboxVisible: Boolean,
-    onToggleToolbox: () -> Unit,
     onFitWorkspace: () -> Unit,
     onAutoArrangeWorkspace: () -> Unit,
     onSaveWorkspace: (() -> Unit)?,
@@ -671,14 +620,6 @@ private fun BlockEditorIconBar(
                 .padding(horizontal = 4.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            if (toolboxAvailable) {
-                BlockEditorToolbarIconButton(
-                    description = if (toolboxVisible) "Toolbox ausblenden" else "Toolbox einblenden",
-                    icon = Icons.Filled.GridView,
-                    selected = toolboxVisible,
-                    onClick = onToggleToolbox,
-                )
-            }
             if (onSaveWorkspace != null) {
                 BlockEditorToolbarIconButton(
                     description = "Speichern",
