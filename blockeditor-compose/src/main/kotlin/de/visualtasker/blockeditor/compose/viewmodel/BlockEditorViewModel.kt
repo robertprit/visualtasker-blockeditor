@@ -24,8 +24,10 @@ import de.visualtasker.blockeditor.interaction.HitResult
 import de.visualtasker.blockeditor.interaction.HitTest
 import de.visualtasker.blockeditor.interaction.SnapCandidate
 import de.visualtasker.blockeditor.interaction.SnapEngine
+import de.visualtasker.blockeditor.interaction.AutoArrangeConfig
 import de.visualtasker.blockeditor.interaction.ViewportConstraints
 import de.visualtasker.blockeditor.interaction.ViewportState
+import de.visualtasker.blockeditor.interaction.WorkspaceAutoArrange
 import de.visualtasker.blockeditor.layout.LayoutCache
 import de.visualtasker.blockeditor.layout.LayoutEngine
 import de.visualtasker.blockeditor.emscript.EmscriptGenerator
@@ -234,6 +236,22 @@ class BlockEditorViewModel(
 
     fun fitWorkspaceToCanvas() {
         viewport = ViewportState()
+    }
+
+    fun autoArrangeWorkspace() {
+        val maxColumnHeight = canvasSize
+            ?.let { ((it.y - 64f) / viewport.scale).coerceAtLeast(360f) }
+            ?: 720f
+        val arranged = WorkspaceAutoArrange.arrangeRoots(
+            document = document,
+            layoutCache = layoutCache,
+            config = AutoArrangeConfig(maxColumnHeight = maxColumnHeight),
+        )
+        if (arranged == document) return
+        document = arranged
+        layoutCache = layoutEngine.build(arranged)
+        fitWorkspaceToCanvas()
+        EditorDebugLog.d("Workspace", "autoArrange v${document.version} chain=${chainSummary(document)}")
     }
 
     fun zoomIn() {

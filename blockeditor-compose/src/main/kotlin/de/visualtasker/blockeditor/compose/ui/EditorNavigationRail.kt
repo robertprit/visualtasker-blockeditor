@@ -59,9 +59,6 @@ import de.visualtasker.blockeditor.registry.BlockDefinition
 fun EditorNavigationRail(
     expandedCategory: String?,
     onCategoryClick: (String) -> Unit,
-    onOpenBlockFactory: () -> Unit,
-    onClearWorkspace: () -> Unit,
-    showBlockFactoryEntry: Boolean = true,
     extraCategories: List<BlockCategories.CategoryMeta> = emptyList(),
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLowest,
     modifier: Modifier = Modifier,
@@ -108,32 +105,6 @@ fun EditorNavigationRail(
             )
         }
         Spacer(Modifier.weight(1f))
-        if (showBlockFactoryEntry) {
-            NavigationRailItem(
-                selected = expandedCategory == BlockCategories.CUSTOM,
-                onClick = onOpenBlockFactory,
-                icon = {
-                    Icon(
-                        imageVector = CategoryIcons.forCategory(BlockCategories.CUSTOM),
-                        contentDescription = "Block Factory",
-                        modifier = Modifier.size(24.dp),
-                    )
-                },
-                label = null,
-            )
-        }
-        NavigationRailItem(
-            selected = false,
-            onClick = onClearWorkspace,
-            icon = {
-                Icon(
-                    imageVector = Icons.Filled.Close,
-                    contentDescription = "Workspace leeren",
-                    modifier = Modifier.size(22.dp),
-                )
-            },
-            label = null,
-        )
         Spacer(Modifier.height(8.dp))
     }
 }

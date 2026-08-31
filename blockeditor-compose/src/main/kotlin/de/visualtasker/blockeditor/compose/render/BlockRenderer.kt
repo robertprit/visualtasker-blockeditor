@@ -48,6 +48,7 @@ internal fun DrawScope.drawBlock(
     branchSections: List<BranchSectionLayout> = emptyList(),
     inlineReporterLayout: InlineReporterLayout? = null,
     visualPathProvider: BlockVisualPathProvider = BlockVisualPathProvider.Legacy,
+    renderMetrics: BlockRenderMetrics = DefaultBlockRenderMetrics,
     selected: Boolean = false,
     selectionColor: Color = Color(0xFF42A5F5),
 ) {
@@ -69,17 +70,9 @@ internal fun DrawScope.drawBlock(
     )
     translate(topLeft.x, topLeft.y) {
         drawPath(path, fillColor, style = Fill)
-        drawPath(path, strokeColor, style = Stroke(width = 2f, pathEffect = strokePathEffect))
+        drawPath(path, strokeColor, style = Stroke(width = renderMetrics.normalStrokeWidth, pathEffect = strokePathEffect))
         if (selected) {
-            drawPath(path, selectionColor, style = Stroke(width = 4f))
-        }
-        branchDividerYs.forEach { dividerY ->
-            val stem = BlockShapes.branchStemTabPath(dividerY)
-            drawPath(stem, fillColor, style = Fill)
-            drawPath(stem, strokeColor, style = Stroke(width = 2f, pathEffect = strokePathEffect))
-            if (selected) {
-                drawPath(stem, selectionColor, style = Stroke(width = 4f))
-            }
+            drawPath(path, selectionColor, style = Stroke(width = renderMetrics.selectedStrokeWidth))
         }
         val sectionLabelStyle = TextStyle(
             color = textColor.copy(alpha = 0.85f),
@@ -97,7 +90,7 @@ internal fun DrawScope.drawBlock(
                 color = sectionColor,
                 topLeft = Offset(bounds.x, bounds.y),
                 size = Size(bounds.width, bounds.height),
-                cornerRadius = CornerRadius(4f, 4f),
+                cornerRadius = renderMetrics.branchSectionCorner,
             )
             if (section.kind == BranchSectionKind.BranchDivider) {
                 drawLine(
@@ -126,20 +119,19 @@ internal fun DrawScope.drawBlock(
                 availableHeight = sectionTextSize?.height ?: 0f,
             )
             if (section.inputName != null) {
-                val dockX = bounds.right - LayoutConstants.REPORTER_WIDTH - LayoutConstants.SLOT_PADDING
-                val dockY = bounds.y + (bounds.height - LayoutConstants.REPORTER_HEIGHT) / 2f
-                drawRoundRect(
-                    color = strokeColor,
+                val valueInput = block.valueInputs.find { it.name == section.inputName }
+                val dockX = bounds.right - renderMetrics.reporterDockSize.width - LayoutConstants.SLOT_PADDING
+                val dockY = bounds.y + (bounds.height - renderMetrics.reporterDockSize.height) / 2f
+                val connected = valueInput?.connection?.connectedTo != null
+                drawReporterDockSlot(
                     topLeft = Offset(dockX, dockY),
-                    size = Size(LayoutConstants.REPORTER_WIDTH, LayoutConstants.REPORTER_HEIGHT),
-                    cornerRadius = CornerRadius(6f, 6f),
-                    style = Stroke(width = 2f),
-                )
-                drawCircle(
-                    color = strokeColor,
-                    radius = LayoutConstants.ANCHOR_RADIUS * 0.55f,
-                    center = Offset(dockX, dockY + LayoutConstants.REPORTER_HEIGHT / 2f),
-                    style = Stroke(width = 2f),
+                    size = renderMetrics.reporterDockSize,
+                    outlineColor = textColor,
+                    backgroundColor = colors.slotBackground,
+                    connected = connected,
+                    dataType = valueInput?.connection?.accepts?.firstOrNull(),
+                    metrics = renderMetrics,
+                    showOutputAnchor = true,
                 )
             }
         }
@@ -182,6 +174,37 @@ internal fun DrawScope.drawBlock(
 
         if (isInlineReporter && inlineReporterLayout != null) {
             val operator = block.inlineOperatorLabel(definition)
+            drawRoundRect(
+                color = Color.Black.copy(alpha = 0.18f),
+                topLeft = Offset(inlineReporterLayout.operatorBounds.x, inlineReporterLayout.operatorBounds.y),
+                size = Size(inlineReporterLayout.operatorBounds.width, inlineReporterLayout.operatorBounds.height),
+                cornerRadius = renderMetrics.inlineOperatorCorner,
+                style = Fill,
+            )
+            drawRoundRect(
+                color = textColor.copy(alpha = 0.42f),
+                topLeft = Offset(inlineReporterLayout.operatorBounds.x, inlineReporterLayout.operatorBounds.y),
+                size = Size(inlineReporterLayout.operatorBounds.width, inlineReporterLayout.operatorBounds.height),
+                cornerRadius = renderMetrics.inlineOperatorCorner,
+                style = Stroke(width = 1.4f),
+            )
+            listOf(
+                inlineReporterLayout.leftInputName to inlineReporterLayout.leftSlot,
+                inlineReporterLayout.rightInputName to inlineReporterLayout.rightSlot,
+            ).forEach { (inputName, slot) ->
+                val valueInput = block.valueInputs.find { it.name == inputName }
+                val connected = valueInput?.connection?.connectedTo != null
+                drawReporterDockSlot(
+                    topLeft = Offset(slot.x, slot.y),
+                    size = Size(slot.width, slot.height),
+                    outlineColor = textColor,
+                    backgroundColor = colors.slotBackground,
+                    connected = connected,
+                    dataType = valueInput?.connection?.accepts?.firstOrNull(),
+                    metrics = renderMetrics,
+                    showOutputAnchor = false,
+                )
+            }
             val operatorStyle = TextStyle(
                 color = textColor,
                 fontSize = 13.sp,
@@ -205,23 +228,6 @@ internal fun DrawScope.drawBlock(
                 availableWidth = operatorTextSize.width,
                 availableHeight = operatorTextSize.height,
             )
-            listOf(
-                inlineReporterLayout.leftInputName to inlineReporterLayout.leftSlot,
-                inlineReporterLayout.rightInputName to inlineReporterLayout.rightSlot,
-            )
-                .forEach { (inputName, slot) ->
-                    val connected = block.valueInputs.find { it.name == inputName }
-                        ?.connection?.connectedTo != null
-                    if (!connected) {
-                        drawRoundRect(
-                            color = strokeColor,
-                            topLeft = Offset(slot.x, slot.y),
-                            size = Size(slot.width, slot.height),
-                            cornerRadius = CornerRadius(6f, 6f),
-                            style = Stroke(width = 2f),
-                        )
-                    }
-                }
             return@translate
         }
 
@@ -350,6 +356,46 @@ private fun DrawScope.drawGroupDragIndicator(
             start = Offset(centerX - 7f, y),
             end = Offset(centerX + 7f, y),
             strokeWidth = 2f,
+        )
+    }
+}
+
+private fun DrawScope.drawReporterDockSlot(
+    topLeft: Offset,
+    size: Size,
+    outlineColor: Color,
+    backgroundColor: Color,
+    connected: Boolean,
+    dataType: String?,
+    metrics: BlockRenderMetrics,
+    showOutputAnchor: Boolean,
+) {
+    val radius = if (size == metrics.reporterDockSize) {
+        metrics.reporterDockRadius
+    } else {
+        CornerRadius(size.height / 2f, size.height / 2f)
+    }
+    val style = reporterDockVisualStyle(dataType, connected)
+    drawRoundRect(
+        color = backgroundColor.copy(alpha = style.fillAlpha),
+        topLeft = topLeft,
+        size = size,
+        cornerRadius = radius,
+        style = Fill,
+    )
+    drawRoundRect(
+        color = style.accent.copy(alpha = style.strokeAlpha),
+        topLeft = topLeft,
+        size = size,
+        cornerRadius = radius,
+        style = Stroke(width = if (connected) metrics.dockConnectedStrokeWidth else metrics.dockStrokeWidth),
+    )
+    if (showOutputAnchor) {
+        drawCircle(
+            color = outlineColor.copy(alpha = style.anchorAlpha),
+            radius = LayoutConstants.ANCHOR_RADIUS * 0.46f,
+            center = Offset(topLeft.x, topLeft.y + size.height / 2f),
+            style = Stroke(width = 1.7f),
         )
     }
 }

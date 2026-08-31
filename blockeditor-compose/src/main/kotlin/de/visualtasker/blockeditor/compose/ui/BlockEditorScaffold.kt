@@ -2,12 +2,17 @@
 
 package de.visualtasker.blockeditor.compose.ui
 
-import android.media.AudioManager
-import android.media.ToneGenerator
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,13 +22,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CenterFocusStrong
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.ZoomOut
 import androidx.compose.material3.Icon
@@ -37,6 +47,7 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,7 +66,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.unit.dp
 import de.visualtasker.blockeditor.compose.layers.EditorCanvasLayer
 import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
@@ -74,10 +84,10 @@ import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import android.view.SoundEffectConstants
 
 internal val BlockEditorToolbarTouchTargetDp = 48.dp
 internal val BlockEditorTrashDropTargetSizeDp = 96.dp
+private val BlockEditorNavigationRailWidthDp = 80.dp
 
 @Composable
 fun BlockEditorScaffold(
@@ -109,6 +119,8 @@ fun BlockEditorScaffold(
     gridEnabled: Boolean = true,
     extraCategories: List<BlockCategories.CategoryMeta> = emptyList(),
     onFitWorkspace: () -> Unit,
+    onAutoArrangeWorkspace: () -> Unit,
+    onSaveWorkspace: (() -> Unit)? = null,
     onUndo: () -> Boolean,
     onRedo: () -> Boolean,
     onZoomIn: () -> Unit,
@@ -157,6 +169,8 @@ fun BlockEditorScaffold(
         gridEnabled = gridEnabled,
         extraCategories = extraCategories,
         onFitWorkspace = onFitWorkspace,
+        onAutoArrangeWorkspace = onAutoArrangeWorkspace,
+        onSaveWorkspace = onSaveWorkspace,
         onUndo = onUndo,
         onRedo = onRedo,
         onZoomIn = onZoomIn,
@@ -209,6 +223,8 @@ fun BlockEditorScaffold(
     gridEnabled: Boolean = true,
     extraCategories: List<BlockCategories.CategoryMeta> = emptyList(),
     onFitWorkspace: () -> Unit,
+    onAutoArrangeWorkspace: () -> Unit,
+    onSaveWorkspace: (() -> Unit)? = null,
     onUndo: () -> Boolean,
     onRedo: () -> Boolean,
     onZoomIn: () -> Unit,
@@ -266,6 +282,7 @@ fun BlockEditorScaffold(
     val gridVisible = gridEnabled
     val deleteCandidate = blockDragActive &&
         latestDragPoint?.let { isInTrashZone(it, canvasSize, trashSizePx, trashMarginPx) } == true
+    var previousSnapTarget by remember { mutableStateOf<String?>(null) }
 
     val workspaceOutlineColor = scheme.outlineVariant.copy(alpha = 0.55f)
     val toolboxColor = scheme.surfaceContainerLowest
@@ -276,154 +293,236 @@ fun BlockEditorScaffold(
         onCloseTopMostPanel()
     }
 
-    Row(modifier = modifier.fillMaxSize()) {
-        if (showToolbox) {
-            EditorNavigationRail(
-                expandedCategory = expandedCategory,
-                onCategoryClick = onCategoryClick,
-                onOpenBlockFactory = onOpenBlockFactory,
-                onClearWorkspace = onClearWorkspace,
-                showBlockFactoryEntry = showBlockFactoryEntry,
-                extraCategories = extraCategories,
-                containerColor = toolboxColor,
-            )
+    val currentSnapTarget = dragRender?.snapCandidate?.targetConnectionId?.value
+    LaunchedEffect(blockDragActive, currentSnapTarget) {
+        val previous = previousSnapTarget
+        when {
+            !blockDragActive -> previousSnapTarget = null
+            previous == null && currentSnapTarget != null -> {
+                playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.SnapEntered, soundEffectsEnabled, hapticFeedbackEnabled)
+                previousSnapTarget = currentSnapTarget
+            }
+            previous != null && currentSnapTarget == null -> {
+                playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.SnapLost, soundEffectsEnabled, hapticFeedbackEnabled)
+                previousSnapTarget = null
+            }
+            previous != null && currentSnapTarget != null && previous != currentSnapTarget -> {
+                playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.SnapChanged, soundEffectsEnabled, hapticFeedbackEnabled)
+                previousSnapTarget = currentSnapTarget
+            }
         }
+    }
 
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .padding(top = 6.dp, end = 6.dp, bottom = 6.dp),
-            ) {
-                Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .clip(workspaceShape)
-                    .background(colors.workspaceBackground)
-                    .border(
-                        width = 1.dp,
-                        color = workspaceOutlineColor,
-                        shape = workspaceShape,
-                    )
-                    .onSizeChanged { size ->
-                        val nextSize = Offset2(size.width.toFloat(), size.height.toFloat())
-                        if (!sameCanvasSize(canvasSize, nextSize)) {
-                            canvasSize = nextSize
-                            onCanvasSize.value(canvasSize)
-                        }
-                    }
-                    .pointerInput(Unit) {
-                        coroutineScope {
-                            launch {
-                                detectTransformGestures { centroid, pan, zoom, _ ->
-                                    if (blockDragActive) return@detectTransformGestures
-                                    val vp = viewportState.value
-                                    onViewport.value(
-                                        vp.withTransform(
-                                            centroid = Offset2(centroid.x, centroid.y),
-                                            panDelta = Offset2(pan.x, pan.y),
-                                            zoomFactor = zoom,
-                                        ),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    .workspacePointerGestures(
-                        onTap = { onTapState.value(it) },
-                        onDoubleTap = { onDoubleTapState.value(it) },
-                        onLongPressDragStart = {
-                            latestDragPoint = it
-                            onLongPressDragStartState.value(it).also { started ->
-                                if (started && hapticFeedbackEnabled) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                }
-                            }
-                        },
-                        onDrag = {
-                            latestDragPoint = it
-                            onMove.value(it)
-                        },
-                        onDragEnd = {
-                            latestDragPoint = it
-                            val deleteByTrash = isInTrashZone(it, canvasSize, trashSizePx, trashMarginPx)
-                            if (deleteByTrash) {
-                                if (onDeleteSelectedBlock()) {
-                                    playEditorSound(platformView, soundEffectsEnabled)
-                                    if (hapticFeedbackEnabled) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    }
-                                }
-                            } else {
-                                onUp.value(it)
-                                playEditorSound(platformView, soundEffectsEnabled)
-                                if (hapticFeedbackEnabled) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                }
-                            }
-                        },
-                        onBlockDragActiveChange = {
-                            blockDragActive = it
-                            if (!it) latestDragPoint = null
-                        },
-                    ),
-                ) {
-                EditorCanvasLayer(
-                    document = document,
-                    layoutCache = layoutCache,
-                    registry = registry,
-                    viewport = viewport,
-                    dragRender = dragRender,
-                    selectedBlockIds = selectedBlockIds,
-                    colors = colors,
-                    gridVisible = gridVisible,
-                    visualPathProvider = visualPathProvider,
-                )
-                BlockEditorIconBar(
-                    selectedBlockAvailable = selectedBlockIds.isNotEmpty(),
-                    onFitWorkspace = onFitWorkspace,
-                    onUndo = onUndo,
-                    onRedo = onRedo,
-                    onZoomIn = onZoomIn,
-                    onZoomOut = onZoomOut,
-                    onDeleteSelectedBlock = {
-                        if (onDeleteSelectedBlock()) {
-                            playEditorSound(platformView, soundEffectsEnabled)
-                            if (hapticFeedbackEnabled) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            }
-                        }
-                    },
+    Box(modifier = modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            if (showToolbox) {
+                EditorNavigationRail(
+                    expandedCategory = expandedCategory,
+                    onCategoryClick = onCategoryClick,
+                    extraCategories = extraCategories,
+                    containerColor = toolboxColor,
                     modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp),
+                        .fillMaxHeight()
+                        .width(BlockEditorNavigationRailWidthDp),
                 )
-                TrashDropTarget(
-                    active = deleteCandidate,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(16.dp),
-                )
-                }
-
-                if (showBottomPanel) {
-                    EditorBottomPanel(
-                        code = codePreview,
-                        blockInfo = blockInfo,
-                        onFieldChange = onFieldChange,
-                        onFieldSourceChange = onFieldSourceChange,
-                        onSetReporterVisualMode = onSetReporterVisualMode,
-                        onToggleVisible = onToggleBottomPanel,
-                    )
-                }
             }
 
-            if (showToolbox && expandedCategory != null) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(top = 6.dp, end = 6.dp, bottom = 6.dp),
+                ) {
+                    Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clip(workspaceShape)
+                        .background(colors.workspaceBackground)
+                        .border(
+                            width = 1.dp,
+                            color = workspaceOutlineColor,
+                            shape = workspaceShape,
+                        )
+                        .onSizeChanged { size ->
+                            val nextSize = Offset2(size.width.toFloat(), size.height.toFloat())
+                            if (!sameCanvasSize(canvasSize, nextSize)) {
+                                canvasSize = nextSize
+                                onCanvasSize.value(canvasSize)
+                            }
+                        }
+                        .pointerInput(Unit) {
+                            coroutineScope {
+                                launch {
+                                    detectTransformGestures { centroid, pan, zoom, _ ->
+                                        if (blockDragActive) return@detectTransformGestures
+                                        val vp = viewportState.value
+                                        onViewport.value(
+                                            vp.withTransform(
+                                                centroid = Offset2(centroid.x, centroid.y),
+                                                panDelta = Offset2(pan.x, pan.y),
+                                                zoomFactor = zoom,
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        .workspacePointerGestures(
+                            onTap = { onTapState.value(it) },
+                            onDoubleTap = { onDoubleTapState.value(it) },
+                            onLongPressDragStart = {
+                                latestDragPoint = it
+                                onLongPressDragStartState.value(it).also { started ->
+                                    if (started) {
+                                        playEditorFeedback(
+                                            platformView = platformView,
+                                            haptic = haptic,
+                                            event = BlockEditorFeedbackEvent.DragStarted,
+                                            soundEnabled = soundEffectsEnabled,
+                                            hapticEnabled = hapticFeedbackEnabled,
+                                        )
+                                    }
+                                }
+                            },
+                            onDrag = {
+                                latestDragPoint = it
+                                onMove.value(it)
+                                autoPanViewportIfNeeded(
+                                    point = it,
+                                    canvasSize = canvasSize,
+                                    viewport = viewportState.value,
+                                    onViewportChange = onViewport.value,
+                                )
+                            },
+                            onDragEnd = {
+                                latestDragPoint = it
+                                val deleteByTrash = isInTrashZone(it, canvasSize, trashSizePx, trashMarginPx)
+                                if (deleteByTrash) {
+                                    if (onDeleteSelectedBlock()) {
+                                        playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Deleted, soundEffectsEnabled, hapticFeedbackEnabled)
+                                    }
+                                } else {
+                                    val hadSnapCandidate = dragRender?.snapCandidate != null
+                                    onUp.value(it)
+                                    playEditorFeedback(
+                                        platformView,
+                                        haptic,
+                                        if (hadSnapCandidate) BlockEditorFeedbackEvent.Connected else BlockEditorFeedbackEvent.Command,
+                                        soundEffectsEnabled,
+                                        hapticFeedbackEnabled,
+                                    )
+                                }
+                            },
+                            onBlockDragActiveChange = {
+                                blockDragActive = it
+                                if (!it) latestDragPoint = null
+                            },
+                        ),
+                    ) {
+                    EditorCanvasLayer(
+                        document = document,
+                        layoutCache = layoutCache,
+                        registry = registry,
+                        viewport = viewport,
+                        dragRender = dragRender,
+                        selectedBlockIds = selectedBlockIds,
+                        colors = colors,
+                        gridVisible = gridVisible,
+                        visualPathProvider = visualPathProvider,
+                    )
+                    BlockEditorIconBar(
+                        selectedBlockAvailable = selectedBlockIds.isNotEmpty(),
+                        onFitWorkspace = {
+                            onFitWorkspace()
+                            playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                        },
+                        onAutoArrangeWorkspace = {
+                            onAutoArrangeWorkspace()
+                            playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                        },
+                        onSaveWorkspace = onSaveWorkspace?.let { save ->
+                            {
+                                save()
+                                playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                            }
+                        },
+                        onOpenBlockFactory = {
+                            onOpenBlockFactory()
+                            playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                        },
+                        onClearWorkspace = {
+                            onClearWorkspace()
+                            playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Deleted, soundEffectsEnabled, hapticFeedbackEnabled)
+                        },
+                        showBlockFactoryEntry = showBlockFactoryEntry,
+                        onUndo = {
+                            onUndo().also { changed ->
+                                if (changed) {
+                                    playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                                }
+                            }
+                        },
+                        onRedo = {
+                            onRedo().also { changed ->
+                                if (changed) {
+                                    playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                                }
+                            }
+                        },
+                        onZoomIn = {
+                            onZoomIn()
+                            playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                        },
+                        onZoomOut = {
+                            onZoomOut()
+                            playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                        },
+                        onDeleteSelectedBlock = {
+                            if (onDeleteSelectedBlock()) {
+                                playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Deleted, soundEffectsEnabled, hapticFeedbackEnabled)
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp),
+                    )
+                    TrashDropTarget(
+                        active = deleteCandidate,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp),
+                    )
+                    }
+
+                    if (showBottomPanel) {
+                        EditorBottomPanel(
+                            code = codePreview,
+                            blockInfo = blockInfo,
+                            onFieldChange = onFieldChange,
+                            onFieldSourceChange = onFieldSourceChange,
+                            onSetReporterVisualMode = onSetReporterVisualMode,
+                            onToggleVisible = onToggleBottomPanel,
+                        )
+                    }
+                }
+
+            }
+        }
+
+        if (showToolbox) {
+            AnimatedVisibility(
+                visible = expandedCategory != null,
+                enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
+                exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = BlockEditorNavigationRailWidthDp, top = 6.dp, bottom = 6.dp),
+            ) {
                 CategoryPalettePanel(
                     category = expandedCategory,
                     definitions = definitionsForCategory,
@@ -431,7 +530,6 @@ fun BlockEditorScaffold(
                     onCreateVariable = onCreateVariable,
                     onDismiss = onDismissCategory,
                     containerColor = toolboxColor,
-                    modifier = Modifier.align(Alignment.TopStart),
                 )
             }
         }
@@ -502,23 +600,44 @@ private fun sameCanvasSize(
     kotlin.math.abs(previous.x - next.x) <= tolerance &&
         kotlin.math.abs(previous.y - next.y) <= tolerance
 
-private fun playEditorSound(
-    platformView: android.view.View,
-    enabled: Boolean,
+private fun autoPanViewportIfNeeded(
+    point: Offset2,
+    canvasSize: Offset2,
+    viewport: ViewportState,
+    onViewportChange: (ViewportState) -> Unit,
+    edgePx: Float = 72f,
+    stepPx: Float = 24f,
 ) {
-    if (!enabled) return
-    platformView.playSoundEffect(SoundEffectConstants.CLICK)
-    runCatching {
-        val tone = ToneGenerator(AudioManager.STREAM_SYSTEM, 32)
-        tone.startTone(ToneGenerator.TONE_PROP_BEEP, 35)
-        platformView.postDelayed({ tone.release() }, 80L)
+    if (canvasSize.x <= edgePx * 2f || canvasSize.y <= edgePx * 2f) return
+    val panX = when {
+        point.x < edgePx -> stepPx
+        point.x > canvasSize.x - edgePx -> -stepPx
+        else -> 0f
     }
+    val panY = when {
+        point.y < edgePx -> stepPx
+        point.y > canvasSize.y - edgePx -> -stepPx
+        else -> 0f
+    }
+    if (panX == 0f && panY == 0f) return
+    onViewportChange(
+        viewport.withTransform(
+            centroid = Offset2(canvasSize.x / 2f, canvasSize.y / 2f),
+            panDelta = Offset2(panX, panY),
+            zoomFactor = 1f,
+        ),
+    )
 }
 
 @Composable
 private fun BlockEditorIconBar(
     selectedBlockAvailable: Boolean,
     onFitWorkspace: () -> Unit,
+    onAutoArrangeWorkspace: () -> Unit,
+    onSaveWorkspace: (() -> Unit)?,
+    onOpenBlockFactory: () -> Unit,
+    onClearWorkspace: () -> Unit,
+    showBlockFactoryEntry: Boolean,
     onUndo: () -> Boolean,
     onRedo: () -> Boolean,
     onZoomIn: () -> Unit,
@@ -533,7 +652,19 @@ private fun BlockEditorIconBar(
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 2.dp,
     ) {
-        Row(Modifier.padding(horizontal = 4.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(
+            Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            if (onSaveWorkspace != null) {
+                BlockEditorToolbarIconButton(
+                    description = "Speichern",
+                    icon = Icons.Filled.Save,
+                    onClick = onSaveWorkspace,
+                )
+            }
             BlockEditorToolbarIconButton(
                 description = "Rückgängig",
                 icon = Icons.AutoMirrored.Filled.Undo,
@@ -558,6 +689,24 @@ private fun BlockEditorIconBar(
                 description = "Workspace einpassen",
                 icon = Icons.Filled.CenterFocusStrong,
                 onClick = onFitWorkspace,
+            )
+            BlockEditorToolbarIconButton(
+                description = "Workspace aufräumen",
+                icon = Icons.Filled.GridView,
+                onClick = onAutoArrangeWorkspace,
+            )
+            if (showBlockFactoryEntry) {
+                BlockEditorToolbarIconButton(
+                    description = "Blockdesigner",
+                    icon = Icons.Filled.Add,
+                    onClick = onOpenBlockFactory,
+                )
+            }
+            BlockEditorToolbarIconButton(
+                description = "Workspace leeren",
+                icon = Icons.Filled.Close,
+                danger = true,
+                onClick = onClearWorkspace,
             )
             BlockEditorToolbarIconButton(
                 description = "Ausgewählten Block löschen",

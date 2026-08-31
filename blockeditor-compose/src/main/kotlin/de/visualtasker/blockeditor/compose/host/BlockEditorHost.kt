@@ -16,6 +16,7 @@ fun BlockEditorHost(
     uiConfig: BlockEditorHostUiConfig = BlockEditorHostUiConfig(),
     modifier: Modifier = Modifier,
     selectedBlockIds: Set<BlockId>? = null,
+    onSaveWorkspace: (() -> Unit)? = null,
 ) {
     BlockEditorHost(
         controller = controller,
@@ -23,6 +24,7 @@ fun BlockEditorHost(
         modifier = modifier,
         visualPathProvider = BlockVisualPathProvider.Legacy,
         selectedBlockIds = selectedBlockIds,
+        onSaveWorkspace = onSaveWorkspace,
     )
 }
 
@@ -34,6 +36,7 @@ fun BlockEditorHost(
     modifier: Modifier = Modifier,
     visualPathProvider: BlockVisualPathProvider,
     selectedBlockIds: Set<BlockId>? = null,
+    onSaveWorkspace: (() -> Unit)? = null,
 ) {
     DisposableEffect(controller) {
         onDispose { controller.close() }
@@ -68,6 +71,8 @@ fun BlockEditorHost(
         onClearWorkspace = if (uiConfig.allowClearWorkspace) controller::clearWorkspace else ({ }),
         showBottomPanelToggle = uiConfig.showBottomPanelToggle,
         onFitWorkspace = { controller.fitWorkspaceToCanvas(force = true) },
+        onAutoArrangeWorkspace = controller::autoArrangeWorkspace,
+        onSaveWorkspace = onSaveWorkspace,
         onUndo = controller::undo,
         onRedo = controller::redo,
         onZoomIn = controller::zoomIn,

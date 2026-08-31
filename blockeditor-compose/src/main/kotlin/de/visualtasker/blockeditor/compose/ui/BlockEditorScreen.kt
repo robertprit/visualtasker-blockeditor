@@ -33,6 +33,7 @@ fun BlockEditorScreen(
         onCreateCustomBlock = viewModel::createCustomBlock,
         onClearWorkspace = viewModel::clearWorkspace,
         onFitWorkspace = viewModel::fitWorkspaceToCanvas,
+        onAutoArrangeWorkspace = viewModel::autoArrangeWorkspace,
         onUndo = viewModel::undo,
         onRedo = viewModel::redo,
         onZoomIn = viewModel::zoomIn,

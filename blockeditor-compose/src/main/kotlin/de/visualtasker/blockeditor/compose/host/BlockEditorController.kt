@@ -44,6 +44,8 @@ import de.visualtasker.blockeditor.interaction.SnapEngine
 import de.visualtasker.blockeditor.interaction.TransientEditorState
 import de.visualtasker.blockeditor.interaction.ViewportConstraints
 import de.visualtasker.blockeditor.interaction.ViewportState
+import de.visualtasker.blockeditor.interaction.AutoArrangeConfig
+import de.visualtasker.blockeditor.interaction.WorkspaceAutoArrange
 import de.visualtasker.blockeditor.ir.IrGenerator
 import de.visualtasker.blockeditor.layout.LayoutCache
 import de.visualtasker.blockeditor.layout.LayoutEngine
@@ -350,6 +352,25 @@ class BlockEditorController(
         val panY = (size.y - contentHeight * scale) / 2f - top * scale
         if (!panX.isFinite() || !panY.isFinite() || !scale.isFinite()) return
         viewport = ViewportState(panX = panX, panY = panY, scale = scale)
+    }
+
+    fun autoArrangeWorkspace() {
+        if (disposed.get()) return
+        val maxColumnHeight = canvasSize
+            ?.let { ((it.y - 64f) / viewport.scale).coerceAtLeast(360f) }
+            ?: 720f
+        val arranged = WorkspaceAutoArrange.arrangeRoots(
+            document = document,
+            layoutCache = layoutCache,
+            config = AutoArrangeConfig(maxColumnHeight = maxColumnHeight),
+        )
+        if (arranged == document) return
+        applyPersistentDocumentChange(
+            arranged,
+            previousDocument = document,
+            phase = BlockEditorValidationPhase.AFTER_DOCUMENT_MUTATION,
+        )
+        fitWorkspaceToCanvas(force = true)
     }
 
     fun zoomIn() {
