@@ -460,6 +460,45 @@ class BlockEditorControllerTest {
     }
 
     @Test
+    fun tappingLeftDragZoneRequestsBlockContextMenu() {
+        val blockId = BlockId("wait")
+        val controller = BlockEditorController(
+            initialDocument = singleBlockDocument(BlockTypes.ACTION_WAIT, blockId),
+        )
+        val bounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.bounds
+
+        controller.onTap(Offset2(bounds.x + 8f, bounds.y + 12f))
+
+        assertEquals(blockId, controller.blockContextMenuRequest?.blockId)
+        controller.dismissBlockContextMenu()
+        assertNull(controller.blockContextMenuRequest)
+
+        controller.close()
+    }
+
+    @Test
+    fun contextActionsUpdateSelectedBlockStateAndBranches() {
+        val blockId = BlockId("if")
+        val controller = BlockEditorController(
+            initialDocument = singleBlockDocument(BlockTypes.CONTROL_IF, blockId),
+        )
+
+        controller.selectBlockCenter(blockId)
+
+        assertTrue(controller.toggleSelectedBlockActive())
+        assertEquals("false", controller.document.blocks.getValue(blockId).fields.getValue("active").asString())
+        assertTrue(controller.updateSelectedBlockNote("small display"))
+        assertEquals("small display", controller.document.blocks.getValue(blockId).fields.getValue("note").asString())
+        assertTrue(controller.addSelectedIfBranch(BlockTypes.CONTROL_IF, BlockTypes.CONTROL_IF_ELSEIF_ELSE))
+        assertTrue(controller.selectedBlockInfo()!!.canRemoveBranch)
+        assertTrue(controller.removeSelectedIfBranch(BlockTypes.CONTROL_IF, BlockTypes.CONTROL_IF_ELSEIF_ELSE))
+        assertEquals(BlockTypes.CONTROL_IF, controller.document.blocks.getValue(blockId).type)
+        assertTrue(controller.selectedBlockInfo()!!.typeOptions.any { it.typeId == BlockTypes.CONTROL_WHILE })
+
+        controller.close()
+    }
+
+    @Test
     fun replaceWorkspaceDocumentCreatesSingleUndoablePersistentChange() {
         val callbacks = RecordingCallbacks()
         val controller = BlockEditorController(

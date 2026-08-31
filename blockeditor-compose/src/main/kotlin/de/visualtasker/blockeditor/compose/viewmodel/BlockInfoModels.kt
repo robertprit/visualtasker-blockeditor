@@ -40,6 +40,12 @@ internal val CommonBlockInfoFields = listOf(
             FieldOption("detailed", "Detailliert"),
         ),
     ),
+    FieldDefinition(
+        key = "note",
+        label = "Notiz",
+        kind = FieldKind.TEXT,
+        defaultValue = "",
+    ),
 )
 
 internal fun parameterSourceFieldKey(fieldKey: String): String = "$fieldKey.source"

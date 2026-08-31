@@ -30,9 +30,12 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.ZoomOut
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -63,12 +66,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import de.visualtasker.blockeditor.compose.layers.EditorCanvasLayer
 import de.visualtasker.blockeditor.compose.host.BlockPaletteInsertMode
 import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
 import de.visualtasker.blockeditor.compose.theme.defaultBlockEditorColors
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoSnapshot
+import de.visualtasker.blockeditor.compose.viewmodel.BlockContextMenuRequest
 import de.visualtasker.blockeditor.compose.viewmodel.DragRenderState
 import de.visualtasker.blockeditor.domain.BlockId
 import de.visualtasker.blockeditor.domain.Offset2
@@ -97,6 +102,7 @@ fun BlockEditorScaffold(
     selectedBlockIds: Set<BlockId>,
     selectedBlockCollapsed: Boolean = false,
     canToggleSelectedBlockCollapse: Boolean = false,
+    blockContextMenuRequest: BlockContextMenuRequest? = null,
     codePreview: String,
     blockInfo: BlockInfoSnapshot?,
     showBottomPanel: Boolean,
@@ -125,6 +131,12 @@ fun BlockEditorScaffold(
     onUndo: () -> Boolean,
     onRedo: () -> Boolean,
     onToggleSelectedBlockCollapse: () -> Boolean = { false },
+    onDismissBlockContextMenu: () -> Unit = {},
+    onToggleSelectedBlockActive: () -> Boolean = { false },
+    onReplaceSelectedBlockType: (String) -> Boolean = { false },
+    onAddSelectedIfBranch: () -> Boolean = { false },
+    onRemoveSelectedIfBranch: () -> Boolean = { false },
+    onUpdateBlockNote: (String) -> Boolean = { false },
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
     onDeleteSelectedBlock: () -> Boolean,
@@ -151,6 +163,7 @@ fun BlockEditorScaffold(
         selectedBlockIds = selectedBlockIds,
         selectedBlockCollapsed = selectedBlockCollapsed,
         canToggleSelectedBlockCollapse = canToggleSelectedBlockCollapse,
+        blockContextMenuRequest = blockContextMenuRequest,
         codePreview = codePreview,
         blockInfo = blockInfo,
         showBottomPanel = showBottomPanel,
@@ -179,6 +192,12 @@ fun BlockEditorScaffold(
         onUndo = onUndo,
         onRedo = onRedo,
         onToggleSelectedBlockCollapse = onToggleSelectedBlockCollapse,
+        onDismissBlockContextMenu = onDismissBlockContextMenu,
+        onToggleSelectedBlockActive = onToggleSelectedBlockActive,
+        onReplaceSelectedBlockType = onReplaceSelectedBlockType,
+        onAddSelectedIfBranch = onAddSelectedIfBranch,
+        onRemoveSelectedIfBranch = onRemoveSelectedIfBranch,
+        onUpdateBlockNote = onUpdateBlockNote,
         onZoomIn = onZoomIn,
         onZoomOut = onZoomOut,
         onDeleteSelectedBlock = onDeleteSelectedBlock,
@@ -209,6 +228,7 @@ fun BlockEditorScaffold(
     selectedBlockIds: Set<BlockId>,
     selectedBlockCollapsed: Boolean = false,
     canToggleSelectedBlockCollapse: Boolean = false,
+    blockContextMenuRequest: BlockContextMenuRequest? = null,
     codePreview: String,
     blockInfo: BlockInfoSnapshot?,
     showBottomPanel: Boolean,
@@ -237,6 +257,12 @@ fun BlockEditorScaffold(
     onUndo: () -> Boolean,
     onRedo: () -> Boolean,
     onToggleSelectedBlockCollapse: () -> Boolean = { false },
+    onDismissBlockContextMenu: () -> Unit = {},
+    onToggleSelectedBlockActive: () -> Boolean = { false },
+    onReplaceSelectedBlockType: (String) -> Boolean = { false },
+    onAddSelectedIfBranch: () -> Boolean = { false },
+    onRemoveSelectedIfBranch: () -> Boolean = { false },
+    onUpdateBlockNote: (String) -> Boolean = { false },
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
     onDeleteSelectedBlock: () -> Boolean,
@@ -519,6 +545,45 @@ fun BlockEditorScaffold(
                             .align(Alignment.BottomEnd)
                             .padding(16.dp),
                     )
+                    BlockContextDropdown(
+                        request = blockContextMenuRequest,
+                        blockInfo = blockInfo,
+                        onDismiss = onDismissBlockContextMenu,
+                        onToggleActive = {
+                            onToggleSelectedBlockActive().also { changed ->
+                                if (changed) {
+                                    playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                                }
+                            }
+                        },
+                        onToggleCollapse = {
+                            onToggleSelectedBlockCollapse().also { changed ->
+                                if (changed) {
+                                    playEditorFeedback(
+                                        platformView,
+                                        haptic,
+                                        if (selectedBlockCollapsed) BlockEditorFeedbackEvent.Expanded else BlockEditorFeedbackEvent.Collapsed,
+                                        soundEffectsEnabled,
+                                        hapticFeedbackEnabled,
+                                    )
+                                }
+                            }
+                        },
+                        onAddBranch = {
+                            onAddSelectedIfBranch().also { changed ->
+                                if (changed) {
+                                    playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                                }
+                            }
+                        },
+                        onRemoveBranch = {
+                            onRemoveSelectedIfBranch().also { changed ->
+                                if (changed) {
+                                    playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                                }
+                            }
+                        },
+                    )
                     }
 
                     if (showBottomPanel) {
@@ -528,6 +593,12 @@ fun BlockEditorScaffold(
                             onFieldChange = onFieldChange,
                             onFieldSourceChange = onFieldSourceChange,
                             onSetReporterVisualMode = onSetReporterVisualMode,
+                            onToggleBlockActive = onToggleSelectedBlockActive,
+                            onToggleBlockCollapse = onToggleSelectedBlockCollapse,
+                            onReplaceBlockType = onReplaceSelectedBlockType,
+                            onAddBranch = onAddSelectedIfBranch,
+                            onRemoveBranch = onRemoveSelectedIfBranch,
+                            onUpdateBlockNote = onUpdateBlockNote,
                             onToggleVisible = onToggleBottomPanel,
                         )
                     }
@@ -630,6 +701,63 @@ private fun autoPanViewportIfNeeded(
             zoomFactor = 1f,
         ),
     )
+}
+
+@Composable
+private fun BlockContextDropdown(
+    request: BlockContextMenuRequest?,
+    blockInfo: BlockInfoSnapshot?,
+    onDismiss: () -> Unit,
+    onToggleActive: () -> Boolean,
+    onToggleCollapse: () -> Boolean,
+    onAddBranch: () -> Boolean,
+    onRemoveBranch: () -> Boolean,
+) {
+    if (request == null || blockInfo == null || request.blockId != blockInfo.blockId) return
+    val density = LocalDensity.current
+    DropdownMenu(
+        expanded = true,
+        onDismissRequest = onDismiss,
+        offset = with(density) {
+            DpOffset(
+                x = request.screenPoint.x.toDp(),
+                y = request.screenPoint.y.toDp(),
+            )
+        },
+    ) {
+        DropdownMenuItem(
+            text = { Text(if (blockInfo.active) "Deaktivieren" else "Aktivieren") },
+            onClick = {
+                onDismiss()
+                onToggleActive()
+            },
+        )
+        DropdownMenuItem(
+            text = { Text(if (blockInfo.collapsed) "Ausklappen" else "Einklappen") },
+            onClick = {
+                onDismiss()
+                onToggleCollapse()
+            },
+        )
+        if (blockInfo.branchCount > 0) {
+            DropdownMenuItem(
+                text = { Text("Branch hinzufügen") },
+                enabled = blockInfo.canAddBranch,
+                onClick = {
+                    onDismiss()
+                    onAddBranch()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Branch entfernen") },
+                enabled = blockInfo.canRemoveBranch,
+                onClick = {
+                    onDismiss()
+                    onRemoveBranch()
+                },
+            )
+        }
+    }
 }
 
 @Composable

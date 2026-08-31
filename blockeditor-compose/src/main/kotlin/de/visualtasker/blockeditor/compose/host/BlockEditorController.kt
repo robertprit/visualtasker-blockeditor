@@ -65,6 +65,8 @@ import de.visualtasker.blockeditor.serialization.WorkspaceSerializer
 import de.visualtasker.blockeditor.validation.Validator
 import de.visualtasker.blockeditor.validation.ValidationError
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoSnapshot
+import de.visualtasker.blockeditor.compose.viewmodel.BlockContextMenuRequest
+import de.visualtasker.blockeditor.compose.viewmodel.BlockTypeOption
 import de.visualtasker.blockeditor.compose.viewmodel.CommonBlockInfoFields
 import de.visualtasker.blockeditor.compose.viewmodel.DragRenderState
 import de.visualtasker.blockeditor.compose.viewmodel.parameterSourceFieldKey
@@ -123,6 +125,8 @@ class BlockEditorController(
 
     private var selectedBlockId by mutableStateOf<BlockId?>(null)
     private var infoPanelBlockId by mutableStateOf<BlockId?>(null)
+    var blockContextMenuRequest by mutableStateOf<BlockContextMenuRequest?>(null)
+        private set
     private var workspaceState: WorkspaceState = WorkspaceState(initialDocument)
     private var pendingFocusBlockId: BlockId? = null
     private var pendingFocusSelect: Boolean = false
@@ -191,11 +195,17 @@ class BlockEditorController(
         val zoneHit = blockTouchZoneAt(screenPoint)
         if (zoneHit == null) {
             clearSelection()
+            blockContextMenuRequest = null
             return
         }
-        val (blockId, _) = zoneHit
+        val (blockId, zone) = zoneHit
         selectSingle(blockId)
         infoPanelBlockId = blockId
+        blockContextMenuRequest = if (zone == BlockTouchZone.LeftGroup) {
+            BlockContextMenuRequest(blockId, screenPoint)
+        } else {
+            null
+        }
     }
 
     fun onDoubleTap(screenPoint: Offset2) {
@@ -460,6 +470,10 @@ class BlockEditorController(
         return true
     }
 
+    fun dismissBlockContextMenu() {
+        blockContextMenuRequest = null
+    }
+
     override fun definitionsForExpandedCategory(): List<BlockDefinition> {
         if (disposed.get()) return emptyList()
         val category = expandedCategory ?: return emptyList()
@@ -596,6 +610,12 @@ class BlockEditorController(
             chainSummary = chainPart,
             branchCount = block.ifBranchCount().takeIf { block.statementInputs.isNotEmpty() } ?: 0,
             isReporter = definition.isReporter,
+            active = block.fields["active"]?.asString() != "false",
+            collapsed = block.collapsed,
+            note = block.fields["note"]?.asString().orEmpty(),
+            canAddBranch = block.canEditIfBranches() && block.ifBranchCount() < MAX_IF_BRANCHES,
+            canRemoveBranch = block.canEditIfBranches() && block.ifBranchCount() > 1,
+            typeOptions = compatibleTypeOptions(definition),
             reporterVisualMode = reporterVisualModeFor(block),
             reporterTemplateAsset = resolveReporterFamily(block.type, definition)?.let { family ->
                 val boolValue = when (val value = block.fields["value"]) {
@@ -648,6 +668,23 @@ class BlockEditorController(
         )
     }
 
+    fun toggleSelectedBlockActive(): Boolean {
+        if (disposed.get()) return false
+        val blockId = selectedBlockId ?: return false
+        val active = document.blocks[blockId]?.fields?.get("active")?.asString() != "false"
+        onAction(WorkspaceAction.UpdateField(blockId, "active", FieldValue.Bool(!active)))
+        return true
+    }
+
+    fun updateSelectedBlockNote(note: String): Boolean {
+        if (disposed.get()) return false
+        val blockId = selectedBlockId ?: return false
+        val block = document.blocks[blockId] ?: return false
+        if (block.fields["note"]?.asString().orEmpty() == note) return false
+        onAction(WorkspaceAction.UpdateField(blockId, "note", FieldValue.Text(note)))
+        return true
+    }
+
     fun replaceSelectedBlockType(targetType: String): Boolean {
         if (disposed.get()) return false
         val blockId = selectedBlockId ?: return false
@@ -657,7 +694,7 @@ class BlockEditorController(
     fun addSelectedIfBranch(
         ifType: String,
         ifElseType: String,
-        maxBranches: Int = 8,
+        maxBranches: Int = MAX_IF_BRANCHES,
     ): Boolean {
         if (disposed.get()) return false
         val blockId = selectedBlockId ?: return false
@@ -1347,7 +1384,7 @@ class BlockEditorController(
         return replaceBlockType(
             blockId = blockId,
             targetType = targetType,
-            branchCount = branchCount.coerceIn(1, 8),
+            branchCount = branchCount.coerceIn(1, MAX_IF_BRANCHES),
         )
     }
 
@@ -1506,6 +1543,36 @@ class BlockEditorController(
         }.coerceAtLeast(1)
     }
 
+    private fun BlockNode.canEditIfBranches(): Boolean =
+        type == BlockTypes.CONTROL_IF || type == BlockTypes.CONTROL_IF_ELSEIF_ELSE
+
+    private fun compatibleTypeOptions(source: BlockDefinition): List<BlockTypeOption> {
+        val sourceShape = source.compatibilityShape()
+        return registry.allDefinitions()
+            .asSequence()
+            .filter { !it.deprecated && it.paletteVisible }
+            .filter { it.compatibilityShape() == sourceShape }
+            .sortedWith(compareBy<BlockDefinition> { BlockCategories.metaFor(it.category).label }.thenBy { it.label })
+            .map {
+                BlockTypeOption(
+                    typeId = it.id,
+                    label = it.label,
+                    categoryLabel = BlockCategories.metaFor(it.category).label,
+                )
+            }
+            .toList()
+    }
+
+    private fun BlockDefinition.compatibilityShape(): String =
+        listOf(
+            if (isReporter) "reporter" else "statement",
+            if (hasPrevious) "prev" else "noprev",
+            if (hasNext) "next" else "nonext",
+            if (outputType != null) "output:${outputType}" else "nooutput",
+            if (statementInputs.isNotEmpty()) "container" else "plain",
+            if (inputsInline) "inline" else "external",
+        ).joinToString("|")
+
     private fun BlockNode.withIfBranches(branchCount: Int): BlockNode {
         val count = branchCount.coerceIn(1, 8)
         if (count <= 1) return this
@@ -1661,6 +1728,7 @@ class BlockEditorController(
     companion object {
         const val DEFAULT_DERIVED_OUTPUT_DEBOUNCE_MS = 200L
         private const val VARIABLE_DECLARE_BLOCK_TYPE = "emscript:variable.declare"
+        private const val MAX_IF_BRANCHES = 8
 
         /** Controller seeded with [WorkspaceBootstrap.starter]. */
         fun starter(

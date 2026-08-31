@@ -60,6 +60,12 @@ data class BlockInfoSnapshot(
     val chainSummary: String,
     val branchCount: Int = 0,
     val isReporter: Boolean = false,
+    val active: Boolean = true,
+    val collapsed: Boolean = false,
+    val note: String = "",
+    val canAddBranch: Boolean = false,
+    val canRemoveBranch: Boolean = false,
+    val typeOptions: List<BlockTypeOption> = emptyList(),
     val reporterVisualMode: de.visualtasker.blockeditor.compose.model.ReporterVisualMode =
         de.visualtasker.blockeditor.compose.model.ReporterVisualMode.COMPACT,
     val reporterTemplateAsset: String? = null,

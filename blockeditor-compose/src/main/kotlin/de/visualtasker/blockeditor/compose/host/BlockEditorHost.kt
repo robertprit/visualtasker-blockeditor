@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import de.visualtasker.blockeditor.compose.ui.BlockEditorScaffold
 import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
 import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.blockeditor.registry.BlockTypes
 
 /**
  * Public Compose entry point for host embedding.
@@ -51,6 +52,7 @@ fun BlockEditorHost(
         selectedBlockIds = selectedBlockIds ?: controller.selectedBlockIds,
         selectedBlockCollapsed = controller.selectedBlockCollapsed,
         canToggleSelectedBlockCollapse = controller.canToggleSelectedBlockCollapse,
+        blockContextMenuRequest = controller.blockContextMenuRequest,
         codePreview = controller.codePreview,
         blockInfo = controller.selectedBlockInfo(),
         showBottomPanel = uiConfig.showBottomPanel && controller.showBottomPanel,
@@ -79,6 +81,16 @@ fun BlockEditorHost(
         onUndo = controller::undo,
         onRedo = controller::redo,
         onToggleSelectedBlockCollapse = controller::toggleSelectedBlockCollapse,
+        onDismissBlockContextMenu = controller::dismissBlockContextMenu,
+        onToggleSelectedBlockActive = controller::toggleSelectedBlockActive,
+        onReplaceSelectedBlockType = controller::replaceSelectedBlockType,
+        onAddSelectedIfBranch = {
+            controller.addSelectedIfBranch(BlockTypes.CONTROL_IF, BlockTypes.CONTROL_IF_ELSEIF_ELSE)
+        },
+        onRemoveSelectedIfBranch = {
+            controller.removeSelectedIfBranch(BlockTypes.CONTROL_IF, BlockTypes.CONTROL_IF_ELSEIF_ELSE)
+        },
+        onUpdateBlockNote = controller::updateSelectedBlockNote,
         onZoomIn = controller::zoomIn,
         onZoomOut = controller::zoomOut,
         onDeleteSelectedBlock = controller::deleteSelectedBlock,

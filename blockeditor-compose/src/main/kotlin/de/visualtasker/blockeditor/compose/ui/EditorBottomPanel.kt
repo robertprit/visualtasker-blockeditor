@@ -1,6 +1,7 @@
 package de.visualtasker.blockeditor.compose.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -12,10 +13,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.DropdownMenuItem
@@ -51,6 +54,12 @@ fun EditorBottomPanel(
     onFieldChange: (String, String) -> Unit,
     onFieldSourceChange: (String, String) -> Unit,
     onSetReporterVisualMode: (ReporterVisualMode) -> Unit = {},
+    onToggleBlockActive: () -> Boolean = { false },
+    onToggleBlockCollapse: () -> Boolean = { false },
+    onReplaceBlockType: (String) -> Boolean = { false },
+    onAddBranch: () -> Boolean = { false },
+    onRemoveBranch: () -> Boolean = { false },
+    onUpdateBlockNote: (String) -> Boolean = { false },
     onToggleVisible: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -91,6 +100,12 @@ fun EditorBottomPanel(
                     onFieldChange = onFieldChange,
                     onFieldSourceChange = onFieldSourceChange,
                     onSetReporterVisualMode = onSetReporterVisualMode,
+                    onToggleBlockActive = onToggleBlockActive,
+                    onToggleBlockCollapse = onToggleBlockCollapse,
+                    onReplaceBlockType = onReplaceBlockType,
+                    onAddBranch = onAddBranch,
+                    onRemoveBranch = onRemoveBranch,
+                    onUpdateBlockNote = onUpdateBlockNote,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -120,6 +135,12 @@ fun BlockInfoCard(
     onFieldChange: (String, String) -> Unit,
     onFieldSourceChange: (String, String) -> Unit,
     onSetReporterVisualMode: (ReporterVisualMode) -> Unit = {},
+    onToggleBlockActive: () -> Boolean = { false },
+    onToggleBlockCollapse: () -> Boolean = { false },
+    onReplaceBlockType: (String) -> Boolean = { false },
+    onAddBranch: () -> Boolean = { false },
+    onRemoveBranch: () -> Boolean = { false },
+    onUpdateBlockNote: (String) -> Boolean = { false },
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -141,9 +162,22 @@ fun BlockInfoCard(
         }
 
         val accent = Color(info.categoryAccentArgb)
+        InspectorActions(
+            info = info,
+            onToggleBlockActive = onToggleBlockActive,
+            onToggleBlockCollapse = onToggleBlockCollapse,
+            onReplaceBlockType = onReplaceBlockType,
+            onAddBranch = onAddBranch,
+            onRemoveBranch = onRemoveBranch,
+        )
         InfoRow("Typ", info.label)
         InfoRow("ID", info.typeId, mono = true)
         CategoryBadge(info.categoryLabel, accent)
+        NoteEditor(
+            blockId = info.blockId,
+            note = info.note,
+            onUpdateBlockNote = onUpdateBlockNote,
+        )
         if (info.isReporter) {
             Text(
                 text = "Reporter-Darstellung",
@@ -163,13 +197,14 @@ fun BlockInfoCard(
                 )
             }
         }
-        if (info.fields.isNotEmpty()) {
+        val parameterFields = info.fields.filterNot { it.key == "note" }
+        if (parameterFields.isNotEmpty()) {
             Text(
                 text = "Parameter",
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(top = 4.dp),
             )
-            info.fields.forEach { field ->
+            parameterFields.forEach { field ->
                 BlockFieldEditor(
                     blockId = info.blockId,
                     field = field,
@@ -183,6 +218,98 @@ fun BlockInfoCard(
         }
         InfoRow("Kette", info.chainSummary)
     }
+}
+
+@Composable
+private fun InspectorActions(
+    info: BlockInfoSnapshot,
+    onToggleBlockActive: () -> Boolean,
+    onToggleBlockCollapse: () -> Boolean,
+    onReplaceBlockType: (String) -> Boolean,
+    onAddBranch: () -> Boolean,
+    onRemoveBranch: () -> Boolean,
+) {
+    var typeMenuExpanded by remember(info.blockId, info.typeId) { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilterChip(
+                selected = info.active,
+                onClick = { onToggleBlockActive() },
+                label = { Text(if (info.active) "Aktiv" else "Inaktiv") },
+            )
+            FilterChip(
+                selected = info.collapsed,
+                onClick = { onToggleBlockCollapse() },
+                label = { Text(if (info.collapsed) "Ausklappen" else "Einklappen") },
+            )
+            Box {
+                IconButton(
+                    onClick = { typeMenuExpanded = true },
+                    enabled = info.typeOptions.size > 1,
+                ) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "Typ ändern")
+                }
+                DropdownMenu(
+                    expanded = typeMenuExpanded,
+                    onDismissRequest = { typeMenuExpanded = false },
+                ) {
+                    info.typeOptions.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text("${option.label} · ${option.categoryLabel}") },
+                            enabled = option.typeId != info.typeId,
+                            onClick = {
+                                typeMenuExpanded = false
+                                onReplaceBlockType(option.typeId)
+                            },
+                        )
+                    }
+                }
+            }
+        }
+        if (info.branchCount > 0) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = false,
+                    onClick = { onAddBranch() },
+                    enabled = info.canAddBranch,
+                    label = { Text("Branch +") },
+                )
+                FilterChip(
+                    selected = false,
+                    onClick = { onRemoveBranch() },
+                    enabled = info.canRemoveBranch,
+                    label = { Text("Branch -") },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoteEditor(
+    blockId: BlockId,
+    note: String,
+    onUpdateBlockNote: (String) -> Boolean,
+) {
+    var draft by remember(blockId) { mutableStateOf(note) }
+    LaunchedEffect(blockId, note) {
+        draft = note
+    }
+    OutlinedTextField(
+        value = draft,
+        onValueChange = {
+            draft = it
+            onUpdateBlockNote(it)
+        },
+        label = { Text("Notiz") },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = false,
+        minLines = 1,
+        maxLines = 3,
+    )
 }
 
 @Composable
