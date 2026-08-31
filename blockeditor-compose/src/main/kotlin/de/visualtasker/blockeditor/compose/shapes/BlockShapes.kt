@@ -264,22 +264,6 @@ object BlockShapes {
         close()
     }
 
-    fun branchStemTabPath(dividerY: Float): Path = Path().apply {
-        val center = LayoutConstants.NESTED_INDENT
-        moveTo(0f, dividerY - NOTCH_WIDTH / 2)
-        cubicTo(
-            center * 0.8f, dividerY - NOTCH_WIDTH / 2,
-            center, dividerY - NOTCH_DEPTH * 0.5f,
-            center, dividerY
-        )
-        cubicTo(
-            center, dividerY + NOTCH_DEPTH * 0.5f,
-            center * 0.8f, dividerY + NOTCH_WIDTH / 2,
-            0f, dividerY + NOTCH_WIDTH / 2
-        )
-        close()
-    }
-
     fun reporterPath(size: Size): Path = Path().apply {
         // Korrektur: Verhindert überlappende Radien bei extrem schmalen Blöcken
         val radius = minOf(REPORTER_RADIUS, size.height / 2f, size.width / 2f)

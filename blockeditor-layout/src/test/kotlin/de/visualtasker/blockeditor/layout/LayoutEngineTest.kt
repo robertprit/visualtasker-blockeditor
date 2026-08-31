@@ -15,6 +15,7 @@ import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
 import de.visualtasker.blockeditor.registry.SampleWorkspaceFactory
 import de.visualtasker.blockeditor.registry.createNode
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -167,7 +168,7 @@ class LayoutEngineTest {
 
         val elifSlot = slots.first { it.slotName == BlockTypes.SLOT_ELIF }
         val elifDividerY = elifSlot.bounds.y - blockLayout.bounds.y -
-            LayoutConstants.ELIF_SECTION_HEIGHT - LayoutConstants.BRANCH_SHELF
+            LayoutConstants.ELIF_SECTION_HEIGHT - LayoutConstants.SLOT_PADDING
         assertTrue(
             "Else-if divider should sit below the then-slot",
             elifDividerY > LayoutConstants.HEADER_HEIGHT + LayoutConstants.STATEMENT_MIN_HEIGHT,
@@ -188,9 +189,178 @@ class LayoutEngineTest {
 
         val elifSection = sections.first { it.inputName == "ELIF_CONDITION" }
         val elifAnchor = anchors.first { it.connectionId.value.contains("ELIF_CONDITION") }
+        val elifHit = cache.flatIndex.hitPrimitives.first {
+            it.blockId == controlId && it.kind == HitKind.ValueInput && it.inputName == "ELIF_CONDITION"
+        }
+        val conditionHits = cache.flatIndex.hitPrimitives.filter {
+            it.blockId == controlId && it.kind == HitKind.ValueInput
+        }
         assertTrue(elifAnchor.x >= elifSection.bounds.x)
         assertTrue(elifAnchor.y >= elifSection.bounds.y)
         assertTrue(elifAnchor.y <= elifSection.bounds.bottom)
+        assertTrue("Else-if reporter slot should not protrude above its branch header", elifHit.bounds.y >= elifSection.bounds.y)
+        assertTrue("Else-if reporter slot should not protrude below its branch header", elifHit.bounds.bottom <= elifSection.bounds.bottom)
+        conditionHits.forEach { hit ->
+            assertEquals("Control reporter docks should use compact reporter width", LayoutConstants.REPORTER_WIDTH, hit.bounds.width, 0.001f)
+        }
+    }
+
+    @Test
+    fun ifElseIfElseContainer_doesNotRenderSeparateDividerBeforeElifCondition() {
+        val cache = layoutControl(BlockTypes.CONTROL_IF_ELSEIF_ELSE)
+        val controlId = BlockId("control")
+        val sections = cache.flatIndex.branchSections.filter { it.blockId == controlId }
+        val elifCondition = sections.single {
+            it.kind == BranchSectionKind.ElifCondition && it.inputName == "ELIF_CONDITION"
+        }
+        val duplicateElifDividers = sections.filter {
+            it.kind == BranchSectionKind.BranchDivider && it.label == "elseif"
+        }
+
+        assertFalse("Else-if must not render both a divider arm and a condition arm", duplicateElifDividers.isNotEmpty())
+        assertEquals("elseif", elifCondition.label)
+    }
+
+    @Test
+    fun ifElseIfElseContainer_usesElifConditionAsVisibleBranchArm() {
+        val cache = layoutControl(BlockTypes.CONTROL_IF_ELSEIF_ELSE)
+        val controlId = BlockId("control")
+        val blockTop = cache.flatIndex.visibleBlocks.first { it.blockId == controlId }.bounds.y
+        val sections = cache.flatIndex.branchSections.filter { it.blockId == controlId }
+        val elifSection = sections.single {
+            it.kind == BranchSectionKind.ElifCondition && it.inputName == "ELIF_CONDITION"
+        }
+        val dividerYs = ContainerBranchLayout.branchDividerYsFromSections(blockTop, sections)
+
+        assertTrue(
+            "Else-if condition must still produce one visible branch arm",
+            dividerYs.contains(elifSection.bounds.y - blockTop),
+        )
+    }
+
+    @Test
+    fun ifElseIfElseContainer_keepsPaddingBetweenBranchHeadersAndStatementSlots() {
+        val cache = layoutControl(BlockTypes.CONTROL_IF_ELSEIF_ELSE)
+        val controlId = BlockId("control")
+        val sections = cache.flatIndex.branchSections.filter { it.blockId == controlId }
+        val slots = cache.flatIndex.statementSlots.associateBy { it.slotName }
+        val elifSection = sections.single { it.kind == BranchSectionKind.ElifCondition }
+        val elseDivider = sections.single { it.kind == BranchSectionKind.BranchDivider && it.label == "else" }
+
+        assertEquals(
+            LayoutConstants.SLOT_PADDING,
+            slots.getValue(BlockTypes.SLOT_ELIF).bounds.y - elifSection.bounds.bottom,
+            0.001f,
+        )
+        assertEquals(
+            LayoutConstants.SLOT_PADDING,
+            slots.getValue(BlockTypes.SLOT_ELSE).bounds.y - elseDivider.bounds.bottom,
+            0.001f,
+        )
+    }
+
+    @Test
+    fun branchHeadersAreTallEnoughForReporterSocketsAndText() {
+        val cache = layoutControl(BlockTypes.CONTROL_IF_ELSEIF_ELSE)
+        val controlId = BlockId("control")
+        val sections = cache.flatIndex.branchSections.filter { it.blockId == controlId }
+        val elifSection = sections.single { it.kind == BranchSectionKind.ElifCondition }
+        val elseDivider = sections.single { it.kind == BranchSectionKind.BranchDivider && it.label == "else" }
+
+        assertTrue(
+            "Else-if header must be tall enough to contain a reporter socket",
+            elifSection.bounds.height >= LayoutConstants.REPORTER_HEIGHT,
+        )
+        assertTrue(
+            "Else divider must be tall enough to render its label without clipping",
+            elseDivider.bounds.height >= LayoutConstants.REPORTER_HEIGHT,
+        )
+    }
+
+    @Test
+    fun ifElseIfElseContainer_keepsNestedStatementsInsideBranchSlots() {
+        val controlId = BlockId("control")
+        val thenId = BlockId("then_wait")
+        val elifId = BlockId("elif_wait")
+        val elseId = BlockId("else_click")
+        val ifReporterId = BlockId("if_reporter")
+        val elifReporterId = BlockId("elif_reporter")
+        val controlDef = DefaultBlockRegistry.getDefinition(BlockTypes.CONTROL_IF_ELSEIF_ELSE)!!
+        val waitDef = DefaultBlockRegistry.getDefinition(BlockTypes.ACTION_WAIT)!!
+        val clickDef = DefaultBlockRegistry.getDefinition(BlockTypes.ACTION_CLICK_TEXT)!!
+        val reporterDef = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_BOOLEAN)!!
+        var control = controlDef.createNode(controlId).withRootOffset(0f, 0f)
+        var thenWait = waitDef.createNode(thenId)
+        var elifWait = waitDef.createNode(elifId)
+        var elseClick = clickDef.createNode(elseId)
+        val ifReporter = reporterDef.createNode(ifReporterId)
+        val elifReporter = reporterDef.createNode(elifReporterId)
+        val thenSlot = control.statementInputs.first { it.name == BlockTypes.SLOT_THEN }.connection
+        val elifSlot = control.statementInputs.first { it.name == BlockTypes.SLOT_ELIF }.connection
+        val elseSlot = control.statementInputs.first { it.name == BlockTypes.SLOT_ELSE }.connection
+        val ifInput = control.valueInputs.first { it.name == "CONDITION" }.connection
+        val elifInput = control.valueInputs.first { it.name == "ELIF_CONDITION" }.connection
+
+        control = control.copy(
+            valueInputs = control.valueInputs.map { input ->
+                when (input.name) {
+                    "CONDITION" -> input.copy(connection = ifInput.copy(connectedTo = ifReporter.output!!.id))
+                    "ELIF_CONDITION" -> input.copy(connection = elifInput.copy(connectedTo = elifReporter.output!!.id))
+                    else -> input
+                }
+            },
+            statementInputs = control.statementInputs.map { input ->
+                when (input.name) {
+                    BlockTypes.SLOT_THEN -> input.copy(connection = thenSlot.copy(connectedTo = thenWait.previous!!.id))
+                    BlockTypes.SLOT_ELIF -> input.copy(connection = elifSlot.copy(connectedTo = elifWait.previous!!.id))
+                    BlockTypes.SLOT_ELSE -> input.copy(connection = elseSlot.copy(connectedTo = elseClick.previous!!.id))
+                    else -> input
+                }
+            },
+        )
+        thenWait = thenWait.copy(previous = thenWait.previous!!.copy(connectedTo = thenSlot.id))
+        elifWait = elifWait.copy(previous = elifWait.previous!!.copy(connectedTo = elifSlot.id))
+        elseClick = elseClick.copy(previous = elseClick.previous!!.copy(connectedTo = elseSlot.id))
+        val document = WorkspaceDocument(
+            id = "branch-slots-with-content",
+            blocks = mapOf(
+                controlId to control,
+                thenId to thenWait,
+                elifId to elifWait,
+                elseId to elseClick,
+                ifReporterId to ifReporter.copy(output = ifReporter.output!!.copy(connectedTo = ifInput.id)),
+                elifReporterId to elifReporter.copy(output = elifReporter.output!!.copy(connectedTo = elifInput.id)),
+            ),
+            rootBlocks = listOf(controlId),
+        )
+
+        val cache = engine.build(document)
+        val slots = cache.flatIndex.statementSlots.associateBy { it.slotName }
+        mapOf(
+            BlockTypes.SLOT_THEN to thenId,
+            BlockTypes.SLOT_ELIF to elifId,
+            BlockTypes.SLOT_ELSE to elseId,
+        ).forEach { (slotName, childId) ->
+            val slotBounds = slots.getValue(slotName).bounds
+            val childBounds = cache.flatIndex.visibleBlocks.first { it.blockId == childId }.bounds
+            assertTrue("$slotName child should start inside its branch slot", childBounds.x >= slotBounds.x)
+            assertTrue("$slotName child should fit inside its branch slot", childBounds.right <= slotBounds.right)
+        }
+    }
+
+    @Test
+    fun singleSlotContainers_doNotRenderBranchDividersForBodySlots() {
+        val repeatSections = layoutControl(BlockTypes.CONTROL_REPEAT).flatIndex.branchSections
+        val whileSections = layoutControl(BlockTypes.CONTROL_WHILE).flatIndex.branchSections
+
+        assertFalse(
+            "Repeat DO slot must not render as a branch divider",
+            repeatSections.any { it.kind == BranchSectionKind.BranchDivider && it.label == "do" },
+        )
+        assertFalse(
+            "While BODY slot must not render as a branch divider",
+            whileSections.any { it.kind == BranchSectionKind.BranchDivider && it.label == "body" },
+        )
     }
 
     @Test
@@ -221,6 +391,25 @@ class LayoutEngineTest {
         assertEquals(inputHits.getValue("A").bounds.x, aAnchor.x, 0.001f)
         assertEquals(inputHits.getValue("B").bounds.x, bAnchor.x, 0.001f)
         assertTrue("A and B anchors must not overlap", aAnchor.x < bAnchor.x)
+    }
+
+    @Test
+    fun reporterBlocksUseCompactWidth() {
+        val reporterId = BlockId("number")
+        val reporter = DefaultBlockRegistry.getDefinition(BlockTypes.LITERAL_NUMBER)!!
+            .createNode(reporterId)
+            .withRootOffset(0f, 0f)
+        val document = WorkspaceDocument(
+            id = "compact-reporter-layout",
+            blocks = mapOf(reporterId to reporter),
+            rootBlocks = listOf(reporterId),
+        )
+
+        val cache = engine.build(document)
+        val layout = cache.flatIndex.visibleBlocks.single { it.blockId == reporterId }
+
+        assertEquals(LayoutConstants.REPORTER_WIDTH, layout.bounds.width, 0.001f)
+        assertTrue("Reporter width should stay clearly below statement width", layout.bounds.width < LayoutConstants.STANDARD_WIDTH / 2f)
     }
 
     @Test

@@ -13,20 +13,21 @@ object LayoutConstants {
     const val STACK_CONNECTOR_WIDTH = 28f
     const val STACK_CONNECTOR_DEPTH = 8f
     const val STACK_VERTICAL_GAP = 6f
-    const val REPORTER_WIDTH = 148f
+    const val REPORTER_WIDTH = 74f
     const val REPORTER_HEIGHT = 40f
     const val OUTPUT_TAB = 16f
     const val SLOT_PADDING = 8f
+    const val CONTAINER_WIDTH = NESTED_INDENT + STANDARD_WIDTH + SLOT_PADDING
     const val FOOTER_HEIGHT = 24f
     const val ANCHOR_RADIUS = 12f
     const val FIELD_HEIGHT = 32f
-    const val ELIF_SECTION_HEIGHT = 36f
+    const val ELIF_SECTION_HEIGHT = HEADER_HEIGHT
     /** Horizontaler Mittelsteg zwischen Container-Zweigen – muss mit [BlockShapes] übereinstimmen. */
-    const val BRANCH_SHELF = 24f
+    const val BRANCH_SHELF = HEADER_HEIGHT
     /** Unterer Innenradius des C-Blocks – zusätzliche Reserve für den letzten Zweig. */
     const val CORNER_RADIUS = 16f
-    const val INLINE_OUTPUT_TAB = 20f
-    const val INLINE_OPERATOR_WIDTH = 52f
+    const val INLINE_OUTPUT_TAB = 10f
+    const val INLINE_OPERATOR_WIDTH = 32f
     const val INLINE_SLOT_GAP = 6f
     const val INLINE_MIN_SLOT_WIDTH = REPORTER_WIDTH
 }

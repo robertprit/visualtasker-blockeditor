@@ -16,7 +16,7 @@ object ContainerBranchLayout {
         branchSections: List<BranchSectionLayout>,
     ): List<Float> =
         branchSections
-            .filter { it.kind == BranchSectionKind.BranchDivider }
+            .filter { it.kind == BranchSectionKind.BranchDivider || it.kind == BranchSectionKind.ElifCondition }
             .map { it.bounds.y - blockTop }
 
     fun branchDividerYsFromSlots(
@@ -26,11 +26,11 @@ object ContainerBranchLayout {
         statementSlots.mapNotNull { slot ->
             when (slot.slotName) {
                 BlockTypes.SLOT_ELIF ->
-                    slot.bounds.y - blockTop - LayoutConstants.ELIF_SECTION_HEIGHT - LayoutConstants.BRANCH_SHELF
+                    slot.bounds.y - blockTop - LayoutConstants.ELIF_SECTION_HEIGHT - LayoutConstants.SLOT_PADDING
                 BlockTypes.SLOT_ELSE ->
-                    slot.bounds.y - blockTop - LayoutConstants.BRANCH_SHELF
+                    slot.bounds.y - blockTop - LayoutConstants.BRANCH_SHELF - LayoutConstants.SLOT_PADDING
                 else -> if (slot.slotName.startsWith("ELIF_")) {
-                    slot.bounds.y - blockTop - LayoutConstants.ELIF_SECTION_HEIGHT - LayoutConstants.BRANCH_SHELF
+                    slot.bounds.y - blockTop - LayoutConstants.ELIF_SECTION_HEIGHT - LayoutConstants.SLOT_PADDING
                 } else {
                     null
                 }
@@ -46,17 +46,24 @@ object ContainerBranchLayout {
         val dividers = mutableListOf<Float>()
         var slotY = LayoutConstants.HEADER_HEIGHT + LayoutConstants.SLOT_PADDING
         definition.statementInputs.forEach { slotDef ->
-            if (slotDef.name != BlockTypes.SLOT_THEN) {
+            if (slotDef.name.needsBranchDivider()) {
                 dividers += slotY
-                slotY += LayoutConstants.BRANCH_SHELF
+                slotY += LayoutConstants.BRANCH_SHELF + LayoutConstants.SLOT_PADDING
             }
-            if (slotDef.name == BlockTypes.SLOT_ELIF || slotDef.name.startsWith("ELIF_")) {
-                slotY += LayoutConstants.ELIF_SECTION_HEIGHT
+            if (slotDef.name.isElifSlot()) {
+                dividers += slotY
+                slotY += LayoutConstants.ELIF_SECTION_HEIGHT + LayoutConstants.SLOT_PADDING
             }
             slotY += LayoutConstants.STATEMENT_MIN_HEIGHT + LayoutConstants.SLOT_PADDING
         }
         return dividers
     }
+
+    private fun String.isElifSlot(): Boolean =
+        this == BlockTypes.SLOT_ELIF || startsWith("ELIF_")
+
+    private fun String.needsBranchDivider(): Boolean =
+        this == BlockTypes.SLOT_ELSE
 
     fun containerVisuals(
         blockId: BlockId,

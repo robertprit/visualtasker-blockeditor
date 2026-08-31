@@ -206,11 +206,11 @@ class LayoutEngine(
             var body = LayoutConstants.HEADER_HEIGHT + LayoutConstants.SLOT_PADDING
             statementInputDefinitions(definition, document.blocks[blockId]).forEach { slotDef ->
                 var slotContent = computeStatementStackHeight(document, blockId, slotDef.name)
-                if (slotDef.name != BlockTypes.SLOT_THEN) {
-                    slotContent += LayoutConstants.BRANCH_SHELF
+                if (slotDef.name.needsBranchDivider()) {
+                    slotContent += LayoutConstants.BRANCH_SHELF + LayoutConstants.SLOT_PADDING
                 }
                 if (slotDef.name.isElifSlot()) {
-                    slotContent += LayoutConstants.ELIF_SECTION_HEIGHT
+                    slotContent += LayoutConstants.ELIF_SECTION_HEIGHT + LayoutConstants.SLOT_PADDING
                 }
                 body += slotContent + LayoutConstants.SLOT_PADDING
             }
@@ -318,7 +318,7 @@ class LayoutEngine(
         branchSections: MutableList<BranchSectionLayout>,
         layoutChild: (BlockId, Float, Float, Int) -> Int,
     ): Int {
-        val width = LayoutConstants.STANDARD_WIDTH
+        val width = LayoutConstants.CONTAINER_WIDTH
         var slotY = y + LayoutConstants.HEADER_HEIGHT + LayoutConstants.SLOT_PADDING
         var maxZ = zStart + 1
         var bodyBottom = slotY
@@ -348,7 +348,7 @@ class LayoutEngine(
         }
 
         statementInputDefinitions.forEach { slotDef ->
-            if (slotDef.name != BlockTypes.SLOT_THEN) {
+            if (slotDef.name.needsBranchDivider()) {
                 val dividerBounds = Rect(
                     x + LayoutConstants.NESTED_INDENT,
                     slotY,
@@ -362,7 +362,7 @@ class LayoutEngine(
                     bounds = dividerBounds,
                     zIndex = zStart,
                 )
-                slotY += LayoutConstants.BRANCH_SHELF
+                slotY += LayoutConstants.BRANCH_SHELF + LayoutConstants.SLOT_PADDING
             }
 
             if (slotDef.name.isElifSlot()) {
@@ -387,7 +387,7 @@ class LayoutEngine(
                         elifSection, hitPrimitives, connectionAnchors, layoutChild, maxZ, zStart,
                     )
                 }
-                slotY += LayoutConstants.ELIF_SECTION_HEIGHT
+                slotY += LayoutConstants.ELIF_SECTION_HEIGHT + LayoutConstants.SLOT_PADDING
                 bodyBottom = maxOf(bodyBottom, slotY)
             }
 
@@ -805,6 +805,9 @@ class LayoutEngine(
 
         fun String.isElifSlot(): Boolean =
             this == BlockTypes.SLOT_ELIF || startsWith("ELIF_")
+
+        fun String.needsBranchDivider(): Boolean =
+            this == BlockTypes.SLOT_ELSE
 
         fun String.elifConditionInputName(): String =
             when {
