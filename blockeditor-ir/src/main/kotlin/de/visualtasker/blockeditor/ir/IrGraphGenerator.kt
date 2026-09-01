@@ -198,8 +198,13 @@ class IrGraphGenerator(
         BlockTypes.ACTION_CLICK_TEXT -> "CLICK \"${block.fieldText("text")}\""
         BlockTypes.ACTION_WAIT -> "WAIT ${block.fieldNumber("ms").toLong()}ms"
         BlockTypes.DEBUG_LOG -> "LOG \"${block.fieldText("message")}\""
-        BlockTypes.FEEDBACK_BEEP -> "BEEP"
-        BlockTypes.FEEDBACK_VIBRATE -> "VIBRATE"
+        BlockTypes.FEEDBACK_BEEP -> {
+            val frequency = block.fieldNumber("frequency").toLong()
+            val duration = block.fieldNumber("durationMs").toLong()
+            val volume = block.fieldNumber("volume").toLong()
+            "BEEP ${frequency}Hz ${duration}ms ${volume}%"
+        }
+        BlockTypes.FEEDBACK_VIBRATE -> "VIBRATE ${block.fieldText("pattern").ifBlank { "80" }}"
         BlockTypes.CONTROL_REPEAT -> "REPEAT ${block.fieldNumber("times").toLong()}x"
         BlockTypes.CONTROL_WHILE -> "WHILE"
         BlockTypes.CONTROL_IF,
