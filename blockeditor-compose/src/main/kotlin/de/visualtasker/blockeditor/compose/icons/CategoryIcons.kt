@@ -2,6 +2,7 @@ package de.visualtasker.blockeditor.compose.icons
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CallSplit
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AdsClick
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Build
@@ -17,6 +18,7 @@ object CategoryIcons {
     fun forCategory(category: String): ImageVector = when (category) {
         BlockCategories.EVENT -> Icons.Filled.PlayArrow
         BlockCategories.ACTION -> Icons.Filled.AdsClick
+        BlockCategories.FEEDBACK -> Icons.AutoMirrored.Filled.VolumeUp
         BlockCategories.EMSCRIPT -> Icons.Filled.Code
         BlockCategories.CONTROL -> Icons.Filled.Repeat
         BlockCategories.LOGIC -> Icons.Filled.ToggleOn

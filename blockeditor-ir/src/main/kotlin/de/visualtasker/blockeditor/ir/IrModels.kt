@@ -6,7 +6,14 @@ sealed interface IrExpression {
     data class Or(val left: IrExpression, val right: IrExpression) : IrExpression
     data class GetVariable(val name: String) : IrExpression
     data class LiteralBoolean(val value: Boolean) : IrExpression
+    data class LiteralNumber(val value: Double) : IrExpression
+    data class LiteralString(val value: String) : IrExpression
     data class LiteralText(val value: String) : IrExpression
+    data class Compare(
+        val operator: String,
+        val left: IrExpression,
+        val right: IrExpression,
+    ) : IrExpression
     data class Operate(
         val operator: String,
         val a: IrExpression,
@@ -18,6 +25,12 @@ sealed interface IrExpression {
 sealed interface IrStatement {
     data class ClickText(val text: String) : IrStatement
     data class Wait(val milliseconds: Long) : IrStatement
+    data class Beep(
+        val frequency: Int = 1000,
+        val durationMs: Int = 200,
+        val volume: Int = 100,
+    ) : IrStatement
+    data class Vibrate(val pattern: List<Long>) : IrStatement
     data class Log(val message: String) : IrStatement
     data class SetVariable(val name: String, val value: String) : IrStatement
     data class Repeat(val times: Int, val body: List<IrStatement>) : IrStatement

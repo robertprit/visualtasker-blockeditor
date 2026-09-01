@@ -214,4 +214,82 @@ class IrGeneratorTest {
         assertEquals(IrExpression.GetVariable("b"), condition.b)
         assertEquals(null, condition.c)
     }
+
+    @Test
+    fun compareReporter_emitsBooleanComparisonCondition() {
+        val startId = BlockId("start")
+        val ifId = BlockId("if")
+        val compareId = BlockId("compare")
+        val leftId = BlockId("left")
+        val rightId = BlockId("right")
+
+        val start = DefaultBlockRegistry.getDefinition(BlockTypes.EVENT_START)!!.createNode(startId)
+        val ifBlock = DefaultBlockRegistry.getDefinition(BlockTypes.CONTROL_IF)!!.createNode(ifId)
+        var compareBlock = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_COMPARE)!!.createNode(compareId)
+            .copy(fields = mapOf("operator" to de.visualtasker.blockeditor.domain.FieldValue.Text("GREATER_OR_EQUAL")))
+        val left = DefaultBlockRegistry.getDefinition(BlockTypes.LITERAL_NUMBER)!!.createNode(leftId)
+            .copy(fields = mapOf("value" to de.visualtasker.blockeditor.domain.FieldValue.Number(3.0)))
+        val right = DefaultBlockRegistry.getDefinition(BlockTypes.LITERAL_NUMBER)!!.createNode(rightId)
+            .copy(fields = mapOf("value" to de.visualtasker.blockeditor.domain.FieldValue.Number(2.0)))
+
+        fun connectValue(parent: de.visualtasker.blockeditor.domain.BlockNode, inputName: String, child: de.visualtasker.blockeditor.domain.BlockNode): Pair<de.visualtasker.blockeditor.domain.BlockNode, de.visualtasker.blockeditor.domain.BlockNode> {
+            val input = parent.valueInputs.first { it.name == inputName }
+            val childOutput = child.output!!
+            val updatedParent = parent.copy(
+                valueInputs = parent.valueInputs.map {
+                    if (it.name == inputName) {
+                        it.copy(connection = it.connection.copy(connectedTo = childOutput.id))
+                    } else {
+                        it
+                    }
+                },
+            )
+            val updatedChild = child.copy(
+                output = childOutput.copy(connectedTo = input.connection.id),
+            )
+            return updatedParent to updatedChild
+        }
+
+        val (compareWithLeft, connectedLeft) = connectValue(compareBlock, "LEFT", left)
+        val (compareWithRight, connectedRight) = connectValue(compareWithLeft, "RIGHT", right)
+        compareBlock = compareWithRight
+
+        val conditionInput = ifBlock.valueInputs.first { it.name == "CONDITION" }
+        val compareOutput = compareBlock.output!!
+        val connectedIf = ifBlock.copy(
+            previous = ifBlock.previous!!.copy(connectedTo = start.next!!.id),
+            valueInputs = ifBlock.valueInputs.map {
+                if (it.name == "CONDITION") {
+                    it.copy(connection = conditionInput.connection.copy(connectedTo = compareOutput.id))
+                } else {
+                    it
+                }
+            },
+        )
+        val connectedCompare = compareBlock.copy(
+            output = compareOutput.copy(connectedTo = conditionInput.connection.id),
+        )
+        val connectedStart = start.copy(
+            next = start.next!!.copy(connectedTo = connectedIf.previous!!.id),
+        )
+
+        val document = WorkspaceDocument(
+            id = "compare-test",
+            blocks = mapOf(
+                startId to connectedStart,
+                ifId to connectedIf,
+                compareId to connectedCompare,
+                leftId to connectedLeft,
+                rightId to connectedRight,
+            ),
+            rootBlocks = listOf(startId, compareId),
+        )
+
+        val script = generator.generate(document)
+        val ifStmt = script.statements.single() as IrStatement.If
+        val condition = ifStmt.condition as IrExpression.Compare
+        assertEquals("GREATER_OR_EQUAL", condition.operator)
+        assertEquals(IrExpression.LiteralNumber(3.0), condition.left)
+        assertEquals(IrExpression.LiteralNumber(2.0), condition.right)
+    }
 }

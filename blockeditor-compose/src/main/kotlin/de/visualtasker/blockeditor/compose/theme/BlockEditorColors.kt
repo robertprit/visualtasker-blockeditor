@@ -41,6 +41,7 @@ fun blockEditorColors(category: String): Color = categoryOverrides[category] ?: 
 fun defaultBlockCategoryColor(category: String): Color = when (category) {
     BlockCategories.EVENT -> Color(0xFFB78B00)
     BlockCategories.ACTION -> Color(0xFF3E6F91)
+    BlockCategories.FEEDBACK -> Color(0xFF8A5F76)
     BlockCategories.EMSCRIPT -> Color(0xFF56687A)
     BlockCategories.INPUT -> Color(0xFF4B6F8F)
     BlockCategories.PERCEPTION -> Color(0xFF3F735F)

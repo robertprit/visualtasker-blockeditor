@@ -21,7 +21,7 @@ class EmscriptGeneratorTest {
         val first = generator.generate(document)
         val second = generator.generate(document)
         assertEquals(first, second)
-        assertTrue(first.contains("CLICK \"OK\""))
+        assertTrue(first.contains("click(\"OK\")"))
         assertTrue(first.contains("LOOP 3"))
         assertTrue(first.contains("END LOOP"))
         assertFalse(first.contains("# Script"))
@@ -95,12 +95,18 @@ class EmscriptGeneratorTest {
                 "safe",
                 listOf(
                     de.visualtasker.blockeditor.ir.IrStatement.Wait(500),
+                    de.visualtasker.blockeditor.ir.IrStatement.Beep(),
+                    de.visualtasker.blockeditor.ir.IrStatement.Beep(880, 150, 75),
+                    de.visualtasker.blockeditor.ir.IrStatement.Vibrate(listOf(0L, 80L, 40L, 120L)),
                     de.visualtasker.blockeditor.ir.IrStatement.Log("hello"),
                     de.visualtasker.blockeditor.ir.IrStatement.SetVariable("count", "3"),
                 ),
             ),
         )
-        assertEquals("WAIT 500\nOUTPUT \"hello\"\nSET count = 3", script)
+        assertEquals(
+            "wait(500)\nbeep()\nbeep(880, 150, 75)\nvibrate(0, 80, 40, 120)\nlog(\"hello\")\nSET count = 3",
+            script,
+        )
     }
 
     @Test fun sanitizesVariableNamesAcceptedByEditor() {
@@ -117,6 +123,44 @@ class EmscriptGeneratorTest {
             ),
         )
         assertEquals("SET _1_user_name = 3\nWHILE _1_user_name\nEND WHILE", script)
+    }
+
+    @Test fun emitsCompareReporterConditions() {
+        val script = generator.generate(
+            de.visualtasker.blockeditor.ir.IrScript(
+                "compare",
+                listOf(
+                    de.visualtasker.blockeditor.ir.IrStatement.If(
+                        condition = de.visualtasker.blockeditor.ir.IrExpression.Compare(
+                            operator = "GREATER_OR_EQUAL",
+                            left = de.visualtasker.blockeditor.ir.IrExpression.LiteralNumber(3.0),
+                            right = de.visualtasker.blockeditor.ir.IrExpression.LiteralNumber(2.0),
+                        ),
+                        thenBranch = listOf(de.visualtasker.blockeditor.ir.IrStatement.Wait(100)),
+                    ),
+                ),
+            ),
+        )
+        assertEquals("IF (3 >= 2)\n  wait(100)\nEND IF", script)
+    }
+
+    @Test fun emitsEmptyCompareSlotsAsBooleanFallbacks() {
+        val script = generator.generate(
+            de.visualtasker.blockeditor.ir.IrScript(
+                "compare",
+                listOf(
+                    de.visualtasker.blockeditor.ir.IrStatement.If(
+                        condition = de.visualtasker.blockeditor.ir.IrExpression.Compare(
+                            operator = "EQUAL",
+                            left = de.visualtasker.blockeditor.ir.IrExpression.LiteralBoolean(false),
+                            right = de.visualtasker.blockeditor.ir.IrExpression.LiteralBoolean(false),
+                        ),
+                        thenBranch = emptyList(),
+                    ),
+                ),
+            ),
+        )
+        assertEquals("IF (FALSE == FALSE)\nEND IF", script)
     }
 
     @Test fun rejectsUnsupportedSemanticExpressionsDeterministically() {

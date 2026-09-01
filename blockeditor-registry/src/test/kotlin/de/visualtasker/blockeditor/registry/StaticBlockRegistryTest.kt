@@ -35,11 +35,12 @@ class StaticBlockRegistryTest {
 
     @Test fun emscriptCategoryIsVisibleBetweenActionAndControl() {
         assertEquals(
-            listOf(BlockCategories.ACTION, BlockCategories.EMSCRIPT, BlockCategories.INPUT, BlockCategories.PERCEPTION, BlockCategories.CONTROL),
+            listOf(BlockCategories.ACTION, BlockCategories.FEEDBACK, BlockCategories.EMSCRIPT, BlockCategories.INPUT, BlockCategories.PERCEPTION, BlockCategories.CONTROL),
             BlockCategories.all.map { it.id }
                 .filter {
                     it in setOf(
                         BlockCategories.ACTION,
+                        BlockCategories.FEEDBACK,
                         BlockCategories.EMSCRIPT,
                         BlockCategories.INPUT,
                         BlockCategories.PERCEPTION,
@@ -53,6 +54,7 @@ class StaticBlockRegistryTest {
     @Test fun commandReferenceCategoriesHaveStableMetadata() {
         val expected = listOf(
             BlockCategories.INPUT to "Input",
+            BlockCategories.FEEDBACK to "Feedback",
             BlockCategories.PERCEPTION to "Perception",
             BlockCategories.LOGIC to "Logic",
             BlockCategories.VARIABLES to "Variables",

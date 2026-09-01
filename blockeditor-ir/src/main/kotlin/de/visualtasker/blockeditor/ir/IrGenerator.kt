@@ -43,6 +43,12 @@ class IrGenerator(
         return when (block.type) {
             BlockTypes.ACTION_CLICK_TEXT -> IrStatement.ClickText(block.fieldText("text"))
             BlockTypes.ACTION_WAIT -> IrStatement.Wait(block.fieldNumber("ms").toLong())
+            BlockTypes.FEEDBACK_BEEP -> IrStatement.Beep(
+                frequency = block.fieldNumber("frequency").toInt(),
+                durationMs = block.fieldNumber("durationMs").toInt(),
+                volume = block.fieldNumber("volume").toInt(),
+            )
+            BlockTypes.FEEDBACK_VIBRATE -> IrStatement.Vibrate(block.fieldLongList("pattern"))
             BlockTypes.DEBUG_LOG -> IrStatement.Log(block.fieldText("message"))
             BlockTypes.VARIABLE_SET -> IrStatement.SetVariable(
                 block.fieldText("variable"),
@@ -114,6 +120,9 @@ class IrGenerator(
     private fun emitExpression(document: WorkspaceDocument, block: BlockNode): IrExpression {
         return when (block.type) {
             BlockTypes.LOGIC_BOOLEAN -> IrExpression.LiteralBoolean(block.fieldBool("value"))
+            BlockTypes.LITERAL_BOOLEAN -> IrExpression.LiteralBoolean(block.fieldBool("value"))
+            BlockTypes.LITERAL_NUMBER -> IrExpression.LiteralNumber(block.fieldNumber("value"))
+            BlockTypes.LITERAL_STRING -> IrExpression.LiteralString(block.fieldText("value"))
             BlockTypes.LOGIC_SCREEN_CONTAINS -> IrExpression.ScreenContains(block.fieldText("text"))
             BlockTypes.LOGIC_AND -> IrExpression.And(
                 emitValueInput(document, block, "A"),
@@ -122,6 +131,11 @@ class IrGenerator(
             BlockTypes.LOGIC_OR -> IrExpression.Or(
                 emitValueInput(document, block, "A"),
                 emitValueInput(document, block, "B"),
+            )
+            BlockTypes.LOGIC_COMPARE -> IrExpression.Compare(
+                operator = block.fieldText("operator"),
+                left = emitValueInput(document, block, "LEFT"),
+                right = emitValueInput(document, block, "RIGHT"),
             )
             BlockTypes.LOGIC_OPERATE -> IrExpression.Operate(
                 operator = block.fieldText("operator"),
@@ -147,6 +161,14 @@ class IrGenerator(
             is FieldValue.Text -> value.value.toDoubleOrNull() ?: 0.0
             else -> 0.0
         }
+
+    private fun BlockNode.fieldLongList(key: String): List<Long> =
+        fieldText(key)
+            .split(',')
+            .mapNotNull { it.trim().toLongOrNull() }
+            .ifEmpty {
+                listOf(fieldNumber(key).toLong())
+            }
 
     private fun BlockNode.fieldBool(key: String): Boolean =
         when (val value = fields[key]) {

@@ -5,6 +5,8 @@ object BlockTypes {
     const val ACTION_CLICK_TEXT = "action.clickText"
     const val ACTION_WAIT = "action.wait"
     const val ACTION_FIND_TEMPLATE = "action.findTemplate"
+    const val FEEDBACK_BEEP = "feedback.beep"
+    const val FEEDBACK_VIBRATE = "feedback.vibrate"
     const val DEBUG_LOG = "debug.log"
     const val CONTROL_REPEAT = "control.repeat"
     const val CONTROL_WHILE = "control.while"
@@ -142,6 +144,57 @@ object DefaultBlockRegistry : BlockRegistry {
                         ParameterSourceKind.VARIABLE,
                     ),
                     defaultSource = ParameterSourceKind.REGION_MANUAL,
+                ),
+            ),
+        ),
+        BlockDefinition(
+            id = BlockTypes.FEEDBACK_BEEP,
+            label = "Beep",
+            category = BlockCategories.FEEDBACK,
+            hasPrevious = true,
+            hasNext = true,
+            fields = listOf(
+                FieldDefinition(
+                    key = "frequency",
+                    label = "Hz",
+                    kind = FieldKind.NUMBER,
+                    defaultValue = "1000",
+                    required = true,
+                    minValue = 20.0,
+                    maxValue = 20_000.0,
+                ),
+                FieldDefinition(
+                    key = "durationMs",
+                    label = "ms",
+                    kind = FieldKind.TIMEOUT_MS,
+                    defaultValue = "200",
+                    required = true,
+                    minValue = 10.0,
+                    maxValue = 10_000.0,
+                ),
+                FieldDefinition(
+                    key = "volume",
+                    label = "vol",
+                    kind = FieldKind.NUMBER,
+                    defaultValue = "100",
+                    required = true,
+                    minValue = 0.0,
+                    maxValue = 100.0,
+                ),
+            ),
+        ),
+        BlockDefinition(
+            id = BlockTypes.FEEDBACK_VIBRATE,
+            label = "Vibrate",
+            category = BlockCategories.FEEDBACK,
+            hasPrevious = true,
+            hasNext = true,
+            fields = listOf(
+                FieldDefinition(
+                    key = "pattern",
+                    label = "ms",
+                    defaultValue = "80",
+                    required = true,
                 ),
             ),
         ),
