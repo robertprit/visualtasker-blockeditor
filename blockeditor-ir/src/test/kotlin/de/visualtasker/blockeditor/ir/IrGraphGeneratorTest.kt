@@ -31,13 +31,18 @@ class IrGraphGeneratorTest {
         assertTrue(graph.nodes.any { it.id == IrGraphNodeId("block:then") && "branch:THEN" in it.scopePath })
         assertTrue(graph.nodes.any { it.id == IrGraphNodeId("block:elif") && "branch:ELIF" in it.scopePath })
         assertTrue(graph.nodes.any { it.id == IrGraphNodeId("block:else") && "branch:ELSE" in it.scopePath })
+        assertTrue(graph.scopes.any { it.id == "script:start" && it.kind == IrGraphScopeKind.SCRIPT })
+        assertTrue(graph.branches.any { it.ownerNodeId == IrGraphNodeId("block:if") && it.role == IrGraphBranchRole.THEN && it.bodyEntryNodeId == IrGraphNodeId("block:then") })
+        assertTrue(graph.branches.any { it.ownerNodeId == IrGraphNodeId("block:if") && it.role == IrGraphBranchRole.ELSE_IF })
+        assertTrue(graph.branches.any { it.ownerNodeId == IrGraphNodeId("block:if") && it.role == IrGraphBranchRole.ELSE && it.bodyEntryNodeId == IrGraphNodeId("block:else") })
+        assertTrue(graph.facets.any { it.kind == IrGraphFacetKind.BRANCH_REGION && IrGraphNodeId("block:elif") in it.nodeIds })
         assertTrue(graph.edges.any { it.sourceNodeId.value == "block:start" && it.targetNodeId.value == "block:if" && it.kind == IrGraphEdgeKind.SEQUENCE })
         assertTrue(graph.edges.any { it.sourceNodeId.value == "block:if" && it.targetNodeId.value == "block:then" && it.kind == IrGraphEdgeKind.TRUE_BRANCH })
         assertTrue(graph.edges.any { it.sourceNodeId.value == "block:if" && it.targetNodeId.value == "block:elif" && it.kind == IrGraphEdgeKind.ELSE_IF_BRANCH })
         assertTrue(graph.edges.any { it.sourceNodeId.value == "block:if" && it.targetNodeId.value == "block:else" && it.kind == IrGraphEdgeKind.FALSE_BRANCH })
         assertTrue(graph.edges.any { it.sourceNodeId.value == "block:compare" && it.targetNodeId.value == "block:if" && it.kind == IrGraphEdgeKind.CONDITION })
         assertTrue(graph.edges.any { it.sourceNodeId.value == "block:v1" && it.targetNodeId.value == "block:compare" && it.kind == IrGraphEdgeKind.DATA_FLOW && it.label == "LEFT" })
-        assertTrue(graph.edges.any { it.source.blockId == "if" && it.source.slotName == "THEN" })
+        assertTrue(graph.edges.any { it.source.blockId == "if" && it.source.slotName == "THEN" && it.source.branch?.role == IrGraphBranchRole.THEN })
     }
 
     private fun referenceIfElseDocument(): WorkspaceDocument {

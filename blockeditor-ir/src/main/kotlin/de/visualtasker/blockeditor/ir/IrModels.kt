@@ -80,11 +80,65 @@ enum class IrGraphEdgeKind {
     DATA_FLOW,
 }
 
+enum class IrGraphScopeKind {
+    SCRIPT,
+    ORPHAN_ROOT,
+    UNREACHABLE,
+    BRANCH,
+    VALUE,
+}
+
+enum class IrGraphBranchRole {
+    THEN,
+    ELSE_IF,
+    ELSE,
+    LOOP_BODY,
+}
+
+enum class IrGraphFacetKind {
+    BRANCH_REGION,
+    COLLAPSE_GROUP,
+    COMMENT_MARKER,
+    VARIABLE_BULK,
+    FUNCTION_REGION,
+}
+
+data class IrGraphBranchRef(
+    val id: String,
+    val ownerBlockId: String,
+    val role: IrGraphBranchRole,
+    val index: Int,
+    val slotName: String,
+)
+
 data class IrGraphSourceRef(
     val workspaceId: String,
     val workspaceVersion: Long,
     val blockId: String? = null,
     val slotName: String? = null,
+    val sourceLine: Int? = null,
+    val sourceColumn: Int? = null,
+    val branch: IrGraphBranchRef? = null,
+)
+
+data class IrGraphScope(
+    val id: String,
+    val kind: IrGraphScopeKind,
+    val parentId: String?,
+    val label: String,
+    val source: IrGraphSourceRef,
+)
+
+data class IrGraphBranch(
+    val id: String,
+    val ownerNodeId: IrGraphNodeId,
+    val role: IrGraphBranchRole,
+    val index: Int,
+    val slotName: String,
+    val scopeId: String,
+    val conditionNodeId: IrGraphNodeId? = null,
+    val bodyEntryNodeId: IrGraphNodeId? = null,
+    val source: IrGraphSourceRef,
 )
 
 data class IrGraphNode(
@@ -105,6 +159,17 @@ data class IrGraphEdge(
     val source: IrGraphSourceRef,
 )
 
+data class IrGraphFacet(
+    val id: String,
+    val kind: IrGraphFacetKind,
+    val label: String,
+    val scopeId: String?,
+    val ownerNodeId: IrGraphNodeId?,
+    val nodeIds: List<IrGraphNodeId>,
+    val source: IrGraphSourceRef,
+    val properties: Map<String, String> = emptyMap(),
+)
+
 data class IrGraphDiagnostic(
     val code: String,
     val message: String,
@@ -118,4 +183,7 @@ data class IrGraph(
     val nodes: List<IrGraphNode>,
     val edges: List<IrGraphEdge>,
     val diagnostics: List<IrGraphDiagnostic> = emptyList(),
+    val scopes: List<IrGraphScope> = emptyList(),
+    val branches: List<IrGraphBranch> = emptyList(),
+    val facets: List<IrGraphFacet> = emptyList(),
 )

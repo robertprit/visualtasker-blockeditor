@@ -20,31 +20,57 @@ class IrGraphGenerator(
         val diagnostics = mutableListOf<IrGraphDiagnostic>()
         val nodes = linkedMapOf<IrGraphNodeId, IrGraphNode>()
         val edges = linkedMapOf<IrGraphEdgeId, IrGraphEdge>()
+        val scopes = linkedMapOf<String, IrGraphScope>()
+        val branches = linkedMapOf<String, IrGraphBranch>()
         val visited = mutableSetOf<BlockId>()
         val entryNodeIds = mutableListOf<IrGraphNodeId>()
 
         document.rootBlocks.forEachIndexed { index, rootId ->
             val root = document.blocks[rootId] ?: return@forEachIndexed
             if (root.type == BlockTypes.EVENT_START) {
-                val scopePath = listOf("script:${root.id.value}")
+                val scopeId = "script:${root.id.value}"
+                registerScope(
+                    scopes = scopes,
+                    id = scopeId,
+                    kind = IrGraphScopeKind.SCRIPT,
+                    parentId = null,
+                    label = "Script ${root.id.value}",
+                    source = sourceRef(document, root.id),
+                )
+                val scopePath = listOf(scopeId)
                 entryNodeIds += rootId.irNodeId()
                 walkBlock(
                     document = document,
                     blockId = rootId,
                     scopePath = scopePath,
+                    scopeId = scopeId,
                     nodes = nodes,
                     edges = edges,
+                    scopes = scopes,
+                    branches = branches,
                     diagnostics = diagnostics,
                     visited = visited,
                 )
             } else {
-                val scopePath = listOf("orphan-root:$index")
+                val scopeId = "orphan-root:$index"
+                registerScope(
+                    scopes = scopes,
+                    id = scopeId,
+                    kind = IrGraphScopeKind.ORPHAN_ROOT,
+                    parentId = null,
+                    label = "Orphan Root $index",
+                    source = sourceRef(document, root.id),
+                )
+                val scopePath = listOf(scopeId)
                 walkBlock(
                     document = document,
                     blockId = rootId,
                     scopePath = scopePath,
+                    scopeId = scopeId,
                     nodes = nodes,
                     edges = edges,
+                    scopes = scopes,
+                    branches = branches,
                     diagnostics = diagnostics,
                     visited = visited,
                 )
@@ -55,12 +81,24 @@ class IrGraphGenerator(
             .filterNot { it in visited }
             .sortedBy { it.value }
             .forEach { blockId ->
+                val scopeId = "unreachable"
+                registerScope(
+                    scopes = scopes,
+                    id = scopeId,
+                    kind = IrGraphScopeKind.UNREACHABLE,
+                    parentId = null,
+                    label = "Unreachable",
+                    source = sourceRef(document, blockId),
+                )
                 walkBlock(
                     document = document,
                     blockId = blockId,
-                    scopePath = listOf("unreachable"),
+                    scopePath = listOf(scopeId),
+                    scopeId = scopeId,
                     nodes = nodes,
                     edges = edges,
+                    scopes = scopes,
+                    branches = branches,
                     diagnostics = diagnostics,
                     visited = visited,
                 )
@@ -73,6 +111,9 @@ class IrGraphGenerator(
             nodes = nodes.values.toList(),
             edges = edges.values.toList(),
             diagnostics = diagnostics,
+            scopes = scopes.values.toList(),
+            branches = branches.values.toList(),
+            facets = buildFacets(document, nodes.values.toList(), branches.values.toList()),
         )
     }
 
@@ -80,8 +121,11 @@ class IrGraphGenerator(
         document: WorkspaceDocument,
         blockId: BlockId,
         scopePath: List<String>,
+        scopeId: String,
         nodes: MutableMap<IrGraphNodeId, IrGraphNode>,
         edges: MutableMap<IrGraphEdgeId, IrGraphEdge>,
+        scopes: MutableMap<String, IrGraphScope>,
+        branches: MutableMap<String, IrGraphBranch>,
         diagnostics: MutableList<IrGraphDiagnostic>,
         visited: MutableSet<BlockId>,
     ) {
@@ -94,7 +138,27 @@ class IrGraphGenerator(
             val connected = input.connection.connectedTo ?: return@forEach
             val (valueBlockId, connection) = WorkspaceGraph.findConnection(document, connected) ?: return@forEach
             if (connection.kind != ConnectionKind.Output) return@forEach
-            walkBlock(document, valueBlockId, scopePath + "value:${input.name}", nodes, edges, diagnostics, visited)
+            val valueScopeId = "$scopeId/value:${blockId.value}:${input.name}"
+            registerScope(
+                scopes = scopes,
+                id = valueScopeId,
+                kind = IrGraphScopeKind.VALUE,
+                parentId = scopeId,
+                label = input.name,
+                source = sourceRef(document, blockId, input.name),
+            )
+            walkBlock(
+                document = document,
+                blockId = valueBlockId,
+                scopePath = scopePath + "value:${input.name}" + valueScopeId,
+                scopeId = valueScopeId,
+                nodes = nodes,
+                edges = edges,
+                scopes = scopes,
+                branches = branches,
+                diagnostics = diagnostics,
+                visited = visited,
+            )
             putEdge(
                 edges = edges,
                 source = valueBlockId.irNodeId(),
@@ -105,22 +169,71 @@ class IrGraphGenerator(
             )
         }
 
-        block.statementInputs.forEach { input ->
-            val head = WorkspaceGraph.statementStackHead(document, blockId, input.name) ?: return@forEach
+        block.statementInputs.forEachIndexed { branchIndex, input ->
+            val head = WorkspaceGraph.statementStackHead(document, blockId, input.name) ?: return@forEachIndexed
             val kind = edgeKindForStatementSlot(input.name)
-            walkBlock(document, head, scopePath + "branch:${input.name}", nodes, edges, diagnostics, visited)
+            val role = branchRoleForStatementSlot(input.name)
+            val branchRef = IrGraphBranchRef(
+                id = "branch:${blockId.value}:${role.name.lowercase()}:$branchIndex:${input.name}",
+                ownerBlockId = blockId.value,
+                role = role,
+                index = branchIndex,
+                slotName = input.name,
+            )
+            registerScope(
+                scopes = scopes,
+                id = branchRef.id,
+                kind = IrGraphScopeKind.BRANCH,
+                parentId = scopeId,
+                label = branchLabel(role, branchIndex),
+                source = sourceRef(document, blockId, input.name, branchRef),
+            )
+            branches[branchRef.id] = IrGraphBranch(
+                id = branchRef.id,
+                ownerNodeId = blockId.irNodeId(),
+                role = role,
+                index = branchIndex,
+                slotName = input.name,
+                scopeId = branchRef.id,
+                conditionNodeId = conditionNodeForBranch(document, block, role),
+                bodyEntryNodeId = head.irNodeId(),
+                source = sourceRef(document, blockId, input.name, branchRef),
+            )
+            walkBlock(
+                document = document,
+                blockId = head,
+                scopePath = scopePath + "branch:${input.name}" + branchRef.id,
+                scopeId = branchRef.id,
+                nodes = nodes,
+                edges = edges,
+                scopes = scopes,
+                branches = branches,
+                diagnostics = diagnostics,
+                visited = visited,
+            )
             putEdge(
                 edges = edges,
                 source = blockId.irNodeId(),
                 target = head.irNodeId(),
                 kind = kind,
                 label = input.name,
-                sourceRef = sourceRef(document, blockId, input.name),
+                sourceRef = sourceRef(document, blockId, input.name, branchRef),
             )
         }
 
         WorkspaceGraph.nextChain(document, blockId)?.let { nextId ->
-            walkBlock(document, nextId, scopePath, nodes, edges, diagnostics, visited)
+            walkBlock(
+                document = document,
+                blockId = nextId,
+                scopePath = scopePath,
+                scopeId = scopeId,
+                nodes = nodes,
+                edges = edges,
+                scopes = scopes,
+                branches = branches,
+                diagnostics = diagnostics,
+                visited = visited,
+            )
             putEdge(
                 edges = edges,
                 source = blockId.irNodeId(),
@@ -160,7 +273,10 @@ class IrGraphGenerator(
             properties = buildMap {
                 put("blockType", block.type)
                 put("blockId", block.id.value)
+                put("scopeId", scopePath.lastOrNull().orEmpty())
                 if (block.collapsed) put("collapsed", "true")
+                block.metadata["emscript.source.line"]?.let { put("sourceLine", it) }
+                block.metadata["emscript.source.column"]?.let { put("sourceColumn", it) }
             },
         )
     }
@@ -257,13 +373,128 @@ class IrGraphGenerator(
         else -> IrGraphEdgeKind.SEQUENCE
     }
 
-    private fun sourceRef(document: WorkspaceDocument, blockId: BlockId, slotName: String? = null): IrGraphSourceRef =
-        IrGraphSourceRef(
+    private fun branchRoleForStatementSlot(slotName: String): IrGraphBranchRole = when (slotName) {
+        BlockTypes.SLOT_THEN -> IrGraphBranchRole.THEN
+        BlockTypes.SLOT_ELSE -> IrGraphBranchRole.ELSE
+        BlockTypes.SLOT_ELIF -> IrGraphBranchRole.ELSE_IF
+        BlockTypes.SLOT_DO,
+        BlockTypes.SLOT_BODY -> IrGraphBranchRole.LOOP_BODY
+        else -> IrGraphBranchRole.THEN
+    }
+
+    private fun branchLabel(role: IrGraphBranchRole, index: Int): String = when (role) {
+        IrGraphBranchRole.THEN -> "Then"
+        IrGraphBranchRole.ELSE_IF -> "Else If ${index + 1}"
+        IrGraphBranchRole.ELSE -> "Else"
+        IrGraphBranchRole.LOOP_BODY -> "Loop Body"
+    }
+
+    private fun conditionNodeForBranch(
+        document: WorkspaceDocument,
+        block: BlockNode,
+        role: IrGraphBranchRole,
+    ): IrGraphNodeId? {
+        val inputName = when (role) {
+            IrGraphBranchRole.ELSE_IF -> "ELIF_CONDITION"
+            IrGraphBranchRole.THEN,
+            IrGraphBranchRole.ELSE,
+            IrGraphBranchRole.LOOP_BODY -> "CONDITION"
+        }
+        val connected = block.valueInputs.firstOrNull { it.name == inputName }?.connection?.connectedTo ?: return null
+        val (conditionBlockId, connection) = WorkspaceGraph.findConnection(document, connected) ?: return null
+        return conditionBlockId.irNodeId().takeIf { connection.kind == ConnectionKind.Output }
+    }
+
+    private fun registerScope(
+        scopes: MutableMap<String, IrGraphScope>,
+        id: String,
+        kind: IrGraphScopeKind,
+        parentId: String?,
+        label: String,
+        source: IrGraphSourceRef,
+    ) {
+        scopes.putIfAbsent(
+            id,
+            IrGraphScope(
+                id = id,
+                kind = kind,
+                parentId = parentId,
+                label = label,
+                source = source,
+            ),
+        )
+    }
+
+    private fun buildFacets(
+        document: WorkspaceDocument,
+        nodes: List<IrGraphNode>,
+        branches: List<IrGraphBranch>,
+    ): List<IrGraphFacet> = buildList {
+        branches.forEach { branch ->
+            add(
+                IrGraphFacet(
+                    id = "facet:${branch.id}",
+                    kind = IrGraphFacetKind.BRANCH_REGION,
+                    label = branchLabel(branch.role, branch.index),
+                    scopeId = branch.scopeId,
+                    ownerNodeId = branch.ownerNodeId,
+                    nodeIds = nodes.filter { branch.scopeId in it.scopePath }.map { it.id },
+                    source = branch.source,
+                    properties = mapOf(
+                        "role" to branch.role.name,
+                        "slotName" to branch.slotName,
+                        "index" to branch.index.toString(),
+                    ),
+                )
+            )
+        }
+        nodes.filter { it.properties["collapsed"] == "true" }.forEach { node ->
+            add(
+                IrGraphFacet(
+                    id = "facet:collapse:${node.id.value}",
+                    kind = IrGraphFacetKind.COLLAPSE_GROUP,
+                    label = node.label,
+                    scopeId = node.properties["scopeId"],
+                    ownerNodeId = node.id,
+                    nodeIds = listOf(node.id),
+                    source = node.source,
+                    properties = mapOf("collapsed" to "true"),
+                )
+            )
+        }
+        val variableNodes = nodes.filter { it.properties["blockType"] == BlockTypes.VARIABLE_SET }
+        if (variableNodes.size >= 2) {
+            add(
+                IrGraphFacet(
+                    id = "facet:variables:${document.id}",
+                    kind = IrGraphFacetKind.VARIABLE_BULK,
+                    label = "Variables",
+                    scopeId = variableNodes.firstOrNull()?.properties?.get("scopeId"),
+                    ownerNodeId = null,
+                    nodeIds = variableNodes.map { it.id },
+                    source = IrGraphSourceRef(workspaceId = document.id, workspaceVersion = document.version),
+                )
+            )
+        }
+    }
+
+    private fun sourceRef(
+        document: WorkspaceDocument,
+        blockId: BlockId,
+        slotName: String? = null,
+        branchRef: IrGraphBranchRef? = null,
+    ): IrGraphSourceRef {
+        val block = document.blocks[blockId]
+        return IrGraphSourceRef(
             workspaceId = document.id,
             workspaceVersion = document.version,
             blockId = blockId.value,
             slotName = slotName,
+            sourceLine = block?.metadata?.get("emscript.source.line")?.toIntOrNull(),
+            sourceColumn = block?.metadata?.get("emscript.source.column")?.toIntOrNull(),
+            branch = branchRef,
         )
+    }
 
     private fun BlockId.irNodeId(): IrGraphNodeId = IrGraphNodeId("block:${value}")
 
