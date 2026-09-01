@@ -21,8 +21,15 @@ implemented.
 These pages are planning notes. They describe intended vocabulary and API shape
 only where explicitly marked as draft or planned.
 
+- [EMScript Overview](EMScript-Overview.md)
+- [EMScript Commands](EMScript-Commands.md)
 - [EMScript Core Types](EMScript-Core-Types.md)
 - [EMScript Find API](EMScript-Find-API.md)
+- [Macrorify EMScript and VisualTasker comparison](Macrorify-EMScript.md)
+
+The Macrorify comparison page contains both a source-based compatibility
+reference and planned VisualTasker extensions. Every section carries an
+implementation status; planned adapters are not runtime claims.
 
 ## Scope Rules
 
