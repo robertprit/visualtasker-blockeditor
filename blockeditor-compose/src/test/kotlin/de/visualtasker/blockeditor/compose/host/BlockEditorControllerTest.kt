@@ -956,7 +956,7 @@ class BlockEditorControllerTest {
     }
 
     @Test
-    fun rootDragMoveClipsBlockAtVisibleWorkspaceEdge() {
+    fun rootDragMoveKeepsFollowingPointerOutsideVisibleWorkspace() {
         val controller = BlockEditorController(
             initialDocument = WorkspaceBootstrap.empty(),
         )
@@ -971,13 +971,12 @@ class BlockEditorControllerTest {
 
         val render = controller.dragRender!!
         val offset = render.session.dragOffset
-        val draggedBounds = render.dragLayoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.subtreeBounds
-        val left = (draggedBounds.x + offset.x) * controller.viewport.scale + controller.viewport.panX
-        val top = (draggedBounds.y + offset.y) * controller.viewport.scale + controller.viewport.panY
 
-        assertEquals(0f, left, 0.01f)
-        assertEquals(0f, top, 0.01f)
+        assertTrue(offset.x < -1000f)
+        assertTrue(offset.y < -900f)
         controller.onPointerUp(Offset2(-1200f, -900f))
+
+        assertEquals(Offset2(0f, 0f), controller.document.rootOffset(blockId))
 
         controller.close()
     }

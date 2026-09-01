@@ -263,7 +263,7 @@ class BlockEditorController(
             layoutCache = render.staticLayoutCache,
             document = render.previewDocument,
         )
-        val session = updated.dragSession?.let(::clampDragSessionToCanvas) ?: return
+        val session = updated.dragSession ?: return
         render.runtimeState.update(session.dragOffset, updated.activeSnapCandidate)
         dragRender = render.copy(
             session = session,
@@ -1501,40 +1501,6 @@ class BlockEditorController(
         )
         if (clampedX == rootOffset.x && clampedY == rootOffset.y) return source
         return source.withRootOffset(rootId, clampedX, clampedY)
-    }
-
-    private fun clampDragSessionToCanvas(
-        session: de.visualtasker.blockeditor.interaction.DragSession,
-    ): de.visualtasker.blockeditor.interaction.DragSession {
-        val render = dragRender ?: return session
-        val size = canvasSize ?: return session
-        if (size.x <= 0f || size.y <= 0f || viewport.scale <= 0f) return session
-        val rootLayout = render.dragLayoutCache.flatIndex.visibleBlocks
-            .find { it.blockId == session.rootBlockId }
-            ?: return session
-
-        val visibleLeft = -viewport.panX / viewport.scale
-        val visibleTop = -viewport.panY / viewport.scale
-        val visibleRight = (size.x - viewport.panX) / viewport.scale
-        val visibleBottom = (size.y - viewport.panY) / viewport.scale
-        val origin = session.originalLayoutPosition
-        val subtreeLeftFromOrigin = rootLayout.subtreeBounds.x - origin.x
-        val subtreeTopFromOrigin = rootLayout.subtreeBounds.y - origin.y
-        val subtreeRightFromOrigin = rootLayout.subtreeBounds.right - origin.x
-        val subtreeBottomFromOrigin = rootLayout.subtreeBounds.bottom - origin.y
-        val minX = visibleLeft - origin.x - subtreeLeftFromOrigin
-        val maxX = visibleRight - origin.x - subtreeRightFromOrigin
-        val minY = visibleTop - origin.y - subtreeTopFromOrigin
-        val maxY = visibleBottom - origin.y - subtreeBottomFromOrigin
-        val clampedOffset = Offset2(
-            session.dragOffset.x.clampToVisibleRange(minX, maxX),
-            session.dragOffset.y.clampToVisibleRange(minY, maxY),
-        )
-        return if (clampedOffset == session.dragOffset) {
-            session
-        } else {
-            session.copy(dragOffset = clampedOffset)
-        }
     }
 
     private fun Float.clampToVisibleRange(min: Float, max: Float): Float {
