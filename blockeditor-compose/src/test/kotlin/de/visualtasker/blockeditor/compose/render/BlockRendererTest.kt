@@ -30,6 +30,20 @@ class BlockRendererTest {
     }
 
     @Test
+    fun `control header label keeps drawable space before condition dock`() {
+        val labelWidth = headerLabelWidth(
+            blockWidth = 164f,
+            labelX = 38f,
+            hasHeaderCondition = true,
+            collapsedCommand = false,
+            dockWidth = 74f,
+        )
+
+        assertTrue(labelWidth > 0f)
+        assertEquals(36f, labelWidth)
+    }
+
+    @Test
     fun `label below narrow canvas is not drawn`() {
         assertFalse(hasDrawableTextArea(width = 12f, height = -1f))
     }

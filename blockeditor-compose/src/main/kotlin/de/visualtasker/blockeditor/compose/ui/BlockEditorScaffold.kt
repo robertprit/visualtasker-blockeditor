@@ -148,6 +148,7 @@ fun BlockEditorScaffold(
     onLongPressDragStart: (Offset2) -> Boolean,
     onPointerMove: (Offset2) -> Unit,
     onPointerUp: (Offset2) -> Unit,
+    onPointerCancel: () -> Unit = {},
     onFieldChange: (String, String) -> Unit,
     onFieldSourceChange: (String, String) -> Unit = { _, _ -> },
     onSetReporterVisualMode: (de.visualtasker.blockeditor.compose.model.ReporterVisualMode) -> Unit = {},
@@ -210,6 +211,7 @@ fun BlockEditorScaffold(
         onLongPressDragStart = onLongPressDragStart,
         onPointerMove = onPointerMove,
         onPointerUp = onPointerUp,
+        onPointerCancel = onPointerCancel,
         onFieldChange = onFieldChange,
         onFieldSourceChange = onFieldSourceChange,
         onSetReporterVisualMode = onSetReporterVisualMode,
@@ -276,6 +278,7 @@ fun BlockEditorScaffold(
     onLongPressDragStart: (Offset2) -> Boolean,
     onPointerMove: (Offset2) -> Unit,
     onPointerUp: (Offset2) -> Unit,
+    onPointerCancel: () -> Unit = {},
     onFieldChange: (String, String) -> Unit,
     onFieldSourceChange: (String, String) -> Unit = { _, _ -> },
     onSetReporterVisualMode: (de.visualtasker.blockeditor.compose.model.ReporterVisualMode) -> Unit = {},
@@ -307,6 +310,7 @@ fun BlockEditorScaffold(
     val onLongPressDragStartState = rememberUpdatedState(onLongPressDragStart)
     val onMove = rememberUpdatedState(onPointerMove)
     val onUp = rememberUpdatedState(onPointerUp)
+    val onCancel = rememberUpdatedState(onPointerCancel)
     val onViewport = rememberUpdatedState(onViewportChange)
     val onCanvasSize = rememberUpdatedState(onCanvasSizeChange)
     val viewportState = rememberUpdatedState(viewport)
@@ -453,6 +457,9 @@ fun BlockEditorScaffold(
                                         hapticFeedbackEnabled,
                                     )
                                 }
+                            },
+                            onDragCancel = {
+                                onCancel.value()
                             },
                             onBlockDragActiveChange = {
                                 blockDragActive = it

@@ -102,6 +102,7 @@ fun BlockEditorHost(
         onLongPressDragStart = controller::onLongPressDragStart,
         onPointerMove = controller::onPointerMove,
         onPointerUp = controller::onPointerUp,
+        onPointerCancel = controller::cancelActiveDrag,
         onFieldChange = controller::updateBlockField,
         onFieldSourceChange = controller::updateBlockFieldSource,
         onSetReporterVisualMode = controller::setSelectedReporterVisualMode,

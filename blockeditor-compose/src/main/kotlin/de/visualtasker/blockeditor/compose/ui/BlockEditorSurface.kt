@@ -94,6 +94,7 @@ fun BlockEditorSurface(
                     onLongPressDragStart = { onLongPressDragStartState.value(it) },
                     onDrag = { onMove.value(it) },
                     onDragEnd = { onUp.value(it) },
+                    onDragCancel = {},
                     onBlockDragActiveChange = { blockDragActive = it },
                 ),
         ) {

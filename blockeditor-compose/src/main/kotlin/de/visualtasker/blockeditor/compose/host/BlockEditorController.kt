@@ -112,6 +112,10 @@ class BlockEditorController(
     override var document by mutableStateOf(initialDocument)
         private set
 
+    init {
+        syncVariableReporters(initialDocument.variables)
+    }
+
     override var layoutCache by mutableStateOf(layoutEngine.build(initialDocument))
         private set
 
@@ -176,7 +180,6 @@ class BlockEditorController(
         }
 
     init {
-        syncVariableReporters(initialDocument.variables)
         emitInitialDerivedOutputs()
     }
 
@@ -321,6 +324,23 @@ class BlockEditorController(
             layoutCache = layoutEngine.build(newDocument)
             pendingDetachActive = false
         }
+    }
+
+    fun cancelActiveDrag() {
+        if (disposed.get()) return
+        if (dragRender == null) return
+        dragRender = null
+        pendingDetachActive = false
+        callbacks.onValidationEvent(
+            BlockEditorValidationEvent(
+                phase = BlockEditorValidationPhase.DRAG_CANCEL,
+                documentVersion = document.version,
+                dragActive = false,
+                snapActive = false,
+                detachActive = false,
+                errors = emptyList(),
+            ),
+        )
     }
 
     fun onViewportChange(newViewport: ViewportState) {

@@ -278,13 +278,13 @@ internal fun DrawScope.drawBlock(
         }
         val labelX = iconTopLeft.x + iconSize + 8f
         val hasHeaderCondition = branchSections.any { it.kind == BranchSectionKind.HeaderCondition }
-        val maxTextWidth = if (hasHeaderCondition) {
-            (LayoutConstants.NESTED_INDENT - labelX - 4f).coerceAtLeast(0f)
-        } else if (block.collapsed && !isReporter) {
-            (width - labelX - LayoutConstants.SLOT_PADDING - 36f).coerceAtLeast(0f)
-        } else {
-            (width - labelX - LayoutConstants.SLOT_PADDING).coerceAtLeast(0f)
-        }
+        val maxTextWidth = headerLabelWidth(
+            blockWidth = width,
+            labelX = labelX,
+            hasHeaderCondition = hasHeaderCondition,
+            collapsedCommand = block.collapsed && !isReporter,
+            dockWidth = renderMetrics.reporterDockSize.width,
+        )
         val drawableTextWidth = drawableLabelWidth(
             requestedWidth = maxTextWidth,
             canvasRemainingWidth = size.width - topLeft.x - labelX,
@@ -551,6 +551,21 @@ private fun relativeLuminance(color: Color): Float {
 
 internal fun drawableLabelWidth(requestedWidth: Float, canvasRemainingWidth: Float): Float =
     minOf(requestedWidth, canvasRemainingWidth).coerceAtLeast(0f)
+
+internal fun headerLabelWidth(
+    blockWidth: Float,
+    labelX: Float,
+    hasHeaderCondition: Boolean,
+    collapsedCommand: Boolean,
+    dockWidth: Float,
+): Float {
+    val reservedRightWidth = when {
+        hasHeaderCondition -> dockWidth + LayoutConstants.SLOT_PADDING * 2f
+        collapsedCommand -> 36f + LayoutConstants.SLOT_PADDING
+        else -> LayoutConstants.SLOT_PADDING
+    }
+    return (blockWidth - labelX - reservedRightWidth).coerceAtLeast(0f)
+}
 
 internal fun hasDrawableTextArea(width: Float, height: Float): Boolean = width > 0f && height > 0f
 

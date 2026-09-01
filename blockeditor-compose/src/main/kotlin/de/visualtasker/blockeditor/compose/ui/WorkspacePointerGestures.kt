@@ -18,6 +18,7 @@ fun Modifier.workspacePointerGestures(
     onLongPressDragStart: (Offset2) -> Boolean,
     onDrag: (Offset2) -> Unit,
     onDragEnd: (Offset2) -> Unit,
+    onDragCancel: () -> Unit = {},
     onBlockDragActiveChange: (Boolean) -> Unit = {},
 ): Modifier {
     val viewConfiguration = LocalViewConfiguration.current
@@ -26,6 +27,7 @@ fun Modifier.workspacePointerGestures(
     val onLongPressDragStartState = rememberUpdatedState(onLongPressDragStart)
     val onDragState = rememberUpdatedState(onDrag)
     val onDragEndState = rememberUpdatedState(onDragEnd)
+    val onDragCancelState = rememberUpdatedState(onDragCancel)
     val onBlockDragActiveChangeState = rememberUpdatedState(onBlockDragActiveChange)
 
     val longPressTimeout = (viewConfiguration.longPressTimeoutMillis / 2).coerceAtLeast(1L)
@@ -80,13 +82,21 @@ fun Modifier.workspacePointerGestures(
                             dragStarted = true
                             onBlockDragActiveChangeState.value(true)
                             var latest = start
-                            drag(pointerId) { dragChange ->
-                                dragChange.consume()
-                                latest = Offset2(dragChange.position.x, dragChange.position.y)
-                                onDragState.value(latest)
+                            var completed = false
+                            try {
+                                drag(pointerId) { dragChange ->
+                                    dragChange.consume()
+                                    latest = Offset2(dragChange.position.x, dragChange.position.y)
+                                    onDragState.value(latest)
+                                }
+                                onDragEndState.value(latest)
+                                completed = true
+                            } finally {
+                                onBlockDragActiveChangeState.value(false)
+                                if (!completed) {
+                                    onDragCancelState.value()
+                                }
                             }
-                            onDragEndState.value(latest)
-                            onBlockDragActiveChangeState.value(false)
                         }
                         break
                     }

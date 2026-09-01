@@ -10,6 +10,7 @@ import de.visualtasker.blockeditor.domain.VariableScope
 import de.visualtasker.blockeditor.domain.WorkspaceAction
 import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.domain.WorkspaceGraph
+import de.visualtasker.blockeditor.domain.WorkspacePoint
 import de.visualtasker.blockeditor.domain.WorkspaceReducer
 import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.domain.rootOffset
@@ -240,6 +241,35 @@ class BlockEditorControllerTest {
         val compactBlock = controller.document.blocks.getValue(blockId)
         assertEquals(ReporterVisualMode.COMPACT.name, compactBlock.metadata[REPORTER_VISUAL_MODE_METADATA_KEY])
         assertEquals("compact", controller.selectedBlockInfo()!!.fields.single { it.key == "displayMode" }.value)
+
+        controller.close()
+    }
+
+    @Test
+    fun initialLayoutRegistersDynamicVariableReportersBeforeMeasuring() {
+        val variable = VariableDefinition(
+            id = "thresholdLow",
+            name = "thresholdLow",
+            type = "Number",
+            scope = VariableScope.Global,
+        )
+        val reporterDefinition = VariableReporterFactory.create(variable)
+        val reporter = reporterDefinition.createNode(BlockId("thresholdLow-reporter"))
+        val document = WorkspaceDocument(
+            id = "initial-variable-layout",
+            blocks = mapOf(reporter.id to reporter),
+            rootBlocks = listOf(reporter.id),
+            rootPositions = mapOf(reporter.id to WorkspacePoint(96f, 120f)),
+            variables = VariableRegistry(mapOf(variable.id to variable)),
+        )
+
+        val controller = BlockEditorController(initialDocument = document)
+
+        val bounds = controller.layoutCache.flatIndex.visibleBlocks
+            .single { it.blockId == reporter.id }
+            .bounds
+        assertEquals(LayoutConstants.REPORTER_WIDTH, bounds.width, 0.001f)
+        assertEquals(LayoutConstants.REPORTER_HEIGHT, bounds.height, 0.001f)
 
         controller.close()
     }
@@ -645,6 +675,29 @@ class BlockEditorControllerTest {
         assertTrue(controller.onLongPressDragStart(right))
         assertEquals(DragPullMode.Single, controller.dragRender!!.session.pullMode)
         controller.onPointerUp(right)
+
+        controller.close()
+    }
+
+    @Test
+    fun cancellingActiveDragClearsTransientDragState() {
+        val callbacks = RecordingCallbacks()
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+            callbacks = callbacks,
+        )
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
+        val blockId = controller.document.rootBlocks.single()
+        val bounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.bounds
+        val center = Offset2(bounds.x + bounds.width * 0.5f, bounds.y + bounds.height * 0.5f)
+
+        assertTrue(controller.onLongPressDragStart(center))
+        assertTrue(callbacks.validationEvents.any { it.phase == BlockEditorValidationPhase.DRAG_START })
+
+        controller.cancelActiveDrag()
+
+        assertNull(controller.dragRender)
+        assertTrue(callbacks.validationEvents.any { it.phase == BlockEditorValidationPhase.DRAG_CANCEL })
 
         controller.close()
     }
@@ -2061,6 +2114,7 @@ class BlockEditorControllerTest {
         val emscriptDrafts = mutableListOf<String>()
         val emscriptGenerationFailures = mutableListOf<String>()
         val validationBatches = mutableListOf<List<ValidationError>>()
+        val validationEvents = mutableListOf<BlockEditorValidationEvent>()
         var lastEmscriptDraft: String? = null
 
         fun clear() {
@@ -2068,6 +2122,7 @@ class BlockEditorControllerTest {
             emscriptDrafts.clear()
             emscriptGenerationFailures.clear()
             validationBatches.clear()
+            validationEvents.clear()
         }
 
         override fun onWorkspaceDocumentChanged(serializedJson: String) {
@@ -2081,6 +2136,10 @@ class BlockEditorControllerTest {
 
         override fun onValidationErrors(errors: List<ValidationError>) {
             validationBatches += errors
+        }
+
+        override fun onValidationEvent(event: BlockEditorValidationEvent) {
+            validationEvents += event
         }
 
         override fun onEmscriptGenerationFailed(message: String) {

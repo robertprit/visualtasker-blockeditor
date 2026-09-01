@@ -6,6 +6,7 @@ enum class BlockEditorValidationPhase {
     INITIAL_LOAD,
     DRAG_START,
     DRAG_MOVE,
+    DRAG_CANCEL,
     SNAP_PREVIEW,
     BEFORE_DROP,
     AFTER_DROP,
