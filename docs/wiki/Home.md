@@ -23,6 +23,7 @@ only where explicitly marked as draft or planned.
 
 - [EMScript Core Types](EMScript-Core-Types.md)
 - [EMScript Language Spec](EMScript-Language-Spec.md)
+- [EMScript Command Catalog](EMScript-Command-Catalog.md)
 - [EMScript Find API](EMScript-Find-API.md)
 
 ## Scope Rules
