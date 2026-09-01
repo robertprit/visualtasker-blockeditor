@@ -409,7 +409,7 @@ object DefaultBlockRegistry : BlockRegistry {
                 FieldDefinition("value", "value", defaultValue = ""),
             ),
         ),
-    ).associateBy { it.id }
+    ).map { it.withCommandCatalogMetadata() }.associateBy { it.id }
 
     override fun getDefinition(id: String): BlockDefinition? = definitions[id]
 

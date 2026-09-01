@@ -11,7 +11,9 @@ import de.visualtasker.blockeditor.domain.WorkspaceGraph
 import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.BlockTypes
+import de.visualtasker.blockeditor.registry.CommandCatalogEntry
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
+import de.visualtasker.blockeditor.registry.VisualTaskerCommandCatalog
 
 class IrGraphGenerator(
     private val registry: BlockRegistry = DefaultBlockRegistry,
@@ -264,6 +266,7 @@ class IrGraphGenerator(
                 source = sourceRef(document, block.id),
             )
         }
+        val command = VisualTaskerCommandCatalog.findByBlockType(block.type)
         return IrGraphNode(
             id = block.id.irNodeId(),
             kind = nodeKind(block),
@@ -274,11 +277,21 @@ class IrGraphGenerator(
                 put("blockType", block.type)
                 put("blockId", block.id.value)
                 put("scopeId", scopePath.lastOrNull().orEmpty())
+                putCommandProperties(command)
                 if (block.collapsed) put("collapsed", "true")
                 block.metadata["emscript.source.line"]?.let { put("sourceLine", it) }
                 block.metadata["emscript.source.column"]?.let { put("sourceColumn", it) }
             },
         )
+    }
+
+    private fun MutableMap<String, String>.putCommandProperties(command: CommandCatalogEntry?) {
+        command ?: return
+        put("commandId", command.id)
+        put("commandName", command.canonicalName)
+        put("commandKind", command.kind.name)
+        put("commandPluginOwner", command.pluginOwner)
+        put("commandCapabilities", command.capabilities.joinToString(",") { it.name })
     }
 
     private fun nodeKind(block: BlockNode): IrGraphNodeKind = when (block.type) {

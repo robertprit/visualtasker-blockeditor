@@ -43,6 +43,14 @@ class IrGraphGeneratorTest {
         assertTrue(graph.edges.any { it.sourceNodeId.value == "block:compare" && it.targetNodeId.value == "block:if" && it.kind == IrGraphEdgeKind.CONDITION })
         assertTrue(graph.edges.any { it.sourceNodeId.value == "block:v1" && it.targetNodeId.value == "block:compare" && it.kind == IrGraphEdgeKind.DATA_FLOW && it.label == "LEFT" })
         assertTrue(graph.edges.any { it.source.blockId == "if" && it.source.slotName == "THEN" && it.source.branch?.role == IrGraphBranchRole.THEN })
+        val waitNode = graph.nodes.single { it.id == IrGraphNodeId("block:then") }
+        assertEquals("action.wait", waitNode.properties["commandId"])
+        assertEquals("wait", waitNode.properties["commandName"])
+        assertEquals("STATEMENT", waitNode.properties["commandKind"])
+        assertTrue(waitNode.properties["commandCapabilities"]!!.contains("TIMING"))
+        val compareNode = graph.nodes.single { it.id == IrGraphNodeId("block:compare") }
+        assertEquals("logic.compare", compareNode.properties["commandId"])
+        assertEquals("OPERATOR", compareNode.properties["commandKind"])
     }
 
     private fun referenceIfElseDocument(): WorkspaceDocument {

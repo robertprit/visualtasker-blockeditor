@@ -108,6 +108,12 @@ interface CommandCatalog {
 }
 
 object VisualTaskerCommandCatalog : CommandCatalog {
+    const val METADATA_COMMAND_ID = "emscript.command.id"
+    const val METADATA_CANONICAL_NAME = "emscript.command.canonicalName"
+    const val METADATA_COMMAND_KIND = "emscript.command.kind"
+    const val METADATA_PLUGIN_OWNER = "emscript.command.pluginOwner"
+    const val METADATA_RUNTIME_CAPABILITIES = "emscript.command.capabilities"
+
     private val entries: List<CommandCatalogEntry> = listOf(
         event(
             id = "event.start",
@@ -358,6 +364,32 @@ object VisualTaskerCommandCatalog : CommandCatalog {
     override fun findByBlockType(blockType: String): CommandCatalogEntry? = byBlockType[blockType]
 
     fun blockTypes(): Set<String> = byBlockType.keys
+
+    fun metadataForBlockType(blockType: String): Map<String, String> {
+        val entry = findByBlockType(blockType) ?: return emptyMap()
+        return mapOf(
+            METADATA_COMMAND_ID to entry.id,
+            METADATA_CANONICAL_NAME to entry.canonicalName,
+            METADATA_COMMAND_KIND to entry.kind.name,
+            METADATA_PLUGIN_OWNER to entry.pluginOwner,
+            METADATA_RUNTIME_CAPABILITIES to entry.capabilities.joinToString(",") { it.name },
+        )
+    }
+}
+
+fun BlockDefinition.withCommandCatalogMetadata(
+    catalog: CommandCatalog = VisualTaskerCommandCatalog,
+): BlockDefinition {
+    val entry = catalog.findByBlockType(id) ?: return this
+    return copy(
+        metadata = metadata + mapOf(
+            VisualTaskerCommandCatalog.METADATA_COMMAND_ID to entry.id,
+            VisualTaskerCommandCatalog.METADATA_CANONICAL_NAME to entry.canonicalName,
+            VisualTaskerCommandCatalog.METADATA_COMMAND_KIND to entry.kind.name,
+            VisualTaskerCommandCatalog.METADATA_PLUGIN_OWNER to entry.pluginOwner,
+            VisualTaskerCommandCatalog.METADATA_RUNTIME_CAPABILITIES to entry.capabilities.joinToString(",") { it.name },
+        ),
+    )
 }
 
 private fun event(

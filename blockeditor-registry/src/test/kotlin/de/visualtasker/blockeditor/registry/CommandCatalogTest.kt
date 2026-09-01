@@ -77,6 +77,28 @@ class CommandCatalogTest {
         assertNotNull(VisualTaskerCommandCatalog.findById("logic.compare"))
     }
 
+    @Test
+    fun defaultBlockDefinitionsExposeCatalogMetadata() {
+        val wait = DefaultBlockRegistry.getDefinition(BlockTypes.ACTION_WAIT)!!
+        assertEquals("action.wait", wait.metadata[VisualTaskerCommandCatalog.METADATA_COMMAND_ID])
+        assertEquals("wait", wait.metadata[VisualTaskerCommandCatalog.METADATA_CANONICAL_NAME])
+        assertEquals(CommandCatalogKind.STATEMENT.name, wait.metadata[VisualTaskerCommandCatalog.METADATA_COMMAND_KIND])
+        assertTrue(wait.metadata[VisualTaskerCommandCatalog.METADATA_RUNTIME_CAPABILITIES]!!.contains(CommandCapability.TIMING.name))
+
+        val compare = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_COMPARE)!!
+        assertEquals("logic.compare", compare.metadata[VisualTaskerCommandCatalog.METADATA_COMMAND_ID])
+        assertEquals(CommandCatalogKind.OPERATOR.name, compare.metadata[VisualTaskerCommandCatalog.METADATA_COMMAND_KIND])
+    }
+
+    @Test
+    fun catalogMetadataHelperReturnsStableBlockMetadata() {
+        val metadata = VisualTaskerCommandCatalog.metadataForBlockType(BlockTypes.FEEDBACK_VIBRATE)
+
+        assertEquals("feedback.vibrate", metadata[VisualTaskerCommandCatalog.METADATA_COMMAND_ID])
+        assertEquals("vibrate", metadata[VisualTaskerCommandCatalog.METADATA_CANONICAL_NAME])
+        assertTrue(metadata[VisualTaskerCommandCatalog.METADATA_RUNTIME_CAPABILITIES]!!.contains(CommandCapability.FEEDBACK.name))
+    }
+
     private fun assertCatalogEntry(
         blockType: String,
         canonicalName: String,
