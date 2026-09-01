@@ -56,6 +56,7 @@ fun BlockEditorHost(
         codePreview = controller.codePreview,
         blockInfo = controller.selectedBlockInfo(),
         showBottomPanel = uiConfig.showBottomPanel && controller.showBottomPanel,
+        showFloatingInspector = uiConfig.showFloatingInspector,
         showToolbox = uiConfig.showToolbox,
         expandedCategory = controller.expandedCategory,
         definitionsForCategory = controller.definitionsForExpandedCategory(),

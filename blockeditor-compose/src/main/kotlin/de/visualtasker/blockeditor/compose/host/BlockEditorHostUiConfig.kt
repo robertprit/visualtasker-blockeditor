@@ -9,6 +9,7 @@ enum class BlockPaletteInsertMode {
 
 data class BlockEditorHostUiConfig(
     val showBottomPanel: Boolean = true,
+    val showFloatingInspector: Boolean = false,
     val showBottomPanelToggle: Boolean = true,
     val showBlockFactory: Boolean = true,
     val showBlockFactoryEntry: Boolean = true,

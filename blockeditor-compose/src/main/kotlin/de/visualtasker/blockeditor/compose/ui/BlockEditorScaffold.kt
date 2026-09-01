@@ -106,6 +106,7 @@ fun BlockEditorScaffold(
     codePreview: String,
     blockInfo: BlockInfoSnapshot?,
     showBottomPanel: Boolean,
+    showFloatingInspector: Boolean = false,
     showToolbox: Boolean = true,
     expandedCategory: String?,
     definitionsForCategory: List<BlockDefinition>,
@@ -167,6 +168,7 @@ fun BlockEditorScaffold(
         codePreview = codePreview,
         blockInfo = blockInfo,
         showBottomPanel = showBottomPanel,
+        showFloatingInspector = showFloatingInspector,
         showToolbox = showToolbox,
         expandedCategory = expandedCategory,
         definitionsForCategory = definitionsForCategory,
@@ -232,6 +234,7 @@ fun BlockEditorScaffold(
     codePreview: String,
     blockInfo: BlockInfoSnapshot?,
     showBottomPanel: Boolean,
+    showFloatingInspector: Boolean = false,
     showToolbox: Boolean = true,
     expandedCategory: String?,
     definitionsForCategory: List<BlockDefinition>,
@@ -576,15 +579,32 @@ fun BlockEditorScaffold(
                                 }
                             }
                         },
-                        onRemoveBranch = {
-                            onRemoveSelectedIfBranch().also { changed ->
-                                if (changed) {
-                                    playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
-                                }
-                            }
-                        },
-                    )
-                    }
+	                        onRemoveBranch = {
+	                            onRemoveSelectedIfBranch().also { changed ->
+	                                if (changed) {
+	                                    playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+	                                }
+	                            }
+	                        },
+	                    )
+	                    if (showFloatingInspector && blockInfo != null) {
+	                        BlockEditorFloatingInspector(
+	                            blockInfo = blockInfo,
+	                            onFieldChange = onFieldChange,
+	                            onFieldSourceChange = onFieldSourceChange,
+	                            onSetReporterVisualMode = onSetReporterVisualMode,
+	                            onToggleBlockActive = onToggleSelectedBlockActive,
+	                            onToggleBlockCollapse = onToggleSelectedBlockCollapse,
+	                            onReplaceBlockType = onReplaceSelectedBlockType,
+	                            onAddBranch = onAddSelectedIfBranch,
+	                            onRemoveBranch = onRemoveSelectedIfBranch,
+	                            onUpdateBlockNote = onUpdateBlockNote,
+	                            modifier = Modifier
+	                                .align(Alignment.BottomEnd)
+	                                .padding(10.dp),
+	                        )
+	                    }
+	                }
 
                     if (showBottomPanel) {
                         EditorBottomPanel(
@@ -614,6 +634,53 @@ fun BlockEditorScaffold(
         onDismiss = onDismissBlockFactory,
         onCreate = onCreateCustomBlock,
     )
+}
+
+@Composable
+private fun BlockEditorFloatingInspector(
+    blockInfo: BlockInfoSnapshot,
+    onFieldChange: (String, String) -> Unit,
+    onFieldSourceChange: (String, String) -> Unit,
+    onSetReporterVisualMode: (de.visualtasker.blockeditor.compose.model.ReporterVisualMode) -> Unit,
+    onToggleBlockActive: () -> Boolean,
+    onToggleBlockCollapse: () -> Boolean,
+    onReplaceBlockType: (String) -> Boolean,
+    onAddBranch: () -> Boolean,
+    onRemoveBranch: () -> Boolean,
+    onUpdateBlockNote: (String) -> Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(0.58f),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 5.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = "Block Inspector",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            BlockInfoCard(
+                info = blockInfo,
+                onFieldChange = onFieldChange,
+                onFieldSourceChange = onFieldSourceChange,
+                onSetReporterVisualMode = onSetReporterVisualMode,
+                onToggleBlockActive = onToggleBlockActive,
+                onToggleBlockCollapse = onToggleBlockCollapse,
+                onReplaceBlockType = onReplaceBlockType,
+                onAddBranch = onAddBranch,
+                onRemoveBranch = onRemoveBranch,
+                onUpdateBlockNote = onUpdateBlockNote,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
 }
 
 @Composable
