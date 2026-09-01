@@ -4,6 +4,8 @@ Vorläufige Dokumentation fuer v2.1 / Meilenstein 2.
 
 EMScript ist die textuelle Skript- und Kompatibilitaetsschicht von VisualTasker Studio. Sie dient dazu, Workflows lesbar, testbar und zwischen Editoren uebertragbar zu machen.
 
+Die kanonische VisualTasker-Syntax ist in [EMScript Language Spec](EMScript-Language-Spec.md) festgelegt. Parser duerfen Legacy- und Macrorify-nahe Eingaben tolerieren; Generatoren sollen langfristig nur die kanonische Form ausgeben.
+
 ## Rolle im Studio
 
 | Ebene | Rolle |
