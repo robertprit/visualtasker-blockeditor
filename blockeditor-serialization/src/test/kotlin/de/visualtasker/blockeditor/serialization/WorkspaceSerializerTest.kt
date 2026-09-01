@@ -380,6 +380,6 @@ class WorkspaceSerializerTest {
         assertEquals(first, second)
         assertTrue(decoded.diagnostics.isEmpty())
         assertTrue(redecoded.diagnostics.isEmpty())
-        assertTrue(emscript.contains("WAIT 500"))
+        assertTrue(emscript.contains("wait(500);"))
     }
 }

@@ -21,9 +21,8 @@ class EmscriptGeneratorTest {
         val first = generator.generate(document)
         val second = generator.generate(document)
         assertEquals(first, second)
-        assertTrue(first.contains("click(\"OK\")"))
-        assertTrue(first.contains("LOOP 3"))
-        assertTrue(first.contains("END LOOP"))
+        assertTrue(first.contains("click(\"OK\");"))
+        assertTrue(first.contains("repeat (3) {"))
         assertFalse(first.contains("# Script"))
         assertFalse(first.contains("\nEND\n"))
     }
@@ -83,10 +82,9 @@ class EmscriptGeneratorTest {
         )
 
         val script = generator.generate(document)
-        assertTrue(script.contains("IF FALSE"))
-        assertTrue(script.contains("ELSEIF FALSE"))
-        assertTrue(script.contains("ELSE"))
-        assertTrue(script.contains("END IF"))
+        assertTrue(script.contains("if (false) {"))
+        assertTrue(script.contains("} else if (false) {"))
+        assertTrue(script.contains("} else {"))
     }
 
     @Test fun emitsContractShapedWaitOutputAndSetSubset() {
@@ -104,7 +102,7 @@ class EmscriptGeneratorTest {
             ),
         )
         assertEquals(
-            "wait(500)\nbeep()\nbeep(880, 150, 75)\nvibrate(0, 80, 40, 120)\nlog(\"hello\")\nSET count = 3",
+            "wait(500);\nbeep();\nbeep(880, 150, 75);\nvibrate(0, 80, 40, 120);\nlog(\"hello\");\nset count = 3;",
             script,
         )
     }
@@ -122,7 +120,7 @@ class EmscriptGeneratorTest {
                 ),
             ),
         )
-        assertEquals("SET _1_user_name = 3\nWHILE _1_user_name\nEND WHILE", script)
+        assertEquals("set _1_user_name = 3;\nwhile (_1_user_name) {\n}", script)
     }
 
     @Test fun emitsCompareReporterConditions() {
@@ -141,7 +139,7 @@ class EmscriptGeneratorTest {
                 ),
             ),
         )
-        assertEquals("IF (3 >= 2)\n  wait(100)\nEND IF", script)
+        assertEquals("if ((3 >= 2)) {\n    wait(100);\n}", script)
     }
 
     @Test fun emitsEmptyCompareSlotsAsBooleanFallbacks() {
@@ -160,7 +158,7 @@ class EmscriptGeneratorTest {
                 ),
             ),
         )
-        assertEquals("IF (FALSE == FALSE)\nEND IF", script)
+        assertEquals("if ((false == false)) {\n}", script)
     }
 
     @Test fun rejectsUnsupportedSemanticExpressionsDeterministically() {

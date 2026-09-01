@@ -10,7 +10,7 @@ import de.visualtasker.blockeditor.domain.WorkspaceDocument
 
 class EmscriptGenerator(
     private val irGenerator: IrGenerator = IrGenerator(),
-    private val indent: String = "  ",
+    private val indent: String = "    ",
 ) : WorkspaceCodeGenerator {
     override fun generate(document: WorkspaceDocument): String =
         generate(document, document.id)
@@ -24,51 +24,51 @@ class EmscriptGenerator(
 
     private fun StringBuilder.appendStatement(statement: IrStatement, depth: Int) {
         when (statement) {
-            is IrStatement.ClickText -> appendLine(depth, "click(\"${escape(statement.text)}\")")
-            is IrStatement.Wait -> appendLine(depth, "wait(${statement.milliseconds})")
-            is IrStatement.Beep -> appendLine(depth, statement.toEmscript())
-            is IrStatement.Vibrate -> appendLine(depth, statement.toEmscript())
-            is IrStatement.Log -> appendLine(depth, "log(\"${escape(statement.message)}\")")
+            is IrStatement.ClickText -> appendLine(depth, "click(\"${escape(statement.text)}\");")
+            is IrStatement.Wait -> appendLine(depth, "wait(${statement.milliseconds});")
+            is IrStatement.Beep -> appendLine(depth, "${statement.toEmscript()};")
+            is IrStatement.Vibrate -> appendLine(depth, "${statement.toEmscript()};")
+            is IrStatement.Log -> appendLine(depth, "log(\"${escape(statement.message)}\");")
             is IrStatement.SetVariable -> {
                 val name = sanitizeIdentifier(statement.name, "variable")
                 require(isSafeScalarExpression(statement.value)) {
-                    "Unsupported demo SET expression: ${statement.value}"
+                    "Unsupported demo set expression: ${statement.value}"
                 }
-                appendLine(depth, "SET $name = ${statement.value}")
+                appendLine(depth, "set $name = ${statement.value};")
             }
             is IrStatement.Repeat -> {
-                require(statement.times >= 0) { "LOOP count must not be negative" }
-                appendLine(depth, "LOOP ${statement.times}")
+                require(statement.times >= 0) { "repeat count must not be negative" }
+                appendLine(depth, "repeat (${statement.times}) {")
                 statement.body.forEach { appendStatement(it, depth + 1) }
-                appendLine(depth, "END LOOP")
+                appendLine(depth, "}")
             }
             is IrStatement.While -> {
-                appendLine(depth, "WHILE ${emitExpression(statement.condition)}")
+                appendLine(depth, "while (${emitExpression(statement.condition)}) {")
                 statement.body.forEach { appendStatement(it, depth + 1) }
-                appendLine(depth, "END WHILE")
+                appendLine(depth, "}")
             }
             is IrStatement.If -> {
-                appendLine(depth, "IF ${emitExpression(statement.condition)}")
+                appendLine(depth, "if (${emitExpression(statement.condition)}) {")
                 statement.thenBranch.forEach { appendStatement(it, depth + 1) }
                 statement.elseIfBranches.forEach { branch ->
-                    appendLine(depth, "ELSEIF ${emitExpression(branch.condition)}")
+                    appendLine(depth, "} else if (${emitExpression(branch.condition)}) {")
                     branch.body.forEach { appendStatement(it, depth + 1) }
                 }
                 if (statement.elseBranch.isNotEmpty()) {
-                    appendLine(depth, "ELSE")
+                    appendLine(depth, "} else {")
                     statement.elseBranch.forEach { appendStatement(it, depth + 1) }
                 }
-                appendLine(depth, "END IF")
+                appendLine(depth, "}")
             }
         }
     }
 
     private fun emitExpression(expression: IrExpression): String = when (expression) {
         is IrExpression.ScreenContains -> unsupportedExpression("screenContains")
-        is IrExpression.And -> "(${emitExpression(expression.left)} AND ${emitExpression(expression.right)})"
-        is IrExpression.Or -> "(${emitExpression(expression.left)} OR ${emitExpression(expression.right)})"
+        is IrExpression.And -> "(${emitExpression(expression.left)} && ${emitExpression(expression.right)})"
+        is IrExpression.Or -> "(${emitExpression(expression.left)} || ${emitExpression(expression.right)})"
         is IrExpression.GetVariable -> sanitizeIdentifier(expression.name, "variable reference")
-        is IrExpression.LiteralBoolean -> if (expression.value) "TRUE" else "FALSE"
+        is IrExpression.LiteralBoolean -> if (expression.value) "true" else "false"
         is IrExpression.LiteralNumber -> expression.value.toStableNumber()
         is IrExpression.LiteralString -> "\"${escape(expression.value)}\""
         is IrExpression.LiteralText -> unsupportedExpression("text condition")
