@@ -52,3 +52,70 @@ data class IrScript(
     val name: String,
     val statements: List<IrStatement>,
 )
+
+@JvmInline
+value class IrGraphNodeId(val value: String)
+
+@JvmInline
+value class IrGraphEdgeId(val value: String)
+
+enum class IrGraphNodeKind {
+    SCRIPT_ENTRY,
+    ACTION,
+    ASSIGNMENT,
+    DECISION,
+    LOOP,
+    VALUE,
+    UNKNOWN,
+}
+
+enum class IrGraphEdgeKind {
+    SEQUENCE,
+    TRUE_BRANCH,
+    FALSE_BRANCH,
+    ELSE_IF_BRANCH,
+    LOOP_BODY,
+    LOOP_EXIT,
+    CONDITION,
+    DATA_FLOW,
+}
+
+data class IrGraphSourceRef(
+    val workspaceId: String,
+    val workspaceVersion: Long,
+    val blockId: String? = null,
+    val slotName: String? = null,
+)
+
+data class IrGraphNode(
+    val id: IrGraphNodeId,
+    val kind: IrGraphNodeKind,
+    val label: String,
+    val scopePath: List<String>,
+    val source: IrGraphSourceRef,
+    val properties: Map<String, String> = emptyMap(),
+)
+
+data class IrGraphEdge(
+    val id: IrGraphEdgeId,
+    val sourceNodeId: IrGraphNodeId,
+    val targetNodeId: IrGraphNodeId,
+    val kind: IrGraphEdgeKind,
+    val label: String? = null,
+    val source: IrGraphSourceRef,
+)
+
+data class IrGraphDiagnostic(
+    val code: String,
+    val message: String,
+    val source: IrGraphSourceRef,
+)
+
+data class IrGraph(
+    val id: String,
+    val sourceRevision: String,
+    val entryNodeIds: List<IrGraphNodeId>,
+    val nodes: List<IrGraphNode>,
+    val edges: List<IrGraphEdge>,
+    val diagnostics: List<IrGraphDiagnostic> = emptyList(),
+)
