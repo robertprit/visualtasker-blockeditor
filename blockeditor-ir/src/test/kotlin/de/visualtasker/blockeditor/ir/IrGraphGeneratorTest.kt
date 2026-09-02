@@ -24,6 +24,7 @@ class IrGraphGeneratorTest {
         val graph = IrGraphGenerator(referenceRegistry()).generate(document)
 
         assertTrue(graph.diagnostics.joinToString { it.message }, graph.diagnostics.isEmpty())
+        assertTrue(graph.validateIntegrity().joinToString { it.message }, graph.validateIntegrity().isEmpty())
         assertEquals(graph.nodes.size, graph.nodes.map { it.id }.distinct().size)
         assertEquals(graph.edges.size, graph.edges.map { it.id }.distinct().size)
         assertEquals(listOf(IrGraphNodeId("block:start")), graph.entryNodeIds)
@@ -51,6 +52,80 @@ class IrGraphGeneratorTest {
         val compareNode = graph.nodes.single { it.id == IrGraphNodeId("block:compare") }
         assertEquals("logic.compare", compareNode.properties["commandId"])
         assertEquals("OPERATOR", compareNode.properties["commandKind"])
+    }
+
+    @Test
+    fun validateIntegrity_reportsBrokenReferences() {
+        val source = IrGraphSourceRef(workspaceId = "broken", workspaceVersion = 1)
+        val graph = IrGraph(
+            id = "broken",
+            sourceRevision = "1",
+            entryNodeIds = listOf(IrGraphNodeId("missing-entry")),
+            nodes = listOf(
+                IrGraphNode(
+                    id = IrGraphNodeId("node:a"),
+                    kind = IrGraphNodeKind.ACTION,
+                    label = "A",
+                    scopePath = listOf("scope:a"),
+                    source = source,
+                ),
+            ),
+            edges = listOf(
+                IrGraphEdge(
+                    id = IrGraphEdgeId("edge:broken"),
+                    sourceNodeId = IrGraphNodeId("node:a"),
+                    targetNodeId = IrGraphNodeId("node:missing"),
+                    kind = IrGraphEdgeKind.SEQUENCE,
+                    source = source,
+                ),
+            ),
+            scopes = listOf(
+                IrGraphScope(
+                    id = "scope:a",
+                    kind = IrGraphScopeKind.SCRIPT,
+                    parentId = "scope:missing",
+                    label = "A",
+                    source = source,
+                ),
+            ),
+            branches = listOf(
+                IrGraphBranch(
+                    id = "branch:broken",
+                    ownerNodeId = IrGraphNodeId("node:missing-owner"),
+                    role = IrGraphBranchRole.THEN,
+                    index = 0,
+                    slotName = "THEN",
+                    scopeId = "scope:missing-branch",
+                    conditionNodeId = IrGraphNodeId("node:missing-condition"),
+                    bodyEntryNodeId = IrGraphNodeId("node:missing-body"),
+                    source = source,
+                ),
+            ),
+            facets = listOf(
+                IrGraphFacet(
+                    id = "facet:broken",
+                    kind = IrGraphFacetKind.COLLAPSE_GROUP,
+                    label = "Broken",
+                    scopeId = "scope:missing-facet",
+                    ownerNodeId = IrGraphNodeId("node:missing-owner"),
+                    nodeIds = listOf(IrGraphNodeId("node:missing-facet-node")),
+                    source = source,
+                ),
+            ),
+        )
+
+        val codes = graph.validateIntegrity().map { it.code }.toSet()
+
+        assertTrue(IrGraphIntegrityCode.UNKNOWN_ENTRY_NODE.name in codes)
+        assertTrue(IrGraphIntegrityCode.UNKNOWN_EDGE_TARGET.name in codes)
+        assertTrue(IrGraphIntegrityCode.UNKNOWN_SCOPE_PARENT.name in codes)
+        assertTrue(IrGraphIntegrityCode.UNKNOWN_BRANCH_OWNER.name in codes)
+        assertTrue(IrGraphIntegrityCode.UNKNOWN_BRANCH_CONDITION.name in codes)
+        assertTrue(IrGraphIntegrityCode.UNKNOWN_BRANCH_BODY.name in codes)
+        assertTrue(IrGraphIntegrityCode.UNKNOWN_BRANCH_SCOPE.name in codes)
+        assertTrue(IrGraphIntegrityCode.UNKNOWN_FACET_OWNER.name in codes)
+        assertTrue(IrGraphIntegrityCode.UNKNOWN_FACET_SCOPE.name in codes)
+        assertTrue(IrGraphIntegrityCode.UNKNOWN_FACET_NODE.name in codes)
     }
 
     private fun referenceIfElseDocument(): WorkspaceDocument {

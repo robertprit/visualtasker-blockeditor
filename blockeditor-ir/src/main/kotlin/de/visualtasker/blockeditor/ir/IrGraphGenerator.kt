@@ -278,6 +278,7 @@ class IrGraphGenerator(
                 put("blockId", block.id.value)
                 put("scopeId", scopePath.lastOrNull().orEmpty())
                 putCommandProperties(command)
+                putEditorProperties(block, document)
                 if (block.collapsed) put("collapsed", "true")
                 block.metadata["emscript.source.line"]?.let { put("sourceLine", it) }
                 block.metadata["emscript.source.column"]?.let { put("sourceColumn", it) }
@@ -292,6 +293,75 @@ class IrGraphGenerator(
         put("commandKind", command.kind.name)
         put("commandPluginOwner", command.pluginOwner)
         put("commandCapabilities", command.capabilities.joinToString(",") { it.name })
+    }
+
+    private fun MutableMap<String, String>.putEditorProperties(
+        block: BlockNode,
+        document: WorkspaceDocument,
+    ) {
+        put("inputPorts", inputPorts(block).joinToString("|") { it.encoded() })
+        put("outputPorts", outputPorts(block).joinToString("|") { it.encoded() })
+        put("branchCount", block.ifBranchCount().toString())
+        variableId(block, document)?.let { put("variableId", it) }
+        block.fieldTextOrNull("variableLabel", "variableName", "label", "variable")?.let { put("variableLabel", it) }
+        block.fieldTextOrNull("operator", "compare", "op", "operation", "COMPARE_OP")?.let { put("operator", it) }
+        block.fieldNumberOrNull("value")?.let { put("literalNumber", it.toString()) }
+        block.fieldTextOrNull("value")?.let { put("literalString", it) }
+        block.fieldBoolOrNull("value")?.let { put("literalBoolean", it.toString()) }
+        block.fieldNumberOrNull("ms")?.let { put("waitMs", it.toString()) }
+        block.fieldNumberOrNull("frequency")?.let { put("frequency", it.toString()) }
+        block.fieldNumberOrNull("durationMs")?.let { put("durationMs", it.toString()) }
+        block.fieldNumberOrNull("volume")?.let { put("volume", it.toString()) }
+        block.fieldTextOrNull("pattern")?.let { put("pattern", it) }
+        block.fieldTextOrNull("message")?.let { put("message", it) }
+        block.fieldTextOrNull("text")?.let { put("text", it) }
+    }
+
+    private data class IrPortProperty(
+        val name: String,
+        val label: String,
+        val kind: IrGraphEdgeKind,
+    ) {
+        fun encoded(): String = listOf(name, label, kind.name).joinToString("~") { it.replace("~", "%7E").replace("|", "%7C") }
+    }
+
+    private fun inputPorts(block: BlockNode): List<IrPortProperty> = buildList {
+        if (block.previous != null) add(IrPortProperty("previous", "Previous", IrGraphEdgeKind.SEQUENCE))
+        block.valueInputs.forEach { input ->
+            add(
+                IrPortProperty(
+                    name = input.name,
+                    label = input.name,
+                    kind = if (input.name.endsWith("CONDITION")) IrGraphEdgeKind.CONDITION else IrGraphEdgeKind.DATA_FLOW,
+                )
+            )
+        }
+    }
+
+    private fun outputPorts(block: BlockNode): List<IrPortProperty> = buildList {
+        if (block.next != null) {
+            add(
+                IrPortProperty(
+                    name = "next",
+                    label = "Next",
+                    kind = if (block.type == BlockTypes.CONTROL_REPEAT || block.type == BlockTypes.CONTROL_WHILE) {
+                        IrGraphEdgeKind.LOOP_EXIT
+                    } else {
+                        IrGraphEdgeKind.SEQUENCE
+                    },
+                )
+            )
+        }
+        block.statementInputs.forEach { input ->
+            add(
+                IrPortProperty(
+                    name = input.name,
+                    label = input.name,
+                    kind = edgeKindForStatementSlot(input.name),
+                )
+            )
+        }
+        if (block.output != null) add(IrPortProperty("output", "Output", IrGraphEdgeKind.DATA_FLOW))
     }
 
     private fun nodeKind(block: BlockNode): IrGraphNodeKind = when (block.type) {
@@ -511,6 +581,29 @@ class IrGraphGenerator(
 
     private fun BlockId.irNodeId(): IrGraphNodeId = IrGraphNodeId("block:${value}")
 
+    private fun variableId(block: BlockNode, document: WorkspaceDocument): String? {
+        val explicit = block.fieldTextOrNull("variableId", "varId", "variable_id")
+        if (!explicit.isNullOrBlank()) return explicit
+        val prefixed = block.type
+            .takeIf { it.startsWith(BlockTypes.VARIABLE_REPORTER_PREFIX) }
+            ?.removePrefix(BlockTypes.VARIABLE_REPORTER_PREFIX)
+            ?.takeIf { it.isNotBlank() }
+        if (!prefixed.isNullOrBlank()) return prefixed
+        val legacy = block.fieldTextOrNull("variable")
+        return legacy?.takeIf { it in document.variables.variables }
+    }
+
+    private fun BlockNode.ifBranchCount(): Int {
+        val explicit = metadata["if.branchCount"]?.toIntOrNull()
+        if (explicit != null) return explicit.coerceIn(1, 8)
+        return statementInputs.count { input ->
+            input.name == BlockTypes.SLOT_THEN ||
+                input.name == BlockTypes.SLOT_ELSE ||
+                input.name == BlockTypes.SLOT_ELIF ||
+                input.name.startsWith("ELIF_")
+        }.coerceAtLeast(1)
+    }
+
     private fun operatorSymbol(block: BlockNode): String =
         when (val normalized = OperatorNormalization.normalize(block.fieldText("operator"))) {
             is NormalizedOperator.Compare -> normalized.value.symbol
@@ -527,6 +620,26 @@ class IrGraphGenerator(
 
     private fun BlockNode.fieldText(key: String): String =
         fields[key]?.asString() ?: registry.getDefinition(type)?.fields?.find { it.key == key }?.defaultValue ?: ""
+
+    private fun BlockNode.fieldTextOrNull(vararg keys: String): String? {
+        keys.forEach { key ->
+            val value = fields[key]
+            if (value is FieldValue.Text && value.value.isNotBlank()) return value.value
+        }
+        return null
+    }
+
+    private fun BlockNode.fieldNumberOrNull(key: String): Double? = when (val value = fields[key]) {
+        is FieldValue.Number -> value.value
+        is FieldValue.Text -> value.value.toDoubleOrNull()
+        else -> null
+    }
+
+    private fun BlockNode.fieldBoolOrNull(key: String): Boolean? = when (val value = fields[key]) {
+        is FieldValue.Bool -> value.value
+        is FieldValue.Text -> value.value.toBooleanStrictOrNull()
+        else -> null
+    }
 
     private fun BlockNode.fieldNumber(key: String): Double =
         when (val value = fields[key]) {
