@@ -56,6 +56,16 @@ class StaticBlockRegistryTest {
             BlockCategories.INPUT to "Input",
             BlockCategories.FEEDBACK to "Feedback",
             BlockCategories.PERCEPTION to "Perception",
+            BlockCategories.VISION to "Vision",
+            BlockCategories.TEXT to "Text",
+            BlockCategories.FILE to "File",
+            BlockCategories.SYSTEM to "System",
+            BlockCategories.CHROME_TAB to "ChromeTab",
+            BlockCategories.TASKER to "Tasker",
+            BlockCategories.SHIZUKU to "Shizuku",
+            BlockCategories.TERMUX to "Termux",
+            BlockCategories.SCRCPY to "scrcpy",
+            BlockCategories.CHARTS to "Charts",
             BlockCategories.LOGIC to "Logic",
             BlockCategories.VARIABLES to "Variables",
             BlockCategories.FLOW to "Flow",
@@ -66,6 +76,23 @@ class StaticBlockRegistryTest {
             val meta = BlockCategories.metaFor(id)
             assertEquals(label, meta.label)
             assertNotNull(meta.accentArgb)
+        }
+    }
+
+    @Test fun generatedCommandCatalogBlocksAreAvailableInDefaultRegistry() {
+        val generatedEntries = VisualTaskerCommandCatalog.allEntries()
+            .filter { it.block?.blockType?.startsWith(BlockTypes.EMSCRIPT_COMMAND_PREFIX) == true }
+        assertNotNull(generatedEntries.firstOrNull { it.canonicalName == "Tasker.runTask" })
+        assertNotNull(generatedEntries.firstOrNull { it.canonicalName == "Termux.shell" })
+        assertNotNull(generatedEntries.firstOrNull { it.canonicalName == "Shizuku.exec" })
+        assertNotNull(generatedEntries.firstOrNull { it.canonicalName == "Scrcpy.start" })
+        assertNotNull(generatedEntries.firstOrNull { it.canonicalName == "Chart.create" })
+
+        generatedEntries.forEach { entry ->
+            val blockType = entry.block!!.blockType
+            val definition = DefaultBlockRegistry.getDefinition(blockType)
+            assertNotNull(definition)
+            assertEquals(entry.canonicalName, definition!!.fields.first { it.key == "command" }.defaultValue)
         }
     }
 

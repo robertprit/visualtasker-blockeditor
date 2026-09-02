@@ -23,6 +23,11 @@ sealed interface IrExpression {
 }
 
 sealed interface IrStatement {
+    data class CommandCall(
+        val command: String,
+        val arguments: String,
+    ) : IrStatement
+
     data class ClickText(val text: String) : IrStatement
     data class Wait(val milliseconds: Long) : IrStatement
     data class Beep(

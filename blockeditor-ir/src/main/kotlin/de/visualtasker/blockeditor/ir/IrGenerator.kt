@@ -83,6 +83,12 @@ class IrGenerator(
                 elseBranch = emitStatementSlot(document, block, BlockTypes.SLOT_ELSE),
             )
             else -> {
+                if (block.type.startsWith(BlockTypes.EMSCRIPT_COMMAND_PREFIX)) {
+                    return IrStatement.CommandCall(
+                        command = block.fieldText("command"),
+                        arguments = block.fieldText("args"),
+                    )
+                }
                 val def = registry.getDefinition(block.type)
                 if (block.type.startsWith(BlockTypes.CUSTOM_PREFIX)) {
                     val payload = block.fields["payload"]?.asString()

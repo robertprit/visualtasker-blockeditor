@@ -24,6 +24,7 @@ class EmscriptGenerator(
 
     private fun StringBuilder.appendStatement(statement: IrStatement, depth: Int) {
         when (statement) {
+            is IrStatement.CommandCall -> appendLine(depth, "${sanitizeCommandName(statement.command)}(${statement.arguments});")
             is IrStatement.ClickText -> appendLine(depth, "click(\"${escape(statement.text)}\");")
             is IrStatement.Wait -> appendLine(depth, "wait(${statement.milliseconds});")
             is IrStatement.Beep -> appendLine(depth, "${statement.toEmscript()};")
@@ -131,6 +132,15 @@ class EmscriptGenerator(
         }
         require(sanitized.any { it == '_' || it.isLetter() }) { "Invalid $role: $value" }
         return sanitized
+    }
+
+    private fun sanitizeCommandName(value: String): String {
+        val trimmed = value.trim()
+        require(trimmed.isNotEmpty()) { "Invalid command name: $value" }
+        require(trimmed.matches(Regex("[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*"))) {
+            "Invalid command name: $value"
+        }
+        return trimmed
     }
 
     private fun isSafeScalarExpression(value: String): Boolean =

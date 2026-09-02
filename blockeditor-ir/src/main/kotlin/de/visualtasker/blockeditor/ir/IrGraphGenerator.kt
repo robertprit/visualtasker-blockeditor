@@ -318,6 +318,8 @@ class IrGraphGenerator(
         block.fieldTextOrNull("pattern")?.let { put("pattern", it) }
         block.fieldTextOrNull("message")?.let { put("message", it) }
         block.fieldTextOrNull("text")?.let { put("text", it) }
+        block.fieldTextOrNull("command")?.let { put("command", it) }
+        block.fieldTextOrNull("args")?.let { put("args", it) }
     }
 
     private data class IrPortProperty(
@@ -392,7 +394,11 @@ class IrGraphGenerator(
         BlockTypes.VARIABLE_REPORTER,
         BlockTypes.VARIABLE_VALUE,
         BlockTypes.VARIABLES_GET -> IrGraphNodeKind.VALUE
-        else -> if (block.type.startsWith(BlockTypes.VARIABLE_REPORTER_PREFIX)) IrGraphNodeKind.VALUE else IrGraphNodeKind.UNKNOWN
+        else -> when {
+            block.type.startsWith(BlockTypes.VARIABLE_REPORTER_PREFIX) -> IrGraphNodeKind.VALUE
+            block.type.startsWith(BlockTypes.EMSCRIPT_COMMAND_PREFIX) -> IrGraphNodeKind.ACTION
+            else -> IrGraphNodeKind.UNKNOWN
+        }
     }
 
     private fun nodeLabel(block: BlockNode): String = when (block.type) {
@@ -421,10 +427,12 @@ class IrGraphGenerator(
         BlockTypes.LOGIC_AND -> "AND"
         BlockTypes.LOGIC_OR -> "OR"
         BlockTypes.VARIABLE_SET -> "${block.fieldText("assignmentKind").ifBlank { "SET" }} ${block.fieldText("variable")}"
-        else -> if (block.type.startsWith(BlockTypes.VARIABLE_REPORTER_PREFIX)) {
-            block.fieldText("variableLabel").ifBlank { block.fieldText("variable") }
-        } else {
-            block.type
+        else -> when {
+            block.type.startsWith(BlockTypes.VARIABLE_REPORTER_PREFIX) ->
+                block.fieldText("variableLabel").ifBlank { block.fieldText("variable") }
+            block.type.startsWith(BlockTypes.EMSCRIPT_COMMAND_PREFIX) ->
+                block.fieldText("command").ifBlank { block.type.removePrefix(BlockTypes.EMSCRIPT_COMMAND_PREFIX) }
+            else -> block.type
         }
     }
 

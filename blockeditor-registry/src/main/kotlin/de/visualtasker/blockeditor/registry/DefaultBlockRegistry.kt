@@ -28,6 +28,7 @@ object BlockTypes {
     const val VARIABLE_VALUE = "variable.value"
     const val VARIABLE_SET = "variable.set"
     const val VARIABLE_REPORTER_PREFIX = "variable.reporter."
+    const val EMSCRIPT_COMMAND_PREFIX = "emscript.command."
     const val CUSTOM_PREFIX = "custom."
 
     const val SLOT_DO = "DO"
@@ -38,7 +39,7 @@ object BlockTypes {
 }
 
 object DefaultBlockRegistry : BlockRegistry {
-    private val definitions: Map<String, BlockDefinition> = listOf(
+    private val baseDefinitions: List<BlockDefinition> = listOf(
         BlockDefinition(
             id = BlockTypes.EVENT_START,
             label = "Script Start",
@@ -409,7 +410,34 @@ object DefaultBlockRegistry : BlockRegistry {
                 FieldDefinition("value", "value", defaultValue = ""),
             ),
         ),
-    ).map { it.withCommandCatalogMetadata() }.associateBy { it.id }
+    )
+
+    private val generatedCommandDefinitions: List<BlockDefinition> =
+        VisualTaskerCommandCatalog.allEntries()
+            .mapNotNull { entry ->
+                val blockType = entry.block?.blockType ?: return@mapNotNull null
+                if (!blockType.startsWith(BlockTypes.EMSCRIPT_COMMAND_PREFIX)) return@mapNotNull null
+                BlockDefinition(
+                    id = blockType,
+                    label = entry.canonicalName,
+                    category = entry.category,
+                    hasPrevious = true,
+                    hasNext = true,
+                    fields = listOf(
+                        FieldDefinition("command", "cmd", defaultValue = entry.canonicalName),
+                        FieldDefinition(
+                            key = "args",
+                            label = "args",
+                            kind = FieldKind.TEXT,
+                            defaultValue = entry.arguments.joinToString { it.defaultValue ?: "" },
+                        ),
+                    ),
+                )
+            }
+
+    private val definitions: Map<String, BlockDefinition> = (baseDefinitions + generatedCommandDefinitions)
+        .map { it.withCommandCatalogMetadata() }
+        .associateBy { it.id }
 
     override fun getDefinition(id: String): BlockDefinition? = definitions[id]
 

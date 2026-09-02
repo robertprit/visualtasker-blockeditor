@@ -7,6 +7,16 @@ object BlockCategories {
     const val EMSCRIPT = "emscript"
     const val INPUT = "input"
     const val PERCEPTION = "perception"
+    const val VISION = "vision"
+    const val TEXT = "text"
+    const val FILE = "file"
+    const val SYSTEM = "system"
+    const val CHROME_TAB = "chromeTab"
+    const val TASKER = "tasker"
+    const val SHIZUKU = "shizuku"
+    const val TERMUX = "termux"
+    const val SCRCPY = "scrcpy"
+    const val CHARTS = "charts"
     const val CONTROL = "control"
     const val LOGIC = "logic"
     const val VARIABLES = "variables"
@@ -29,6 +39,16 @@ object BlockCategories {
         CategoryMeta(EMSCRIPT, "EMScript", 0xFF56687A),
         CategoryMeta(INPUT, "Input", 0xFF4B6F8F),
         CategoryMeta(PERCEPTION, "Perception", 0xFF3F735F),
+        CategoryMeta(VISION, "Vision", 0xFF2E7D78),
+        CategoryMeta(TEXT, "Text", 0xFF5D6FA8),
+        CategoryMeta(FILE, "File", 0xFF8B6F42),
+        CategoryMeta(SYSTEM, "System", 0xFF6B7280),
+        CategoryMeta(CHROME_TAB, "ChromeTab", 0xFF2F6FDB),
+        CategoryMeta(TASKER, "Tasker", 0xFF7C5AC7),
+        CategoryMeta(SHIZUKU, "Shizuku", 0xFF8A4F8D),
+        CategoryMeta(TERMUX, "Termux", 0xFF207A4B),
+        CategoryMeta(SCRCPY, "scrcpy", 0xFF3F7EA3),
+        CategoryMeta(CHARTS, "Charts", 0xFFB4772F),
         CategoryMeta(CONTROL, "Control", 0xFF87684A),
         CategoryMeta(LOGIC, "Logic", 0xFF586E4B),
         CategoryMeta(VARIABLES, "Variables", 0xFF6D607E),
