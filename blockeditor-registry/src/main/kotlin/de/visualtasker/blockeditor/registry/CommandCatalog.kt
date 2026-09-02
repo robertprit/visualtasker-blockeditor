@@ -365,6 +365,20 @@ object VisualTaskerCommandCatalog : CommandCatalog {
 
     fun blockTypes(): Set<String> = byBlockType.keys
 
+    fun acceptedNamesForKinds(vararg kinds: CommandCatalogKind): Set<String> {
+        val acceptedKinds = kinds.toSet()
+        return entries
+            .filter { it.kind in acceptedKinds }
+            .flatMap { entry -> entry.acceptedAliases + entry.canonicalName }
+            .toSet()
+    }
+
+    fun acceptedNamesForRuntime(): Set<String> =
+        entries
+            .filter { it.runtime != null }
+            .flatMap { entry -> entry.acceptedAliases + entry.canonicalName }
+            .toSet()
+
     fun metadataForBlockType(blockType: String): Map<String, String> {
         val entry = findByBlockType(blockType) ?: return emptyMap()
         return mapOf(

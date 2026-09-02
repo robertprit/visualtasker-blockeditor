@@ -282,6 +282,9 @@ class IrGraphGenerator(
                 if (block.collapsed) put("collapsed", "true")
                 block.metadata["emscript.source.line"]?.let { put("sourceLine", it) }
                 block.metadata["emscript.source.column"]?.let { put("sourceColumn", it) }
+                block.metadata
+                    .filterKeys { it.startsWith("emscript.groupFacet.") }
+                    .forEach { (key, value) -> put(key, value) }
             },
         )
     }
@@ -559,7 +562,69 @@ class IrGraphGenerator(
                 )
             )
         }
+        nodes.forEach { owner ->
+            addAll(editorGroupFacets(owner, nodes))
+        }
     }
+
+    private fun editorGroupFacets(
+        owner: IrGraphNode,
+        nodes: List<IrGraphNode>,
+    ): List<IrGraphFacet> {
+        val count = owner.properties["emscript.groupFacet.count"]?.toIntOrNull() ?: return emptyList()
+        return (0 until count).mapNotNull { index ->
+            val prefix = "emscript.groupFacet.$index"
+            val id = owner.properties["$prefix.id"]?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val kind = owner.properties["$prefix.kind"]?.toIrFacetKind()
+            val groupNodes = nodesForEditorGroupFacet(kind, owner, nodes)
+            IrGraphFacet(
+                id = "facet:emscript:$id",
+                kind = kind ?: IrGraphFacetKind.COMMENT_MARKER,
+                label = owner.properties["$prefix.label"]?.takeIf { it.isNotBlank() } ?: id,
+                scopeId = owner.properties["scopeId"],
+                ownerNodeId = owner.id,
+                nodeIds = groupNodes,
+                source = owner.source.copy(
+                    sourceLine = owner.properties["$prefix.startLine"]?.toIntOrNull(),
+                ),
+                properties = buildMap {
+                    put("editorFacetId", id)
+                    put("editorFacetKind", owner.properties["$prefix.kind"].orEmpty())
+                    owner.properties["$prefix.startLine"]?.let { put("startLine", it) }
+                    owner.properties["$prefix.endLine"]?.let { put("endLine", it) }
+                },
+            )
+        }
+    }
+
+    private fun nodesForEditorGroupFacet(
+        kind: IrGraphFacetKind?,
+        owner: IrGraphNode,
+        nodes: List<IrGraphNode>,
+    ): List<IrGraphNodeId> {
+        val scopeId = owner.properties["scopeId"].orEmpty()
+        val scoped = nodes.filter { it.id != owner.id && it.properties["scopeId"] == scopeId }
+        return when (kind) {
+            IrGraphFacetKind.VARIABLE_BULK -> scoped
+                .filter { it.properties["blockType"] == BlockTypes.VARIABLE_SET }
+                .map { it.id }
+            IrGraphFacetKind.FUNCTION_REGION,
+            IrGraphFacetKind.COLLAPSE_GROUP,
+            IrGraphFacetKind.BRANCH_REGION,
+            IrGraphFacetKind.COMMENT_MARKER,
+            null -> scoped.map { it.id }
+        }.ifEmpty { listOf(owner.id) }
+    }
+
+    private fun String.toIrFacetKind(): IrGraphFacetKind? =
+        when (lowercase()) {
+            "branch-region", "branch" -> IrGraphFacetKind.BRANCH_REGION
+            "collapse-group", "collapse" -> IrGraphFacetKind.COLLAPSE_GROUP
+            "variable-bulk", "variables", "vars" -> IrGraphFacetKind.VARIABLE_BULK
+            "function-region", "function" -> IrGraphFacetKind.FUNCTION_REGION
+            "comment-marker", "comment", "region", "loop-region" -> IrGraphFacetKind.COMMENT_MARKER
+            else -> null
+        }
 
     private fun sourceRef(
         document: WorkspaceDocument,

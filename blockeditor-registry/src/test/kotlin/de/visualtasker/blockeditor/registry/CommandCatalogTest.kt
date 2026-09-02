@@ -78,6 +78,19 @@ class CommandCatalogTest {
     }
 
     @Test
+    fun catalogExposesAcceptedNamesForSyntaxConsumers() {
+        val statementNames = VisualTaskerCommandCatalog.acceptedNamesForKinds(CommandCatalogKind.STATEMENT)
+        val runtimeNames = VisualTaskerCommandCatalog.acceptedNamesForRuntime()
+
+        assertTrue("wait" in statementNames)
+        assertTrue("WAIT" in statementNames)
+        assertTrue("beep" in runtimeNames)
+        assertTrue("BEEP" in runtimeNames)
+        assertTrue("repeat" in runtimeNames)
+        assertTrue("IF" in runtimeNames)
+    }
+
+    @Test
     fun defaultBlockDefinitionsExposeCatalogMetadata() {
         val wait = DefaultBlockRegistry.getDefinition(BlockTypes.ACTION_WAIT)!!
         assertEquals("action.wait", wait.metadata[VisualTaskerCommandCatalog.METADATA_COMMAND_ID])
