@@ -243,9 +243,6 @@ fun CategoryPalettePanel(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Filled.Close, contentDescription = "Schließen")
-                }
             }
             if (onCreateVariable != null && category == BlockCategories.VARIABLE) {
                 FilterChip(

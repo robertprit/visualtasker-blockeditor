@@ -1,5 +1,6 @@
 package de.visualtasker.blockeditor.compose.ui
 
+import android.util.Log
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
@@ -40,6 +41,10 @@ fun Modifier.workspacePointerGestures(
 
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
+            Log.d(
+                BLOCK_POINTER_LOG_TAG,
+                "down id=${down.id.value} pos=${down.position.x},${down.position.y} consumed=${down.isConsumed}"
+            )
             val pointerId = down.id
             val start = Offset2(down.position.x, down.position.y)
             val pressDeadline = System.currentTimeMillis() + longPressTimeout
@@ -59,10 +64,12 @@ fun Modifier.workspacePointerGestures(
                             now - lastTapTime <= doubleTapTimeout &&
                             distance(start, previous) <= touchSlop
                         if (isDoubleTap) {
+                            Log.d(BLOCK_POINTER_LOG_TAG, "doubleTap x=${start.x} y=${start.y}")
                             onDoubleTapState.value(start)
                             lastTapTime = 0L
                             lastTapPoint = null
                         } else {
+                            Log.d(BLOCK_POINTER_LOG_TAG, "tap x=${start.x} y=${start.y}")
                             onTapState.value(start)
                             lastTapTime = now
                             lastTapPoint = start
@@ -73,12 +80,18 @@ fun Modifier.workspacePointerGestures(
 
                 if (!longPressReady && !dragStarted) {
                     if (distance(start, Offset2(change.position.x, change.position.y)) > touchSlop) {
+                        Log.d(
+                            BLOCK_POINTER_LOG_TAG,
+                            "movement-before-longpress start=${start.x},${start.y} current=${change.position.x},${change.position.y}"
+                        )
                         exceededSlop = true
                         break
                     }
                     if (System.currentTimeMillis() >= pressDeadline) {
                         longPressReady = true
-                        if (onLongPressDragStartState.value(start)) {
+                        val accepted = onLongPressDragStartState.value(start)
+                        Log.d(BLOCK_POINTER_LOG_TAG, "longPress x=${start.x} y=${start.y} accepted=$accepted")
+                        if (accepted) {
                             dragStarted = true
                             onBlockDragActiveChangeState.value(true)
                             var latest = start
@@ -87,13 +100,16 @@ fun Modifier.workspacePointerGestures(
                                 drag(pointerId) { dragChange ->
                                     dragChange.consume()
                                     latest = Offset2(dragChange.position.x, dragChange.position.y)
+                                    Log.d(BLOCK_POINTER_LOG_TAG, "drag x=${latest.x} y=${latest.y}")
                                     onDragState.value(latest)
                                 }
+                                Log.d(BLOCK_POINTER_LOG_TAG, "dragEnd x=${latest.x} y=${latest.y}")
                                 onDragEndState.value(latest)
                                 completed = true
                             } finally {
                                 onBlockDragActiveChangeState.value(false)
                                 if (!completed) {
+                                    Log.d(BLOCK_POINTER_LOG_TAG, "dragCancel")
                                     onDragCancelState.value()
                                 }
                             }
@@ -108,3 +124,5 @@ fun Modifier.workspacePointerGestures(
 
 private fun distance(a: Offset2, b: Offset2): Float =
     hypot((a.x - b.x).toDouble(), (a.y - b.y).toDouble()).toFloat()
+
+private const val BLOCK_POINTER_LOG_TAG = "VTWSS/BlockPointer"

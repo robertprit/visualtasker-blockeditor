@@ -18,6 +18,7 @@ fun BlockEditorHost(
     modifier: Modifier = Modifier,
     selectedBlockIds: Set<BlockId>? = null,
     onSaveWorkspace: (() -> Unit)? = null,
+    disposeControllerOnDispose: Boolean = true,
 ) {
     BlockEditorHost(
         controller = controller,
@@ -26,6 +27,7 @@ fun BlockEditorHost(
         visualPathProvider = BlockVisualPathProvider.Legacy,
         selectedBlockIds = selectedBlockIds,
         onSaveWorkspace = onSaveWorkspace,
+        disposeControllerOnDispose = disposeControllerOnDispose,
     )
 }
 
@@ -38,9 +40,12 @@ fun BlockEditorHost(
     visualPathProvider: BlockVisualPathProvider,
     selectedBlockIds: Set<BlockId>? = null,
     onSaveWorkspace: (() -> Unit)? = null,
+    disposeControllerOnDispose: Boolean = true,
 ) {
-    DisposableEffect(controller) {
-        onDispose { controller.close() }
+    if (disposeControllerOnDispose) {
+        DisposableEffect(controller) {
+            onDispose { controller.close() }
+        }
     }
 
     BlockEditorScaffold(

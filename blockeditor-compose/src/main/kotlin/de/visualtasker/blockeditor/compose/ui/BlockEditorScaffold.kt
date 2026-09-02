@@ -2,9 +2,11 @@
 
 package de.visualtasker.blockeditor.compose.ui
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -49,6 +52,7 @@ import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -389,6 +393,10 @@ fun BlockEditorScaffold(
                             coroutineScope {
                                 launch {
                                     detectTransformGestures { centroid, pan, zoom, _ ->
+                                        Log.d(
+                                            BLOCK_SCAFFOLD_LOG_TAG,
+                                            "transform blockDragActive=$blockDragActive centroid=${centroid.x},${centroid.y} pan=${pan.x},${pan.y} zoom=$zoom"
+                                        )
                                         if (blockDragActive) return@detectTransformGestures
                                         val vp = viewportState.value
                                         onViewport.value(
@@ -483,10 +491,12 @@ fun BlockEditorScaffold(
                         selectedBlockCollapsed = selectedBlockCollapsed,
                         canToggleSelectedBlockCollapse = canToggleSelectedBlockCollapse,
                         onFitWorkspace = {
+                            Log.d(BLOCK_SCAFFOLD_LOG_TAG, "toolbar fitWorkspace")
                             onFitWorkspace()
                             playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
                         },
                         onAutoArrangeWorkspace = {
+                            Log.d(BLOCK_SCAFFOLD_LOG_TAG, "toolbar autoArrange")
                             onAutoArrangeWorkspace()
                             playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
                         },
@@ -533,10 +543,12 @@ fun BlockEditorScaffold(
                             }
                         },
                         onZoomIn = {
+                            Log.d(BLOCK_SCAFFOLD_LOG_TAG, "toolbar zoomIn")
                             onZoomIn()
                             playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
                         },
                         onZoomOut = {
+                            Log.d(BLOCK_SCAFFOLD_LOG_TAG, "toolbar zoomOut")
                             onZoomOut()
                             playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
                         },
@@ -595,7 +607,7 @@ fun BlockEditorScaffold(
 	                        },
 	                    )
 	                    if (showFloatingInspector && blockInfo != null) {
-	                        BlockEditorFloatingInspector(
+	                        BlockEditorInspectorBottomSheet(
 	                            blockInfo = blockInfo,
 	                            onFieldChange = onFieldChange,
 	                            onFieldSourceChange = onFieldSourceChange,
@@ -607,8 +619,8 @@ fun BlockEditorScaffold(
 	                            onRemoveBranch = onRemoveSelectedIfBranch,
 	                            onUpdateBlockNote = onUpdateBlockNote,
 	                            modifier = Modifier
-	                                .align(Alignment.BottomEnd)
-	                                .padding(10.dp),
+	                                .align(Alignment.BottomCenter)
+	                                .padding(horizontal = 8.dp, vertical = 8.dp),
 	                        )
 	                    }
 	                }
@@ -644,7 +656,7 @@ fun BlockEditorScaffold(
 }
 
 @Composable
-private fun BlockEditorFloatingInspector(
+private fun BlockEditorInspectorBottomSheet(
     blockInfo: BlockInfoSnapshot,
     onFieldChange: (String, String) -> Unit,
     onFieldSourceChange: (String, String) -> Unit,
@@ -657,17 +669,36 @@ private fun BlockEditorFloatingInspector(
     onUpdateBlockNote: (String) -> Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val density = LocalDensity.current
+    var sheetHeightDp by remember { mutableFloatStateOf(196f) }
     Surface(
-        modifier = modifier.fillMaxWidth(0.58f),
-        shape = RoundedCornerShape(14.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(sheetHeightDp.dp),
+        shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 14.dp, bottomEnd = 14.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 5.dp,
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .size(width = 42.dp, height = 5.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.55f))
+                    .pointerInput(Unit) {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            sheetHeightDp = (sheetHeightDp - dragAmount.y / density.density).coerceIn(112f, 340f)
+                        }
+                    }
+            )
             Text(
                 text = "Block Inspector",
                 style = MaterialTheme.typography.labelLarge,
@@ -684,7 +715,9 @@ private fun BlockEditorFloatingInspector(
                 onAddBranch = onAddBranch,
                 onRemoveBranch = onRemoveBranch,
                 onUpdateBlockNote = onUpdateBlockNote,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = true),
             )
         }
     }
@@ -856,9 +889,9 @@ private fun BlockEditorIconBar(
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 2.dp,
+        color = Color(0xFF221C2C).copy(alpha = 0.94f),
+        contentColor = Color(0xFFECE6F3),
+        tonalElevation = 3.dp,
     ) {
         Row(
             Modifier
@@ -963,7 +996,7 @@ private fun BlockEditorToolbarIconButton(
                 contentColor = when {
                     selected -> MaterialTheme.colorScheme.onPrimary
                     danger -> MaterialTheme.colorScheme.error
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    else -> Color(0xFFECE6F3)
                 },
                 disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
             ),
@@ -972,3 +1005,5 @@ private fun BlockEditorToolbarIconButton(
         }
     }
 }
+
+private const val BLOCK_SCAFFOLD_LOG_TAG = "VTWSS/BlockScaffold"

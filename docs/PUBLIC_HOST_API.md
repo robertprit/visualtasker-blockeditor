@@ -216,7 +216,9 @@ public host entry point.
 - `close()` / `AutoCloseable`: cancels debounce jobs, marks disposed.
 - After disposal: all methods are no-ops; no callbacks are emitted.
 
-`BlockEditorHost` calls `controller.close()` in `DisposableEffect.onDispose`.
+`BlockEditorHost` calls `controller.close()` in `DisposableEffect.onDispose` by default.
+Hosts that keep controllers in a longer-lived editor session can pass
+`disposeControllerOnDispose = false` and close the controller from the session owner.
 
 ## Callback semantics
 
