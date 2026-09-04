@@ -33,6 +33,7 @@ import de.visualtasker.blockeditor.layout.LayoutConstants
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.BlockTypes
+import de.visualtasker.blockeditor.registry.VisualTaskerCommandCatalog
 import kotlin.math.pow
 
 internal fun DrawScope.drawBlock(
@@ -285,22 +286,19 @@ internal fun DrawScope.drawBlock(
             collapsedCommand = block.collapsed && !isReporter,
             dockWidth = renderMetrics.reporterDockSize.width,
         )
-        val drawableTextWidth = drawableLabelWidth(
-            requestedWidth = maxTextWidth,
-            canvasRemainingWidth = size.width - topLeft.x - labelX,
-        )
+        val drawableTextWidth = maxTextWidth.coerceAtLeast(0f)
         if (drawableTextWidth <= 0f) return@translate
         val displayLabel = truncateLabel(label, drawableTextWidth, textMeasurer, textStyle)
         val headerTextSize = safeDrawableTextSize(
             width = drawableTextWidth,
-            height = size.height - topLeft.y,
+            height = headerHeight,
         ) ?: return@translate
         val textLayout = measureTextSafely(textMeasurer, displayLabel, textStyle, headerTextSize)
         val textTopLeft = Offset(
             labelX,
             (headerHeight - textLayout.size.height) / 2f,
         )
-        val drawableTextHeight = size.height - topLeft.y - textTopLeft.y
+        val drawableTextHeight = headerHeight - textTopLeft.y
         if (!hasDrawableTextArea(drawableTextWidth, drawableTextHeight)) return@translate
         drawTextSafely(
             textMeasurer = textMeasurer,
@@ -310,6 +308,15 @@ internal fun DrawScope.drawBlock(
             availableWidth = drawableTextWidth,
             availableHeight = drawableTextHeight,
         )
+        if (!isReporter && blockType.startsWith(BlockTypes.EMSCRIPT_COMMAND_PREFIX)) {
+            drawCommandRuntimeBadge(
+                block = block,
+                definition = definition,
+                topLeft = Offset(width - 24f - LayoutConstants.SLOT_PADDING, (headerHeight - 16f) / 2f),
+                textMeasurer = textMeasurer,
+                textColor = textColor,
+            )
+        }
         if (block.collapsed && !isReporter) {
             val markerWidth = 28f
             val markerHeight = 18f
@@ -475,18 +482,85 @@ internal fun DrawScope.drawInlineReporterDockSlotOverlays(
     }
 }
 
+private fun DrawScope.drawCommandRuntimeBadge(
+    block: BlockNode,
+    definition: BlockDefinition?,
+    topLeft: Offset,
+    textMeasurer: TextMeasurer,
+    textColor: Color,
+) {
+    if (!topLeft.x.isFinite() || topLeft.x < LayoutConstants.SLOT_PADDING) return
+    val runtimeStatus = definition
+        ?.metadata
+        ?.get(VisualTaskerCommandCatalog.METADATA_RUNTIME_STATUS)
+        .orEmpty()
+    val pluginOwner = definition
+        ?.metadata
+        ?.get(VisualTaskerCommandCatalog.METADATA_PLUGIN_OWNER)
+        .orEmpty()
+    val disabled = block.fields["active"]?.asString() == "false"
+    val badgeText = when {
+        disabled -> "off"
+        runtimeStatus == "adapter-gated" || pluginOwner != "visualtasker.core" -> "plug"
+        runtimeStatus == "simulate" -> "dry"
+        else -> "core"
+    }
+    val badgeColor = when (badgeText) {
+        "off" -> Color(0xFF9CA3AF)
+        "plug" -> Color(0xFFFFB74D)
+        "dry" -> Color(0xFF4DB6AC)
+        else -> Color(0xFF81C784)
+    }
+    val badgeSize = Size(24f, 16f)
+    drawRoundRect(
+        color = badgeColor.copy(alpha = 0.28f),
+        topLeft = topLeft,
+        size = badgeSize,
+        cornerRadius = CornerRadius(8f, 8f),
+        style = Fill,
+    )
+    drawRoundRect(
+        color = badgeColor.copy(alpha = 0.72f),
+        topLeft = topLeft,
+        size = badgeSize,
+        cornerRadius = CornerRadius(8f, 8f),
+        style = Stroke(width = 1.1f),
+    )
+    val style = TextStyle(color = textColor.copy(alpha = 0.88f), fontSize = 7.sp)
+    val layout = textMeasurer.measure(badgeText, style)
+    drawTextSafely(
+        textMeasurer = textMeasurer,
+        text = badgeText,
+        topLeft = Offset(
+            topLeft.x + (badgeSize.width - layout.size.width) / 2f,
+            topLeft.y + (badgeSize.height - layout.size.height) / 2f,
+        ),
+        style = style,
+        availableWidth = badgeSize.width,
+        availableHeight = badgeSize.height,
+    )
+}
+
 private fun BlockNode.structuralLabel(
     definition: BlockDefinition?,
     fallback: String,
 ): String {
     if (!isStartBlock()) {
+        if (type.startsWith(BlockTypes.EMSCRIPT_COMMAND_PREFIX)) {
+            return commandCanvasLabel(definition)
+        }
         val base = definition?.label ?: fallback
-        val parameterNames = definition
-            ?.fields
-            .orEmpty()
-            .filterNot { it.key.endsWith(".source") }
-            .joinToString(" ") { it.key }
-        val chips = if (fields["displayMode"]?.asString() == "detailed") {
+        val detailed = fields["displayMode"]?.asString() == "detailed"
+        val parameterNames = if (detailed) {
+            definition
+                ?.fields
+                .orEmpty()
+                .filterNot { it.key.endsWith(".source") }
+                .joinToString(" ") { it.key }
+        } else {
+            ""
+        }
+        val chips = if (detailed) {
             buildList {
                 val paramCount = definition?.fields.orEmpty().size
                 if (paramCount > 0) add("$paramCount params")
@@ -506,6 +580,20 @@ private fun BlockNode.structuralLabel(
         ?.removeSuffix(".ems")
         ?.takeIf { it.isNotBlank() }
         ?: fallback
+}
+
+private fun BlockNode.commandCanvasLabel(definition: BlockDefinition?): String {
+    val metadataShortName = definition
+        ?.metadata
+        ?.get(VisualTaskerCommandCatalog.METADATA_SHORT_NAME)
+        ?.takeIf { it.isNotBlank() }
+    val fieldCommand = fields["command"]
+        ?.asString()
+        ?.takeIf { it.isNotBlank() }
+    return metadataShortName
+        ?: fieldCommand?.substringAfterLast('.')
+        ?: definition?.label?.takeIf { it.isNotBlank() }
+        ?: type.removePrefix(BlockTypes.EMSCRIPT_COMMAND_PREFIX).substringAfterLast('.')
 }
 
 private fun BlockNode.isStartBlock(): Boolean =

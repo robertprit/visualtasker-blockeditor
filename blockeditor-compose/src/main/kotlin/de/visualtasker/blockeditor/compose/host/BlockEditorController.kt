@@ -329,14 +329,14 @@ class BlockEditorController(
 
     fun cancelActiveDrag() {
         if (disposed.get()) {
-            Log.d(BLOCK_CONTROLLER_LOG_TAG, "cancelActiveDrag ignored disposed")
+            logController("cancelActiveDrag ignored disposed")
             return
         }
         if (dragRender == null) {
-            Log.d(BLOCK_CONTROLLER_LOG_TAG, "cancelActiveDrag no-active-drag")
+            logController("cancelActiveDrag no-active-drag")
             return
         }
-        Log.d(BLOCK_CONTROLLER_LOG_TAG, "cancelActiveDrag active")
+        logController("cancelActiveDrag active")
         dragRender = null
         pendingDetachActive = false
         callbacks.onValidationEvent(
@@ -353,13 +353,10 @@ class BlockEditorController(
 
     fun onViewportChange(newViewport: ViewportState) {
         if (disposed.get()) {
-            Log.d(BLOCK_CONTROLLER_LOG_TAG, "onViewportChange ignored disposed")
+            logController("onViewportChange ignored disposed")
             return
         }
-        Log.d(
-            BLOCK_CONTROLLER_LOG_TAG,
-            "onViewportChange pan=${newViewport.panX},${newViewport.panY} scale=${newViewport.scale}"
-        )
+        logController("onViewportChange pan=${newViewport.panX},${newViewport.panY} scale=${newViewport.scale}")
         val previousScale = viewport.scale
         val candidate = if (newViewport.scale != previousScale) {
             constrainStartBlockVisible(newViewport)
@@ -371,10 +368,10 @@ class BlockEditorController(
 
     fun onCanvasSizeChange(size: Offset2) {
         if (disposed.get()) {
-            Log.d(BLOCK_CONTROLLER_LOG_TAG, "onCanvasSizeChange ignored disposed size=${size.x},${size.y}")
+            logController("onCanvasSizeChange ignored disposed size=${size.x},${size.y}")
             return
         }
-        Log.d(BLOCK_CONTROLLER_LOG_TAG, "onCanvasSizeChange size=${size.x},${size.y}")
+        logController("onCanvasSizeChange size=${size.x},${size.y}")
         canvasSize = size
         val pending = pendingFocusBlockId
         if (pending != null && focusBlockInCanvas(pending, selectFocusedBlock = pendingFocusSelect)) {
@@ -392,20 +389,20 @@ class BlockEditorController(
         force: Boolean = false,
     ) {
         if (disposed.get()) {
-            Log.d(BLOCK_CONTROLLER_LOG_TAG, "fitWorkspace ignored disposed")
+            logController("fitWorkspace ignored disposed")
             return
         }
         val size = canvasSize ?: run {
-            Log.d(BLOCK_CONTROLLER_LOG_TAG, "fitWorkspace ignored no-canvas-size")
+            logController("fitWorkspace ignored no-canvas-size")
             return
         }
         if (size.x <= 0f || size.y <= 0f) {
-            Log.d(BLOCK_CONTROLLER_LOG_TAG, "fitWorkspace ignored invalid-canvas-size=${size.x},${size.y}")
+            logController("fitWorkspace ignored invalid-canvas-size=${size.x},${size.y}")
             return
         }
         val blocks = layoutCache.flatIndex.visibleBlocks
         if (blocks.isEmpty()) {
-            Log.d(BLOCK_CONTROLLER_LOG_TAG, "fitWorkspace ignored no-visible-blocks")
+            logController("fitWorkspace ignored no-visible-blocks")
             return
         }
         if (!force && blocks.any { it.subtreeBounds.isVisibleIn(viewport, size, margin) }) return
@@ -422,10 +419,10 @@ class BlockEditorController(
         val panX = (size.x - contentWidth * scale) / 2f - left * scale
         val panY = (size.y - contentHeight * scale) / 2f - top * scale
         if (!panX.isFinite() || !panY.isFinite() || !scale.isFinite()) {
-            Log.d(BLOCK_CONTROLLER_LOG_TAG, "fitWorkspace ignored non-finite pan=$panX,$panY scale=$scale")
+            logController("fitWorkspace ignored non-finite pan=$panX,$panY scale=$scale")
             return
         }
-        Log.d(BLOCK_CONTROLLER_LOG_TAG, "fitWorkspace applied pan=$panX,$panY scale=$scale force=$force")
+        logController("fitWorkspace applied pan=$panX,$panY scale=$scale force=$force")
         viewport = ViewportState(panX = panX, panY = panY, scale = scale)
     }
 
@@ -449,12 +446,12 @@ class BlockEditorController(
     }
 
     fun zoomIn() {
-        Log.d(BLOCK_CONTROLLER_LOG_TAG, "zoomIn disposed=${disposed.get()}")
+        logController("zoomIn disposed=${disposed.get()}")
         zoomBy(1.2f)
     }
 
     fun zoomOut() {
-        Log.d(BLOCK_CONTROLLER_LOG_TAG, "zoomOut disposed=${disposed.get()}")
+        logController("zoomOut disposed=${disposed.get()}")
         zoomBy(1f / 1.2f)
     }
 
@@ -1753,6 +1750,13 @@ class BlockEditorController(
         private const val VARIABLE_DECLARE_BLOCK_TYPE = "emscript:variable.declare"
         private const val MAX_IF_BRANCHES = 8
         private const val BLOCK_CONTROLLER_LOG_TAG = "VTWSS/BlockController"
+
+        private fun logController(message: String) {
+            try {
+                Log.d(BLOCK_CONTROLLER_LOG_TAG, message)
+            } catch (_: RuntimeException) {
+            }
+        }
 
         /** Controller seeded with [WorkspaceBootstrap.starter]. */
         fun starter(

@@ -25,6 +25,7 @@ class IrGraphGeneratorTest {
 
         assertTrue(graph.diagnostics.joinToString { it.message }, graph.diagnostics.isEmpty())
         assertTrue(graph.validateIntegrity().joinToString { it.message }, graph.validateIntegrity().isEmpty())
+        assertTrue(graph.validateSemantics().joinToString { it.message }, graph.validateSemantics().isEmpty())
         assertEquals(graph.nodes.size, graph.nodes.map { it.id }.distinct().size)
         assertEquals(graph.edges.size, graph.edges.map { it.id }.distinct().size)
         assertEquals(listOf(IrGraphNodeId("block:start")), graph.entryNodeIds)

@@ -99,6 +99,24 @@ data class CommandCatalogEntry(
     val runtime: CommandRuntimeBinding? = null,
 )
 
+enum class CommandCatalogDiagnosticCode {
+    BLANK_ID,
+    DUPLICATE_ID,
+    BLANK_CANONICAL_NAME,
+    DUPLICATE_BLOCK_BINDING,
+    DUPLICATE_ARGUMENT,
+    UNKNOWN_CATEGORY,
+    RUNTIME_CAPABILITY_NOT_DECLARED,
+    EXECUTABLE_COMMAND_WITHOUT_RUNTIME,
+    VALUE_COMMAND_WITHOUT_RETURN_TYPE,
+}
+
+data class CommandCatalogDiagnostic(
+    val code: CommandCatalogDiagnosticCode,
+    val entryId: String,
+    val message: String,
+)
+
 interface CommandCatalog {
     fun allEntries(): List<CommandCatalogEntry>
     fun findById(id: String): CommandCatalogEntry?
@@ -113,6 +131,9 @@ object VisualTaskerCommandCatalog : CommandCatalog {
     const val METADATA_COMMAND_KIND = "emscript.command.kind"
     const val METADATA_PLUGIN_OWNER = "emscript.command.pluginOwner"
     const val METADATA_RUNTIME_CAPABILITIES = "emscript.command.capabilities"
+    const val METADATA_DISPLAY_NAME = "emscript.command.displayName"
+    const val METADATA_SHORT_NAME = "emscript.command.shortName"
+    const val METADATA_RUNTIME_STATUS = "emscript.command.runtimeStatus"
 
     private val plannedAdapterCommands: List<CommandCatalogEntry> = listOf(
         catalogCommand("chromeTab.isSupported", "ChromeTab.isSupported", category = BlockCategories.CHROME_TAB, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.CUSTOM_TAB, pluginOwner = "visualtasker.customtabs"),
@@ -746,7 +767,55 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             METADATA_COMMAND_KIND to entry.kind.name,
             METADATA_PLUGIN_OWNER to entry.pluginOwner,
             METADATA_RUNTIME_CAPABILITIES to entry.capabilities.joinToString(",") { it.name },
+            METADATA_DISPLAY_NAME to entry.canonicalName,
+            METADATA_SHORT_NAME to entry.shortDisplayName(),
+            METADATA_RUNTIME_STATUS to (entry.runtime?.dryRunBehavior ?: "unknown"),
         )
+    }
+
+    fun validate(): List<CommandCatalogDiagnostic> = validateCommandCatalog(entries)
+}
+
+fun validateCommandCatalog(entries: List<CommandCatalogEntry>): List<CommandCatalogDiagnostic> = buildList {
+    entries
+        .filter { it.id.isBlank() }
+        .forEach { add(CommandCatalogDiagnostic(CommandCatalogDiagnosticCode.BLANK_ID, it.id, "Command id must not be blank")) }
+    entries
+        .groupBy { it.id }
+        .filter { (id, group) -> id.isNotBlank() && group.size > 1 }
+        .forEach { (id, _) -> add(CommandCatalogDiagnostic(CommandCatalogDiagnosticCode.DUPLICATE_ID, id, "Duplicate command id: $id")) }
+    entries
+        .filter { it.canonicalName.isBlank() }
+        .forEach { add(CommandCatalogDiagnostic(CommandCatalogDiagnosticCode.BLANK_CANONICAL_NAME, it.id, "Canonical command name must not be blank")) }
+    entries
+        .mapNotNull { entry -> entry.block?.blockType?.let { blockType -> blockType to entry.id } }
+        .groupBy { it.first }
+        .filterValues { it.size > 1 }
+        .forEach { (blockType, owners) ->
+            add(CommandCatalogDiagnostic(CommandCatalogDiagnosticCode.DUPLICATE_BLOCK_BINDING, blockType, "Block binding $blockType is used by ${owners.map { it.second }}"))
+        }
+    val knownCategories = BlockCategories.all.map { it.id }.toSet()
+    entries
+        .filter { it.category !in knownCategories }
+        .forEach { add(CommandCatalogDiagnostic(CommandCatalogDiagnosticCode.UNKNOWN_CATEGORY, it.id, "Unknown command category: ${it.category}")) }
+    entries.forEach { entry ->
+        entry.arguments
+            .groupBy { it.name }
+            .filter { (name, group) -> name.isNotBlank() && group.size > 1 }
+            .forEach { (name, _) ->
+                add(CommandCatalogDiagnostic(CommandCatalogDiagnosticCode.DUPLICATE_ARGUMENT, entry.id, "Duplicate argument $name in ${entry.id}"))
+            }
+        entry.runtime?.let { runtime ->
+            if (runtime.liveCapabilityGate !in entry.capabilities) {
+                add(CommandCatalogDiagnostic(CommandCatalogDiagnosticCode.RUNTIME_CAPABILITY_NOT_DECLARED, entry.id, "Runtime capability ${runtime.liveCapabilityGate} is not declared by ${entry.id}"))
+            }
+        }
+        if (entry.kind in setOf(CommandCatalogKind.EVENT, CommandCatalogKind.STATEMENT, CommandCatalogKind.CONTROL, CommandCatalogKind.VARIABLE) && entry.runtime == null) {
+            add(CommandCatalogDiagnostic(CommandCatalogDiagnosticCode.EXECUTABLE_COMMAND_WITHOUT_RUNTIME, entry.id, "Executable command ${entry.id} must define a runtime binding"))
+        }
+        if (entry.kind in setOf(CommandCatalogKind.REPORTER, CommandCatalogKind.OPERATOR) && entry.returnType.isNullOrBlank()) {
+            add(CommandCatalogDiagnostic(CommandCatalogDiagnosticCode.VALUE_COMMAND_WITHOUT_RETURN_TYPE, entry.id, "Value command ${entry.id} must define a return type"))
+        }
     }
 }
 
@@ -761,9 +830,34 @@ fun BlockDefinition.withCommandCatalogMetadata(
             VisualTaskerCommandCatalog.METADATA_COMMAND_KIND to entry.kind.name,
             VisualTaskerCommandCatalog.METADATA_PLUGIN_OWNER to entry.pluginOwner,
             VisualTaskerCommandCatalog.METADATA_RUNTIME_CAPABILITIES to entry.capabilities.joinToString(",") { it.name },
+            VisualTaskerCommandCatalog.METADATA_DISPLAY_NAME to entry.canonicalName,
+            VisualTaskerCommandCatalog.METADATA_SHORT_NAME to entry.shortDisplayName(),
+            VisualTaskerCommandCatalog.METADATA_RUNTIME_STATUS to (entry.runtime?.dryRunBehavior ?: "unknown"),
         ),
     )
 }
+
+internal fun CommandCatalogEntry.shortDisplayName(): String =
+    when (canonicalName) {
+        "ChromeTab.requestPostMessageChannel" -> "requestMsg"
+        "ChromeTab.validateRelationship" -> "validateRel"
+        "Tasker.pluginAction" -> "pluginAct"
+        "Tasker.profileEnable" -> "profileOn"
+        "Tasker.profileDisable" -> "profileOff"
+        "Tasker.profileToggle" -> "profileTog"
+        "Tasker.profileState" -> "profileState"
+        "Shizuku.permissionState" -> "permission"
+        "Shizuku.requestPermission" -> "requestPerm"
+        "Shizuku.bindUserService" -> "bindService"
+        "Shizuku.unbindUserService" -> "unbindSvc"
+        "Shizuku.systemService" -> "service"
+        "Termux.canRunCommands" -> "canRun"
+        "Termux.writeStdin" -> "stdin"
+        "Scrcpy.hostAvailable" -> "hostReady"
+        "Scrcpy.setClipboard" -> "clipboard"
+        "Scrcpy.setScreenPower" -> "screenPower"
+        else -> canonicalName.substringAfterLast('.')
+    }
 
 private fun event(
     id: String,

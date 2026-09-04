@@ -97,10 +97,28 @@ class CommandCatalogTest {
         assertEquals("wait", wait.metadata[VisualTaskerCommandCatalog.METADATA_CANONICAL_NAME])
         assertEquals(CommandCatalogKind.STATEMENT.name, wait.metadata[VisualTaskerCommandCatalog.METADATA_COMMAND_KIND])
         assertTrue(wait.metadata[VisualTaskerCommandCatalog.METADATA_RUNTIME_CAPABILITIES]!!.contains(CommandCapability.TIMING.name))
+        assertEquals("wait", wait.metadata[VisualTaskerCommandCatalog.METADATA_SHORT_NAME])
+        assertEquals("simulate", wait.metadata[VisualTaskerCommandCatalog.METADATA_RUNTIME_STATUS])
 
         val compare = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_COMPARE)!!
         assertEquals("logic.compare", compare.metadata[VisualTaskerCommandCatalog.METADATA_COMMAND_ID])
         assertEquals(CommandCatalogKind.OPERATOR.name, compare.metadata[VisualTaskerCommandCatalog.METADATA_COMMAND_KIND])
+    }
+
+    @Test
+    fun generatedCommandBlocksUseShortDisplayLabelsAndKeepCanonicalMetadata() {
+        val chromeOpen = DefaultBlockRegistry.getDefinition("${BlockTypes.EMSCRIPT_COMMAND_PREFIX}chromeTab.open")!!
+
+        assertEquals("open", chromeOpen.label)
+        assertEquals("ChromeTab.open", chromeOpen.metadata[VisualTaskerCommandCatalog.METADATA_CANONICAL_NAME])
+        assertEquals("open", chromeOpen.metadata[VisualTaskerCommandCatalog.METADATA_SHORT_NAME])
+        assertEquals("adapter-gated", chromeOpen.metadata[VisualTaskerCommandCatalog.METADATA_RUNTIME_STATUS])
+        assertEquals("visualtasker.customtabs", chromeOpen.metadata[VisualTaskerCommandCatalog.METADATA_PLUGIN_OWNER])
+
+        val termuxCanRun = DefaultBlockRegistry.getDefinition("${BlockTypes.EMSCRIPT_COMMAND_PREFIX}termux.canRunCommands")!!
+        assertEquals("canRun", termuxCanRun.label)
+        assertEquals("Termux.canRunCommands", termuxCanRun.metadata[VisualTaskerCommandCatalog.METADATA_CANONICAL_NAME])
+        assertEquals("canRun", termuxCanRun.metadata[VisualTaskerCommandCatalog.METADATA_SHORT_NAME])
     }
 
     @Test
@@ -109,7 +127,48 @@ class CommandCatalogTest {
 
         assertEquals("feedback.vibrate", metadata[VisualTaskerCommandCatalog.METADATA_COMMAND_ID])
         assertEquals("vibrate", metadata[VisualTaskerCommandCatalog.METADATA_CANONICAL_NAME])
+        assertEquals("vibrate", metadata[VisualTaskerCommandCatalog.METADATA_SHORT_NAME])
         assertTrue(metadata[VisualTaskerCommandCatalog.METADATA_RUNTIME_CAPABILITIES]!!.contains(CommandCapability.FEEDBACK.name))
+    }
+
+    @Test
+    fun commandCatalogSchemaIsValid() {
+        assertEquals(emptyList<CommandCatalogDiagnostic>(), VisualTaskerCommandCatalog.validate())
+    }
+
+    @Test
+    fun commandCatalogValidationReportsBrokenEntries() {
+        val broken = CommandCatalogEntry(
+            id = "broken",
+            canonicalName = "",
+            kind = CommandCatalogKind.REPORTER,
+            category = "missing-category",
+            arguments = listOf(
+                CommandArgument("value", CommandArgumentType.ANY),
+                CommandArgument("value", CommandArgumentType.TEXT),
+            ),
+            returnType = null,
+            sideEffect = CommandSideEffect.NONE,
+            capabilities = setOf(CommandCapability.CORE),
+            block = CommandBlockBinding(BlockTypes.ACTION_WAIT),
+            runtime = CommandRuntimeBinding("simulate", CommandCapability.FEEDBACK),
+        )
+        val duplicate = broken.copy(
+            id = "duplicate",
+            canonicalName = "duplicate",
+            category = BlockCategories.ACTION,
+            block = CommandBlockBinding(BlockTypes.ACTION_WAIT),
+            runtime = null,
+        )
+
+        val codes = validateCommandCatalog(listOf(broken, duplicate)).map { it.code }.toSet()
+
+        assertTrue(CommandCatalogDiagnosticCode.BLANK_CANONICAL_NAME in codes)
+        assertTrue(CommandCatalogDiagnosticCode.DUPLICATE_BLOCK_BINDING in codes)
+        assertTrue(CommandCatalogDiagnosticCode.DUPLICATE_ARGUMENT in codes)
+        assertTrue(CommandCatalogDiagnosticCode.UNKNOWN_CATEGORY in codes)
+        assertTrue(CommandCatalogDiagnosticCode.RUNTIME_CAPABILITY_NOT_DECLARED in codes)
+        assertTrue(CommandCatalogDiagnosticCode.VALUE_COMMAND_WITHOUT_RETURN_TYPE in codes)
     }
 
     private fun assertCatalogEntry(

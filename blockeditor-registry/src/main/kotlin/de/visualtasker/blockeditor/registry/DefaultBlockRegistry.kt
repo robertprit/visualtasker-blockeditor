@@ -419,7 +419,7 @@ object DefaultBlockRegistry : BlockRegistry {
                 if (!blockType.startsWith(BlockTypes.EMSCRIPT_COMMAND_PREFIX)) return@mapNotNull null
                 BlockDefinition(
                     id = blockType,
-                    label = entry.canonicalName,
+                    label = entry.shortDisplayName(),
                     category = entry.category,
                     hasPrevious = true,
                     hasNext = true,
