@@ -921,7 +921,15 @@ private fun catalogCommand(
     pluginOwner = pluginOwner,
     block = CommandBlockBinding(BlockTypes.EMSCRIPT_COMMAND_PREFIX + id),
     flowchart = CommandFlowchartBinding(category),
-    runtime = CommandRuntimeBinding("adapter-gated", capability),
+    runtime = CommandRuntimeBinding(
+        dryRunBehavior = when {
+            pluginOwner == "visualtasker.core" &&
+                capability in setOf(CommandCapability.CORE, CommandCapability.A11Y, CommandCapability.SCREEN_CAPTURE) &&
+                canonicalName != "touch" -> "simulate"
+            else -> "adapter-gated"
+        },
+        liveCapabilityGate = capability,
+    ),
 )
 
 private fun variable(
