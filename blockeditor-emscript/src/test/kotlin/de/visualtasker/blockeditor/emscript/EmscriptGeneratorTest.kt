@@ -9,7 +9,6 @@ import de.visualtasker.blockeditor.registry.createNode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class EmscriptGeneratorTest {
@@ -161,20 +160,53 @@ class EmscriptGeneratorTest {
         assertEquals("if ((false == false)) {\n}", script)
     }
 
-    @Test fun rejectsUnsupportedSemanticExpressionsDeterministically() {
-        val failure = assertThrows(IllegalStateException::class.java) {
-            generator.generate(
-                de.visualtasker.blockeditor.ir.IrScript(
-                    "unsupported",
-                    listOf(
-                        de.visualtasker.blockeditor.ir.IrStatement.While(
-                            de.visualtasker.blockeditor.ir.IrExpression.ScreenContains("x"),
-                            emptyList(),
-                        ),
+    @Test fun emitsScreenContainsAndLiteralTextExpressions() {
+        val script = generator.generate(
+            de.visualtasker.blockeditor.ir.IrScript(
+                "semantic-expressions",
+                listOf(
+                    de.visualtasker.blockeditor.ir.IrStatement.While(
+                        de.visualtasker.blockeditor.ir.IrExpression.ScreenContains("Ready"),
+                        emptyList(),
+                    ),
+                    de.visualtasker.blockeditor.ir.IrStatement.If(
+                        condition = de.visualtasker.blockeditor.ir.IrExpression.LiteralText("manual condition"),
+                        thenBranch = emptyList(),
                     ),
                 ),
-            )
-        }
-        assertTrue(failure.message!!.contains("Unsupported demo EMScript expression"))
+            ),
+        )
+        assertEquals("while (screenContains(\"Ready\")) {\n}\nif (\"manual condition\") {\n}", script)
+    }
+
+    @Test fun allowsUnknownCustomCommandCallsAfterNameSanitizing() {
+        val script = generator.generate(
+            de.visualtasker.blockeditor.ir.IrScript(
+                "custom-command",
+                listOf(de.visualtasker.blockeditor.ir.IrStatement.CommandCall("Custom.Plugin.run", "\"payload\"")),
+            ),
+        )
+        assertEquals("Custom.Plugin.run(\"payload\");", script)
+    }
+
+    @Test fun escapesControlCharactersInTextLiterals() {
+        val script = generator.generate(
+            de.visualtasker.blockeditor.ir.IrScript(
+                "escaped-text",
+                listOf(
+                    de.visualtasker.blockeditor.ir.IrStatement.ClickText("A\tB"),
+                    de.visualtasker.blockeditor.ir.IrStatement.Log("line 1\nline 2"),
+                    de.visualtasker.blockeditor.ir.IrStatement.While(
+                        de.visualtasker.blockeditor.ir.IrExpression.ScreenContains("He said \"OK\""),
+                        emptyList(),
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals(
+            "click(\"A\\tB\");\nlog(\"line 1\\nline 2\");\nwhile (screenContains(\"He said \\\"OK\\\"\")) {\n}",
+            script,
+        )
     }
 }

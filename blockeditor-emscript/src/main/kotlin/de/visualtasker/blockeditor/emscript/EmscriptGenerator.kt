@@ -24,7 +24,10 @@ class EmscriptGenerator(
 
     private fun StringBuilder.appendStatement(statement: IrStatement, depth: Int) {
         when (statement) {
-            is IrStatement.CommandCall -> appendLine(depth, "${sanitizeCommandName(statement.command)}(${statement.arguments});")
+            is IrStatement.CommandCall -> {
+                val command = sanitizeCommandName(statement.command)
+                appendLine(depth, "$command(${statement.arguments});")
+            }
             is IrStatement.ClickText -> appendLine(depth, "click(\"${escape(statement.text)}\");")
             is IrStatement.Wait -> appendLine(depth, "wait(${statement.milliseconds});")
             is IrStatement.Beep -> appendLine(depth, "${statement.toEmscript()};")
@@ -33,7 +36,7 @@ class EmscriptGenerator(
             is IrStatement.SetVariable -> {
                 val name = sanitizeIdentifier(statement.name, "variable")
                 require(isSafeScalarExpression(statement.value)) {
-                    "Unsupported demo set expression: ${statement.value}"
+                    "Unsupported EMScript set expression: ${statement.value}"
                 }
                 appendLine(depth, "set $name = ${statement.value};")
             }
@@ -65,14 +68,14 @@ class EmscriptGenerator(
     }
 
     private fun emitExpression(expression: IrExpression): String = when (expression) {
-        is IrExpression.ScreenContains -> unsupportedExpression("screenContains")
+        is IrExpression.ScreenContains -> "screenContains(\"${escape(expression.text)}\")"
         is IrExpression.And -> "(${emitExpression(expression.left)} && ${emitExpression(expression.right)})"
         is IrExpression.Or -> "(${emitExpression(expression.left)} || ${emitExpression(expression.right)})"
         is IrExpression.GetVariable -> sanitizeIdentifier(expression.name, "variable reference")
         is IrExpression.LiteralBoolean -> if (expression.value) "true" else "false"
         is IrExpression.LiteralNumber -> expression.value.toStableNumber()
         is IrExpression.LiteralString -> "\"${escape(expression.value)}\""
-        is IrExpression.LiteralText -> unsupportedExpression("text condition")
+        is IrExpression.LiteralText -> "\"${escape(expression.value)}\""
         is IrExpression.Compare -> {
             val operator = when (val normalized = OperatorNormalization.normalize(expression.operator)) {
                 is NormalizedOperator.Compare -> normalized.value.symbol
@@ -98,6 +101,9 @@ class EmscriptGenerator(
     private fun escape(value: String): String = value
         .replace("\\", "\\\\")
         .replace("\"", "\\\"")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
 
     private fun IrStatement.Beep.toEmscript(): String {
         val frequency = frequency.coerceIn(20, 20_000)
@@ -158,5 +164,5 @@ class EmscriptGenerator(
         }
 
     private fun unsupportedExpression(kind: String): Nothing =
-        error("Unsupported demo EMScript expression: $kind")
+        error("Unsupported EMScript expression: $kind")
 }

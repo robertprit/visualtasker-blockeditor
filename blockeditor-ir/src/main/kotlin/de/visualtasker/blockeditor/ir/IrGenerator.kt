@@ -74,12 +74,12 @@ class IrGenerator(
             BlockTypes.CONTROL_IF_ELSEIF_ELSE -> IrStatement.If(
                 condition = emitValueInput(document, block, "CONDITION"),
                 thenBranch = emitStatementSlot(document, block, BlockTypes.SLOT_THEN),
-                elseIfBranches = listOf(
+                elseIfBranches = block.elseIfSlots().map { (conditionSlot, statementSlot) ->
                     ElseIfBranch(
-                        condition = emitValueInput(document, block, "ELIF_CONDITION"),
-                        body = emitStatementSlot(document, block, BlockTypes.SLOT_ELIF),
-                    ),
-                ),
+                        condition = emitValueInput(document, block, conditionSlot),
+                        body = emitStatementSlot(document, block, statementSlot),
+                    )
+                },
                 elseBranch = emitStatementSlot(document, block, BlockTypes.SLOT_ELSE),
             )
             else -> {
@@ -110,6 +110,25 @@ class IrGenerator(
         val head = WorkspaceGraph.statementStackHead(document, block.id, slotName) ?: return emptyList()
         return emitChain(document, head)
     }
+
+    private fun BlockNode.elseIfSlots(): List<Pair<String, String>> =
+        valueInputs
+            .mapNotNull { input ->
+                when (input.name) {
+                    "ELIF_CONDITION" -> input.name to BlockTypes.SLOT_ELIF
+                    else -> input.name
+                        .removePrefix("ELIF_CONDITION_")
+                        .takeIf { it != input.name && it.toIntOrNull() != null }
+                        ?.let { input.name to "ELIF_$it" }
+                }
+            }
+            .sortedBy { (conditionSlot, _) ->
+                if (conditionSlot == "ELIF_CONDITION") {
+                    0
+                } else {
+                    conditionSlot.removePrefix("ELIF_CONDITION_").toIntOrNull() ?: Int.MAX_VALUE
+                }
+            }
 
     private fun emitValueInput(
         document: WorkspaceDocument,

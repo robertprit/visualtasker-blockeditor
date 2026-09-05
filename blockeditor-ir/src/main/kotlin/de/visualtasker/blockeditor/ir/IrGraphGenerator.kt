@@ -165,7 +165,7 @@ class IrGraphGenerator(
                 edges = edges,
                 source = valueBlockId.irNodeId(),
                 target = blockId.irNodeId(),
-                kind = if (input.name.endsWith("CONDITION")) IrGraphEdgeKind.CONDITION else IrGraphEdgeKind.DATA_FLOW,
+                kind = if (input.name.isConditionInput()) IrGraphEdgeKind.CONDITION else IrGraphEdgeKind.DATA_FLOW,
                 label = input.name,
                 sourceRef = sourceRef(document, blockId, input.name),
             )
@@ -197,7 +197,7 @@ class IrGraphGenerator(
                 index = branchIndex,
                 slotName = input.name,
                 scopeId = branchRef.id,
-                conditionNodeId = conditionNodeForBranch(document, block, role),
+                conditionNodeId = conditionNodeForBranch(document, block, role, input.name),
                 bodyEntryNodeId = head.irNodeId(),
                 source = sourceRef(document, blockId, input.name, branchRef),
             )
@@ -337,7 +337,7 @@ class IrGraphGenerator(
                 IrPortProperty(
                     name = input.name,
                     label = input.name,
-                    kind = if (input.name.endsWith("CONDITION")) IrGraphEdgeKind.CONDITION else IrGraphEdgeKind.DATA_FLOW,
+                    kind = if (input.name.isConditionInput()) IrGraphEdgeKind.CONDITION else IrGraphEdgeKind.DATA_FLOW,
                 )
             )
         }
@@ -462,19 +462,37 @@ class IrGraphGenerator(
         BlockTypes.SLOT_THEN -> IrGraphEdgeKind.TRUE_BRANCH
         BlockTypes.SLOT_ELSE -> IrGraphEdgeKind.FALSE_BRANCH
         BlockTypes.SLOT_ELIF -> IrGraphEdgeKind.ELSE_IF_BRANCH
-        BlockTypes.SLOT_DO,
-        BlockTypes.SLOT_BODY -> IrGraphEdgeKind.LOOP_BODY
-        else -> IrGraphEdgeKind.SEQUENCE
+        else -> if (slotName.startsWith("ELIF_")) {
+            IrGraphEdgeKind.ELSE_IF_BRANCH
+        } else if (slotName == BlockTypes.SLOT_DO || slotName == BlockTypes.SLOT_BODY) {
+            IrGraphEdgeKind.LOOP_BODY
+        } else {
+            IrGraphEdgeKind.SEQUENCE
+        }
     }
 
     private fun branchRoleForStatementSlot(slotName: String): IrGraphBranchRole = when (slotName) {
         BlockTypes.SLOT_THEN -> IrGraphBranchRole.THEN
         BlockTypes.SLOT_ELSE -> IrGraphBranchRole.ELSE
         BlockTypes.SLOT_ELIF -> IrGraphBranchRole.ELSE_IF
-        BlockTypes.SLOT_DO,
-        BlockTypes.SLOT_BODY -> IrGraphBranchRole.LOOP_BODY
-        else -> IrGraphBranchRole.THEN
+        else -> if (slotName.startsWith("ELIF_")) {
+            IrGraphBranchRole.ELSE_IF
+        } else if (slotName == BlockTypes.SLOT_DO || slotName == BlockTypes.SLOT_BODY) {
+            IrGraphBranchRole.LOOP_BODY
+        } else {
+            IrGraphBranchRole.THEN
+        }
     }
+
+    private fun String.isConditionInput(): Boolean =
+        this == "CONDITION" || startsWith("ELIF_CONDITION")
+
+    private fun elseIfConditionInputForSlot(slotName: String): String =
+        if (slotName == BlockTypes.SLOT_ELIF) {
+            "ELIF_CONDITION"
+        } else {
+            "ELIF_CONDITION_${slotName.removePrefix("ELIF_")}"
+        }
 
     private fun branchLabel(role: IrGraphBranchRole, index: Int): String = when (role) {
         IrGraphBranchRole.THEN -> "Then"
@@ -487,9 +505,10 @@ class IrGraphGenerator(
         document: WorkspaceDocument,
         block: BlockNode,
         role: IrGraphBranchRole,
+        slotName: String,
     ): IrGraphNodeId? {
         val inputName = when (role) {
-            IrGraphBranchRole.ELSE_IF -> "ELIF_CONDITION"
+            IrGraphBranchRole.ELSE_IF -> elseIfConditionInputForSlot(slotName)
             IrGraphBranchRole.THEN,
             IrGraphBranchRole.ELSE,
             IrGraphBranchRole.LOOP_BODY -> "CONDITION"

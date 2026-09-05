@@ -233,7 +233,7 @@ object VisualTaskerCommandCatalog : CommandCatalog {
                 CommandArgument("imagePath", CommandArgumentType.IMAGE_TEMPLATE, defaultValue = ""),
                 CommandArgument("threshold", CommandArgumentType.PERCENT, defaultValue = "0.82"),
                 CommandArgument("timeoutMs", CommandArgumentType.DURATION_MS, defaultValue = "3000"),
-                CommandArgument("retryCount", CommandArgumentType.NUMBER, defaultValue = "1"),
+                CommandArgument("retryCount", CommandArgumentType.NUMBER, required = false, defaultValue = "1"),
                 CommandArgument("searchRegion", CommandArgumentType.REGION, required = false, defaultValue = ""),
             ),
         ),
