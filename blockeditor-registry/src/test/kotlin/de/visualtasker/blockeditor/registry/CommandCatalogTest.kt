@@ -122,6 +122,29 @@ class CommandCatalogTest {
     }
 
     @Test
+    fun plannedAdapterCommandsDeclareArgumentSchemasForEditorsAndParser() {
+        assertArgumentNames("chromeTab.create", "url", "options")
+        assertArgumentNames("chromeTab.validateRelationship", "origin", "relation")
+        assertArgumentNames("tasker.pluginAction", "plugin", "action", "args")
+        assertArgumentNames("tasker.getVariable", "name")
+        assertArgumentNames("shizuku.call", "service", "method", "args")
+        assertArgumentNames("termux.writeStdin", "sessionId", "text")
+        assertArgumentNames("scrcpy.scroll", "x", "y", "deltaY", "deltaX")
+        assertArgumentNames("scrcpy.setScreenPower", "on")
+        assertArgumentNames("chart.setData", "id", "data")
+        assertArgumentNames("chart.capture", "id", "path")
+
+        val noArgCommands = listOf(
+            "chromeTab.isSupported",
+            "tasker.isInstalled",
+            "shizuku.requestPermission",
+            "termux.canRunCommands",
+            "scrcpy.devices",
+        )
+        assertTrue(noArgCommands.all { VisualTaskerCommandCatalog.findById(it)?.arguments?.isEmpty() == true })
+    }
+
+    @Test
     fun catalogMetadataHelperReturnsStableBlockMetadata() {
         val metadata = VisualTaskerCommandCatalog.metadataForBlockType(BlockTypes.FEEDBACK_VIBRATE)
 
@@ -184,5 +207,11 @@ class CommandCatalogTest {
         assertTrue(entry.capabilities.contains(capability))
         assertEquals(blockType, entry.block?.blockType)
         assertEquals(capability, entry.runtime?.liveCapabilityGate)
+    }
+
+    private fun assertArgumentNames(commandId: String, vararg names: String) {
+        val entry = VisualTaskerCommandCatalog.findById(commandId)
+        assertNotNull(entry)
+        assertEquals(names.toList(), entry!!.arguments.map { it.name })
     }
 }
