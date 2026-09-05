@@ -4,6 +4,7 @@ package de.visualtasker.blockeditor.compose.ui
 
 import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -68,6 +69,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.DpOffset
@@ -128,6 +131,8 @@ fun BlockEditorScaffold(
     showBottomPanelToggle: Boolean = true,
     showBlockFactoryEntry: Boolean = true,
     gridEnabled: Boolean = true,
+    showMiniMap: Boolean = true,
+    showTopIconBar: Boolean = true,
     paletteInsertMode: BlockPaletteInsertMode = BlockPaletteInsertMode.TapToAdd,
     extraCategories: List<BlockCategories.CategoryMeta> = emptyList(),
     onFitWorkspace: () -> Unit,
@@ -191,6 +196,8 @@ fun BlockEditorScaffold(
         showBottomPanelToggle = showBottomPanelToggle,
         showBlockFactoryEntry = showBlockFactoryEntry,
         gridEnabled = gridEnabled,
+        showMiniMap = showMiniMap,
+        showTopIconBar = showTopIconBar,
         paletteInsertMode = paletteInsertMode,
         extraCategories = extraCategories,
         onFitWorkspace = onFitWorkspace,
@@ -260,6 +267,7 @@ fun BlockEditorScaffold(
     gridEnabled: Boolean = true,
     paletteInsertMode: BlockPaletteInsertMode = BlockPaletteInsertMode.TapToAdd,
     extraCategories: List<BlockCategories.CategoryMeta> = emptyList(),
+    showTopIconBar: Boolean = true,
     onFitWorkspace: () -> Unit,
     onAutoArrangeWorkspace: () -> Unit,
     onSaveWorkspace: (() -> Unit)? = null,
@@ -289,6 +297,7 @@ fun BlockEditorScaffold(
     modifier: Modifier = Modifier,
     soundEffectsEnabled: Boolean = false,
     hapticFeedbackEnabled: Boolean = false,
+    showMiniMap: Boolean = true,
     visualPathProvider: BlockVisualPathProvider,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -486,6 +495,7 @@ fun BlockEditorScaffold(
                         gridVisible = gridVisible,
                         visualPathProvider = visualPathProvider,
                     )
+                    if (showTopIconBar) {
                     BlockEditorIconBar(
                         selectedBlockAvailable = selectedBlockIds.isNotEmpty(),
                         selectedBlockCollapsed = selectedBlockCollapsed,
@@ -561,12 +571,40 @@ fun BlockEditorScaffold(
                             .align(Alignment.TopStart)
                             .padding(8.dp),
                     )
+                    }
                     TrashDropTarget(
                         active = deleteCandidate,
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
                             .padding(16.dp),
                     )
+                    FloatingViewportControls(
+                        onZoomIn = {
+                            onZoomIn()
+                            playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                        },
+                        onZoomOut = {
+                            onZoomOut()
+                            playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                        },
+                        onFitWorkspace = {
+                            onFitWorkspace()
+                            playEditorFeedback(platformView, haptic, BlockEditorFeedbackEvent.Command, soundEffectsEnabled, hapticFeedbackEnabled)
+                        },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 30.dp, bottom = 120.dp),
+                    )
+                    if (showMiniMap) {
+                        BlockEditorMiniMap(
+                            layoutCache = layoutCache,
+                            viewport = viewport,
+                            canvasSize = canvasSize,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 62.dp, end = 14.dp),
+                        )
+                    }
                     BlockContextDropdown(
                         request = blockContextMenuRequest,
                         blockInfo = blockInfo,
@@ -718,6 +756,110 @@ private fun BlockEditorInspectorBottomSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f, fill = true),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FloatingViewportControls(
+    onZoomIn: () -> Unit,
+    onZoomOut: () -> Unit,
+    onFitWorkspace: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        tonalElevation = 3.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            BlockEditorToolbarIconButton(
+                description = "Vergrößern",
+                icon = Icons.Filled.ZoomIn,
+                onClick = onZoomIn,
+            )
+            BlockEditorToolbarIconButton(
+                description = "Verkleinern",
+                icon = Icons.Filled.ZoomOut,
+                onClick = onZoomOut,
+            )
+            BlockEditorToolbarIconButton(
+                description = "Workspace einpassen",
+                icon = Icons.Filled.CenterFocusStrong,
+                onClick = onFitWorkspace,
+            )
+        }
+    }
+}
+
+@Composable
+private fun BlockEditorMiniMap(
+    layoutCache: LayoutCache,
+    viewport: ViewportState,
+    canvasSize: Offset2,
+    modifier: Modifier = Modifier,
+) {
+    val blocks = layoutCache.flatIndex.visibleBlocks
+    if (blocks.size <= 1 || canvasSize.x <= 0f || canvasSize.y <= 0f) return
+    val left = blocks.minOf { it.subtreeBounds.x }
+    val top = blocks.minOf { it.subtreeBounds.y }
+    val right = blocks.maxOf { it.subtreeBounds.right }
+    val bottom = blocks.maxOf { it.subtreeBounds.bottom }
+    val contentWidth = (right - left).coerceAtLeast(1f)
+    val contentHeight = (bottom - top).coerceAtLeast(1f)
+    val miniWidth = 112.dp
+    val miniHeight = 78.dp
+    val viewportColor = MaterialTheme.colorScheme.primary
+    Surface(
+        modifier = modifier.size(width = miniWidth, height = miniHeight),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.66f),
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        tonalElevation = 2.dp,
+    ) {
+        Canvas(Modifier.fillMaxSize().padding(7.dp)) {
+            val scale = minOf(size.width / contentWidth, size.height / contentHeight)
+            val drawWidth = contentWidth * scale
+            val drawHeight = contentHeight * scale
+            val offsetX = (size.width - drawWidth) / 2f
+            val offsetY = (size.height - drawHeight) / 2f
+            blocks.forEach { block ->
+                val bounds = block.subtreeBounds
+                drawRoundRect(
+                    color = Color(0xFFBDA7FF).copy(alpha = 0.64f),
+                    topLeft = androidx.compose.ui.geometry.Offset(
+                        offsetX + (bounds.x - left) * scale,
+                        offsetY + (bounds.y - top) * scale,
+                    ),
+                    size = Size(
+                        (bounds.width * scale).coerceAtLeast(2f),
+                        (bounds.height * scale).coerceAtLeast(2f),
+                    ),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f, 2f),
+                )
+            }
+            val visibleLeft = -viewport.panX / viewport.scale
+            val visibleTop = -viewport.panY / viewport.scale
+            val visibleRight = (canvasSize.x - viewport.panX) / viewport.scale
+            val visibleBottom = (canvasSize.y - viewport.panY) / viewport.scale
+            drawRect(
+                color = viewportColor,
+                topLeft = androidx.compose.ui.geometry.Offset(
+                    offsetX + (visibleLeft - left) * scale,
+                    offsetY + (visibleTop - top) * scale,
+                ),
+                size = Size(
+                    ((visibleRight - visibleLeft) * scale).coerceAtLeast(4f),
+                    ((visibleBottom - visibleTop) * scale).coerceAtLeast(4f),
+                ),
+                style = Stroke(width = 1.4.dp.toPx()),
             )
         }
     }

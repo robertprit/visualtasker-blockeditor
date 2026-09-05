@@ -19,5 +19,7 @@ data class BlockEditorHostUiConfig(
     val soundEffectsEnabled: Boolean = false,
     val hapticFeedbackEnabled: Boolean = false,
     val gridEnabled: Boolean = true,
+    val showMiniMap: Boolean = true,
+    val showTopIconBar: Boolean = true,
     val extraCategories: List<BlockCategories.CategoryMeta> = emptyList(),
 )

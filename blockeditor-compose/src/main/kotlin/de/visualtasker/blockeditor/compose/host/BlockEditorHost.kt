@@ -69,6 +69,8 @@ fun BlockEditorHost(
         extraCategories = uiConfig.extraCategories,
         showBlockFactoryEntry = uiConfig.showBlockFactoryEntry,
         gridEnabled = uiConfig.gridEnabled,
+        showMiniMap = uiConfig.showMiniMap,
+        showTopIconBar = uiConfig.showTopIconBar,
         paletteInsertMode = uiConfig.paletteInsertMode,
         onCategoryClick = controller::onCategoryClick,
         onDismissCategory = controller::dismissCategory,
