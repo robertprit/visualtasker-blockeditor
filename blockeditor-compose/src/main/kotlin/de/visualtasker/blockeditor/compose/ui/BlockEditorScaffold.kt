@@ -342,7 +342,6 @@ fun BlockEditorScaffold(
         latestDragPoint?.let { isInTrashZone(it, canvasSize, trashSizePx, trashMarginPx) } == true
     var previousSnapTarget by remember { mutableStateOf<String?>(null) }
 
-    val workspaceOutlineColor = scheme.outlineVariant.copy(alpha = 0.55f)
     val workspaceShape = RoundedCornerShape(30.dp)
     BackHandler(
         enabled = showBlockFactory || expandedCategory != null || showBottomPanel,
@@ -385,15 +384,10 @@ fun BlockEditorScaffold(
                     Box(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth()
-                        .clip(workspaceShape)
-                        .background(colors.workspaceBackground)
-                        .border(
-                            width = 1.dp,
-                            color = workspaceOutlineColor,
-                            shape = workspaceShape,
-                        )
-                        .onSizeChanged { size ->
+	                        .fillMaxWidth()
+	                        .clip(workspaceShape)
+	                        .background(colors.workspaceBackground)
+	                        .onSizeChanged { size ->
                             val nextSize = Offset2(size.width.toFloat(), size.height.toFloat())
                             if (!sameCanvasSize(canvasSize, nextSize)) {
                                 canvasSize = nextSize

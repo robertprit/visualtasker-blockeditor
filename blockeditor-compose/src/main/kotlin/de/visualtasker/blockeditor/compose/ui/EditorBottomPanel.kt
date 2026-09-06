@@ -4,16 +4,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -162,6 +163,11 @@ fun BlockInfoCard(
         }
 
         val accent = Color(info.categoryAccentArgb)
+        BlockInspectorHeader(
+            info = info,
+            accent = accent,
+            onReplaceBlockType = onReplaceBlockType,
+        )
         InspectorActions(
             info = info,
             onToggleBlockActive = onToggleBlockActive,
@@ -170,8 +176,6 @@ fun BlockInfoCard(
             onAddBranch = onAddBranch,
             onRemoveBranch = onRemoveBranch,
         )
-        InfoRow("Typ", info.label)
-        InfoRow("ID", info.typeId, mono = true)
         CategoryBadge(info.categoryLabel, accent)
         NoteEditor(
             blockId = info.blockId,
@@ -220,6 +224,79 @@ fun BlockInfoCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BlockInspectorHeader(
+    info: BlockInfoSnapshot,
+    accent: Color,
+    onReplaceBlockType: (String) -> Boolean,
+) {
+    var typeMenuExpanded by remember(info.blockId, info.typeId) { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = info.label,
+                onValueChange = {},
+                readOnly = true,
+                singleLine = true,
+                label = { Text("Anzeige-Label") },
+                modifier = Modifier.weight(1f),
+            )
+            Surface(
+                modifier = Modifier.size(42.dp),
+                shape = MaterialTheme.shapes.medium,
+                color = accent.copy(alpha = 0.86f),
+                tonalElevation = 2.dp,
+            ) {}
+        }
+        Box {
+            OutlinedTextField(
+                value = info.typeOptions.firstOrNull { it.typeId == info.typeId }?.let {
+                    "${it.label} · ${it.categoryLabel}"
+                } ?: "${info.label} · ${info.categoryLabel}",
+                onValueChange = {},
+                readOnly = true,
+                enabled = info.typeOptions.size > 1,
+                singleLine = true,
+                label = { Text("Typ ändern") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeMenuExpanded) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = info.typeOptions.size > 1) { typeMenuExpanded = true },
+            )
+            DropdownMenu(
+                expanded = typeMenuExpanded,
+                onDismissRequest = { typeMenuExpanded = false },
+            ) {
+                info.typeOptions
+                    .groupBy { it.categoryLabel }
+                    .forEach { (category, options) ->
+                        DropdownMenuItem(
+                            text = { Text(category, color = MaterialTheme.colorScheme.primary) },
+                            enabled = false,
+                            onClick = {},
+                        )
+                        options.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option.label) },
+                                enabled = option.typeId != info.typeId,
+                                onClick = {
+                                    typeMenuExpanded = false
+                                    onReplaceBlockType(option.typeId)
+                                },
+                            )
+                        }
+                    }
+            }
+        }
+        InfoRow("ID", info.typeId, mono = true)
+    }
+}
+
 @Composable
 private fun InspectorActions(
     info: BlockInfoSnapshot,
@@ -229,7 +306,6 @@ private fun InspectorActions(
     onAddBranch: () -> Boolean,
     onRemoveBranch: () -> Boolean,
 ) {
-    var typeMenuExpanded by remember(info.blockId, info.typeId) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -245,29 +321,6 @@ private fun InspectorActions(
                 onClick = { onToggleBlockCollapse() },
                 label = { Text(if (info.collapsed) "Ausklappen" else "Einklappen") },
             )
-            Box {
-                IconButton(
-                    onClick = { typeMenuExpanded = true },
-                    enabled = info.typeOptions.size > 1,
-                ) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = "Typ ändern")
-                }
-                DropdownMenu(
-                    expanded = typeMenuExpanded,
-                    onDismissRequest = { typeMenuExpanded = false },
-                ) {
-                    info.typeOptions.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text("${option.label} · ${option.categoryLabel}") },
-                            enabled = option.typeId != info.typeId,
-                            onClick = {
-                                typeMenuExpanded = false
-                                onReplaceBlockType(option.typeId)
-                            },
-                        )
-                    }
-                }
-            }
         }
         if (info.branchCount > 0) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

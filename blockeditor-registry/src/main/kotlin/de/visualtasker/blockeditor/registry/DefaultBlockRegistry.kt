@@ -92,7 +92,7 @@ object DefaultBlockRegistry : BlockRegistry {
         BlockDefinition(
             id = BlockTypes.ACTION_FIND_TEMPLATE,
             label = "Find Template",
-            category = "action",
+            category = BlockCategories.PERCEPTION,
             hasPrevious = true,
             hasNext = true,
             fields = listOf(
