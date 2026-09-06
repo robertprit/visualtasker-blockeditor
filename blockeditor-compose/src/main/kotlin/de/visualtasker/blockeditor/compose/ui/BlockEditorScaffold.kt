@@ -68,6 +68,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -602,9 +604,15 @@ fun BlockEditorScaffold(
                             canvasSize = canvasSize,
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .padding(top = 62.dp, end = 14.dp),
+                                .padding(top = 14.dp, end = 14.dp),
                         )
                     }
+                    BlockEditorViewportScrollbars(
+                        layoutCache = layoutCache,
+                        viewport = viewport,
+                        canvasSize = canvasSize,
+                        modifier = Modifier.matchParentSize(),
+                    )
                     BlockContextDropdown(
                         request = blockContextMenuRequest,
                         blockInfo = blockInfo,
@@ -861,6 +869,55 @@ private fun BlockEditorMiniMap(
                 ),
                 style = Stroke(width = 1.4.dp.toPx()),
             )
+        }
+    }
+}
+
+@Composable
+private fun BlockEditorViewportScrollbars(
+    layoutCache: LayoutCache,
+    viewport: ViewportState,
+    canvasSize: Offset2,
+    modifier: Modifier = Modifier,
+) {
+    val blocks = layoutCache.flatIndex.visibleBlocks
+    if (blocks.isEmpty() || canvasSize.x <= 0f || canvasSize.y <= 0f || viewport.scale <= 0f) return
+    val visibleLeft = -viewport.panX / viewport.scale
+    val visibleTop = -viewport.panY / viewport.scale
+    val visibleRight = (canvasSize.x - viewport.panX) / viewport.scale
+    val visibleBottom = (canvasSize.y - viewport.panY) / viewport.scale
+    val contentLeft = minOf(blocks.minOf { it.subtreeBounds.x }, visibleLeft)
+    val contentTop = minOf(blocks.minOf { it.subtreeBounds.y }, visibleTop)
+    val contentRight = maxOf(blocks.maxOf { it.subtreeBounds.right }, visibleRight)
+    val contentBottom = maxOf(blocks.maxOf { it.subtreeBounds.bottom }, visibleBottom)
+    val contentWidth = (contentRight - contentLeft).coerceAtLeast(1f)
+    val contentHeight = (contentBottom - contentTop).coerceAtLeast(1f)
+    val visibleWidth = (visibleRight - visibleLeft).coerceAtLeast(1f)
+    val visibleHeight = (visibleBottom - visibleTop).coerceAtLeast(1f)
+    if (contentWidth <= visibleWidth * 1.01f && contentHeight <= visibleHeight * 1.01f) return
+    val thumbColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.58f)
+    Canvas(modifier) {
+        val inset = 8.dp.toPx()
+        val thickness = 3.dp.toPx()
+        val minThumb = 28.dp.toPx()
+        val trackColor = Color.White.copy(alpha = 0.08f)
+        if (contentHeight > visibleHeight * 1.01f) {
+            val trackTop = inset
+            val trackHeight = size.height - inset * 2f
+            val thumbHeight = (trackHeight * visibleHeight / contentHeight).coerceIn(minThumb, trackHeight)
+            val thumbTop = trackTop + ((visibleTop - contentTop) / contentHeight).coerceIn(0f, 1f) * (trackHeight - thumbHeight)
+            val x = size.width - inset - thickness
+            drawRoundRect(trackColor, Offset(x, trackTop), Size(thickness, trackHeight), CornerRadius(thickness, thickness))
+            drawRoundRect(thumbColor, Offset(x, thumbTop), Size(thickness, thumbHeight), CornerRadius(thickness, thickness))
+        }
+        if (contentWidth > visibleWidth * 1.01f) {
+            val trackLeft = inset
+            val trackWidth = size.width - inset * 2f
+            val thumbWidth = (trackWidth * visibleWidth / contentWidth).coerceIn(minThumb, trackWidth)
+            val thumbLeft = trackLeft + ((visibleLeft - contentLeft) / contentWidth).coerceIn(0f, 1f) * (trackWidth - thumbWidth)
+            val y = size.height - inset - thickness
+            drawRoundRect(trackColor, Offset(trackLeft, y), Size(trackWidth, thickness), CornerRadius(thickness, thickness))
+            drawRoundRect(thumbColor, Offset(thumbLeft, y), Size(thumbWidth, thickness), CornerRadius(thickness, thickness))
         }
     }
 }
