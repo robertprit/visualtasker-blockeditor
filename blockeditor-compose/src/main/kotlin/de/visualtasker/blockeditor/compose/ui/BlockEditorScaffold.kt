@@ -60,6 +60,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -714,7 +715,15 @@ private fun BlockEditorInspectorBottomSheet(
     var sheetHeightDp by remember { mutableFloatStateOf(128f) }
     Surface(
         modifier = modifier
-            .height(sheetHeightDp.dp),
+            .height(sheetHeightDp.dp)
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Final)
+                        event.changes.forEach { change -> change.consume() }
+                    }
+                }
+            },
         shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 14.dp, bottomEnd = 14.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
         contentColor = MaterialTheme.colorScheme.onSurface,
