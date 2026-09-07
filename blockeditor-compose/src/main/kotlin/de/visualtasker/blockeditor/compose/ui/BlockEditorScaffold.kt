@@ -60,7 +60,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -338,6 +337,11 @@ fun BlockEditorScaffold(
     var blockDragActive by remember { mutableStateOf(false) }
     var latestDragPoint by remember { mutableStateOf<Offset2?>(null) }
     var canvasSize by remember { mutableStateOf(Offset2(0f, 0f)) }
+    var floatingInspectorHeightDp by remember { mutableFloatStateOf(128f) }
+    val floatingInspectorHeightPx = with(density) { floatingInspectorHeightDp.dp.toPx() }
+    val shouldHandleWorkspacePointerStart: (Offset2) -> Boolean = { point ->
+        !showFloatingInspector || point.y < canvasSize.y - floatingInspectorHeightPx - trashMarginPx
+    }
     val gridVisible = gridEnabled
     val deleteCandidate = blockDragActive &&
         latestDragPoint?.let { isInTrashZone(it, canvasSize, trashSizePx, trashMarginPx) } == true
@@ -479,6 +483,7 @@ fun BlockEditorScaffold(
                                 blockDragActive = it
                                 if (!it) latestDragPoint = null
                             },
+                            shouldHandleStart = shouldHandleWorkspacePointerStart,
                         ),
                     ) {
                     EditorCanvasLayer(
@@ -659,6 +664,8 @@ fun BlockEditorScaffold(
 	                            onAddBranch = onAddSelectedIfBranch,
 	                            onRemoveBranch = onRemoveSelectedIfBranch,
 	                            onUpdateBlockNote = onUpdateBlockNote,
+	                            heightDp = floatingInspectorHeightDp,
+	                            onHeightChange = { floatingInspectorHeightDp = it },
 	                            modifier = Modifier
 	                                .align(Alignment.BottomStart)
 	                                .fillMaxWidth()
@@ -709,21 +716,14 @@ private fun BlockEditorInspectorBottomSheet(
     onAddBranch: () -> Boolean,
     onRemoveBranch: () -> Boolean,
     onUpdateBlockNote: (String) -> Boolean,
+    heightDp: Float,
+    onHeightChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
-    var sheetHeightDp by remember { mutableFloatStateOf(128f) }
     Surface(
         modifier = modifier
-            .height(sheetHeightDp.dp)
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Final)
-                        event.changes.forEach { change -> change.consume() }
-                    }
-                }
-            },
+            .height(heightDp.dp),
         shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 14.dp, bottomEnd = 14.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -744,7 +744,7 @@ private fun BlockEditorInspectorBottomSheet(
                     .pointerInput(Unit) {
                         detectDragGestures { change, dragAmount ->
                             change.consume()
-                            sheetHeightDp = (sheetHeightDp - dragAmount.y / density.density).coerceIn(42f, 300f)
+                            onHeightChange((heightDp - dragAmount.y / density.density).coerceIn(42f, 300f))
                         }
                     }
             )

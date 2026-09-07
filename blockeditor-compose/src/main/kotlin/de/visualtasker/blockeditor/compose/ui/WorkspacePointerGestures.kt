@@ -21,6 +21,7 @@ fun Modifier.workspacePointerGestures(
     onDragEnd: (Offset2) -> Unit,
     onDragCancel: () -> Unit = {},
     onBlockDragActiveChange: (Boolean) -> Unit = {},
+    shouldHandleStart: (Offset2) -> Boolean = { true },
 ): Modifier {
     val viewConfiguration = LocalViewConfiguration.current
     val onTapState = rememberUpdatedState(onTap)
@@ -47,6 +48,9 @@ fun Modifier.workspacePointerGestures(
             )
             val pointerId = down.id
             val start = Offset2(down.position.x, down.position.y)
+            if (!shouldHandleStart(start)) {
+                return@awaitEachGesture
+            }
             val pressDeadline = System.currentTimeMillis() + longPressTimeout
             var longPressReady = false
             var exceededSlop = false
