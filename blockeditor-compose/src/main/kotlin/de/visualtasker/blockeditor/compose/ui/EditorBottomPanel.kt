@@ -148,14 +148,9 @@ fun BlockInfoCard(
         modifier = modifier.verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            text = "Block Info",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
         if (info == null) {
             Text(
-                text = "Kein Block ausgewählt.\nTippen zum Markieren, langes Drücken zum Ziehen.",
+                text = "Kein Block ausgewählt.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -176,7 +171,6 @@ fun BlockInfoCard(
             onAddBranch = onAddBranch,
             onRemoveBranch = onRemoveBranch,
         )
-        CategoryBadge(info.categoryLabel, accent)
         NoteEditor(
             blockId = info.blockId,
             note = info.note,
@@ -217,10 +211,6 @@ fun BlockInfoCard(
                 )
             }
         }
-        if (info.slotContext != null) {
-            InfoRow("Slot", info.slotContext)
-        }
-        InfoRow("Kette", info.chainSummary)
     }
 }
 
@@ -293,7 +283,6 @@ private fun BlockInspectorHeader(
                     }
             }
         }
-        InfoRow("ID", info.typeId, mono = true)
     }
 }
 

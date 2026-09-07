@@ -646,7 +646,7 @@ fun BlockEditorScaffold(
 	                            }
 	                        },
 	                    )
-	                    if (showFloatingInspector && blockInfo != null) {
+	                    if (showFloatingInspector) {
 	                        BlockEditorInspectorBottomSheet(
 	                            blockInfo = blockInfo,
 	                            onFieldChange = onFieldChange,
@@ -660,7 +660,8 @@ fun BlockEditorScaffold(
 	                            onUpdateBlockNote = onUpdateBlockNote,
 	                            modifier = Modifier
 	                                .align(Alignment.BottomCenter)
-	                                .padding(horizontal = 8.dp, vertical = 8.dp),
+	                                .fillMaxWidth(0.72f)
+	                                .padding(start = 8.dp, end = 116.dp, bottom = 4.dp),
 	                        )
 	                    }
 	                }
@@ -697,7 +698,7 @@ fun BlockEditorScaffold(
 
 @Composable
 private fun BlockEditorInspectorBottomSheet(
-    blockInfo: BlockInfoSnapshot,
+    blockInfo: BlockInfoSnapshot?,
     onFieldChange: (String, String) -> Unit,
     onFieldSourceChange: (String, String) -> Unit,
     onSetReporterVisualMode: (de.visualtasker.blockeditor.compose.model.ReporterVisualMode) -> Unit,
@@ -710,10 +711,9 @@ private fun BlockEditorInspectorBottomSheet(
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
-    var sheetHeightDp by remember { mutableFloatStateOf(196f) }
+    var sheetHeightDp by remember { mutableFloatStateOf(128f) }
     Surface(
         modifier = modifier
-            .fillMaxWidth()
             .height(sheetHeightDp.dp),
         shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 14.dp, bottomEnd = 14.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
@@ -735,7 +735,7 @@ private fun BlockEditorInspectorBottomSheet(
                     .pointerInput(Unit) {
                         detectDragGestures { change, dragAmount ->
                             change.consume()
-                            sheetHeightDp = (sheetHeightDp - dragAmount.y / density.density).coerceIn(112f, 340f)
+                            sheetHeightDp = (sheetHeightDp - dragAmount.y / density.density).coerceIn(42f, 300f)
                         }
                     }
             )
