@@ -430,7 +430,7 @@ object DefaultBlockRegistry : BlockRegistry {
                             key = "args",
                             label = "args",
                             kind = FieldKind.TEXT,
-                            defaultValue = entry.arguments.joinToString { it.defaultValue ?: "" },
+                            defaultValue = entry.arguments.joinToString { it.defaultArgumentLiteral() },
                         ),
                     ),
                 )
@@ -444,3 +444,17 @@ object DefaultBlockRegistry : BlockRegistry {
 
     override fun allDefinitions(): List<BlockDefinition> = definitions.values.toList()
 }
+
+private fun CommandArgument.defaultArgumentLiteral(): String {
+    val value = defaultValue.orEmpty()
+    return when (type) {
+        CommandArgumentType.TEXT,
+        CommandArgumentType.IMAGE_TEMPLATE,
+        -> "\"${value.escapeEmscriptString()}\""
+        CommandArgumentType.REGION -> if (value.startsWith("region(")) value else "\"${value.escapeEmscriptString()}\""
+        else -> value
+    }
+}
+
+private fun String.escapeEmscriptString(): String =
+    replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")

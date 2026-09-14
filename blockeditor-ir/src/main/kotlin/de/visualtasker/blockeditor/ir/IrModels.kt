@@ -71,6 +71,7 @@ enum class IrGraphNodeKind {
     DECISION,
     LOOP,
     VALUE,
+    ANNOTATION,
     UNKNOWN,
 }
 

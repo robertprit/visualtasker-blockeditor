@@ -115,7 +115,7 @@ class IrGraphGenerator(
             diagnostics = diagnostics,
             scopes = scopes.values.toList(),
             branches = branches.values.toList(),
-            facets = buildFacets(document, nodes.values.toList(), branches.values.toList()),
+            facets = buildFacets(document, nodes.values.toList(), edges.values.toList(), branches.values.toList()),
         )
     }
 
@@ -267,6 +267,7 @@ class IrGraphGenerator(
             )
         }
         val command = VisualTaskerCommandCatalog.findByBlockType(block.type)
+        val remFlowDirective = RemFlowDirective.parse(command, block.fieldTextOrNull("args").orEmpty())
         return IrGraphNode(
             id = block.id.irNodeId(),
             kind = nodeKind(block),
@@ -279,6 +280,7 @@ class IrGraphGenerator(
                 put("scopeId", scopePath.lastOrNull().orEmpty())
                 putCommandProperties(command)
                 putEditorProperties(block, document)
+                remFlowDirective?.properties()?.let(::putAll)
                 if (block.collapsed) put("collapsed", "true")
                 block.metadata["emscript.source.line"]?.let { put("sourceLine", it) }
                 block.metadata["emscript.source.column"]?.let { put("sourceColumn", it) }
@@ -396,6 +398,10 @@ class IrGraphGenerator(
         BlockTypes.VARIABLES_GET -> IrGraphNodeKind.VALUE
         else -> when {
             block.type.startsWith(BlockTypes.VARIABLE_REPORTER_PREFIX) -> IrGraphNodeKind.VALUE
+            RemFlowDirective.parse(
+                VisualTaskerCommandCatalog.findByBlockType(block.type),
+                block.fieldTextOrNull("args").orEmpty(),
+            ) != null -> IrGraphNodeKind.ANNOTATION
             block.type.startsWith(BlockTypes.EMSCRIPT_COMMAND_PREFIX) -> IrGraphNodeKind.ACTION
             else -> IrGraphNodeKind.UNKNOWN
         }
@@ -541,6 +547,7 @@ class IrGraphGenerator(
     private fun buildFacets(
         document: WorkspaceDocument,
         nodes: List<IrGraphNode>,
+        edges: List<IrGraphEdge>,
         branches: List<IrGraphBranch>,
     ): List<IrGraphFacet> = buildList {
         branches.forEach { branch ->
@@ -575,8 +582,9 @@ class IrGraphGenerator(
                 )
             )
         }
+        val explicitVariableBulk = nodes.any { it.remFlowKind() == RemFlowDirectiveKind.VARIABLE_BULK }
         val variableNodes = nodes.filter { it.properties["blockType"] == BlockTypes.VARIABLE_SET }
-        if (variableNodes.size >= 2) {
+        if (variableNodes.size >= 2 && !explicitVariableBulk) {
             add(
                 IrGraphFacet(
                     id = "facet:variables:${document.id}",
@@ -592,6 +600,129 @@ class IrGraphGenerator(
         nodes.forEach { owner ->
             addAll(editorGroupFacets(owner, nodes))
         }
+        addAll(remFlowFacets(document, nodes, edges))
+    }
+
+    private fun remFlowFacets(
+        document: WorkspaceDocument,
+        nodes: List<IrGraphNode>,
+        edges: List<IrGraphEdge>,
+    ): List<IrGraphFacet> = nodes.mapNotNull { owner ->
+        val kind = owner.remFlowKind() ?: return@mapNotNull null
+        val facetKind = when (kind) {
+            RemFlowDirectiveKind.REGION -> IrGraphFacetKind.COMMENT_MARKER
+            RemFlowDirectiveKind.VARIABLE_BULK -> IrGraphFacetKind.VARIABLE_BULK
+            RemFlowDirectiveKind.EXPRESSION_CAPSULE,
+            RemFlowDirectiveKind.GROUP,
+            -> IrGraphFacetKind.COLLAPSE_GROUP
+            RemFlowDirectiveKind.FLOW_BREAK,
+            RemFlowDirectiveKind.OFF_PAGE_OUT,
+            RemFlowDirectiveKind.OFF_PAGE_IN,
+            RemFlowDirectiveKind.LAYOUT_HINT,
+            -> return@mapNotNull null
+        }
+        val members = remFlowFacetMembers(owner, kind, nodes, edges)
+        IrGraphFacet(
+            id = "facet:rem:${owner.id.value}",
+            kind = facetKind,
+            label = owner.properties["remFlow.name"]
+                ?: owner.properties["remFlow.label"]
+                ?: kind.name.lowercase().replace('_', ' '),
+            scopeId = owner.properties["scopeId"],
+            ownerNodeId = owner.id,
+            nodeIds = members.ifEmpty { listOf(owner.id) },
+            source = owner.source,
+            properties = buildMap {
+                put("editorFacetKind", kind.name.lowercase().replace('_', '-'))
+                put("remFlowKind", kind.name)
+                owner.properties
+                    .filterKeys { it.startsWith(RemFlowDirective.PROPERTY_PREFIX) }
+                    .forEach { (key, value) -> put(key, value) }
+                put("workspaceId", document.id)
+            },
+        )
+    }
+
+    private fun remFlowFacetMembers(
+        owner: IrGraphNode,
+        kind: RemFlowDirectiveKind,
+        nodes: List<IrGraphNode>,
+        edges: List<IrGraphEdge>,
+    ): List<IrGraphNodeId> {
+        val explicit = owner.properties["remFlow.nodes"]
+            ?: owner.properties["remFlow.variables"]
+        val explicitIds = explicit?.let(::parseMemberIds).orEmpty()
+        if (explicitIds.isNotEmpty()) {
+            return nodes.filter { node ->
+                node.id.value in explicitIds ||
+                    node.source.blockId in explicitIds ||
+                    node.properties["variableId"] in explicitIds ||
+                    node.properties["variableLabel"] in explicitIds
+            }.map { it.id }
+        }
+        val ownerScope = owner.properties["scopeId"]
+        return when (kind) {
+            RemFlowDirectiveKind.VARIABLE_BULK -> nodes
+                .filter { it.properties["scopeId"] == ownerScope && it.properties["blockType"] == BlockTypes.VARIABLE_SET }
+                .map { it.id }
+            RemFlowDirectiveKind.EXPRESSION_CAPSULE -> expressionDependencies(owner.id, nodes, edges)
+            RemFlowDirectiveKind.REGION,
+            RemFlowDirectiveKind.GROUP,
+            -> followingSegment(owner, nodes)
+            else -> emptyList()
+        }
+    }
+
+    private fun followingSegment(owner: IrGraphNode, nodes: List<IrGraphNode>): List<IrGraphNodeId> {
+        val ownerIndex = nodes.indexOfFirst { it.id == owner.id }
+        if (ownerIndex < 0) return emptyList()
+        val ownerScope = owner.properties["scopeId"]
+        return nodes.drop(ownerIndex + 1)
+            .takeWhile { candidate ->
+                candidate.properties["scopeId"] == ownerScope && candidate.remFlowKind() !in REM_SEGMENT_BOUNDARIES
+            }
+            .map { it.id }
+    }
+
+    private fun expressionDependencies(
+        ownerId: IrGraphNodeId,
+        nodes: List<IrGraphNode>,
+        edges: List<IrGraphEdge>,
+    ): List<IrGraphNodeId> {
+        val next = edges.firstOrNull { it.sourceNodeId == ownerId && it.kind == IrGraphEdgeKind.SEQUENCE }?.targetNodeId
+            ?: return emptyList()
+        val incoming = edges
+            .filter { it.kind == IrGraphEdgeKind.DATA_FLOW || it.kind == IrGraphEdgeKind.CONDITION }
+            .groupBy { it.targetNodeId }
+        val available = nodes.map { it.id }.toSet()
+        val result = linkedSetOf<IrGraphNodeId>()
+        fun collect(target: IrGraphNodeId) {
+            incoming[target].orEmpty().forEach { edge ->
+                if (edge.sourceNodeId in available && result.add(edge.sourceNodeId)) collect(edge.sourceNodeId)
+            }
+        }
+        collect(next)
+        return result.toList()
+    }
+
+    private fun parseMemberIds(raw: String): Set<String> =
+        raw.trim().removePrefix("[").removeSuffix("]")
+            .split(Regex("[,;|\\s]+"))
+            .map { it.trim().trim('"', '\'') }
+            .filter(String::isNotBlank)
+            .toSet()
+
+    private fun IrGraphNode.remFlowKind(): RemFlowDirectiveKind? =
+        properties[RemFlowDirective.PROPERTY_KIND]?.let { runCatching { RemFlowDirectiveKind.valueOf(it) }.getOrNull() }
+
+    private companion object {
+        val REM_SEGMENT_BOUNDARIES = setOf(
+            RemFlowDirectiveKind.REGION,
+            RemFlowDirectiveKind.GROUP,
+            RemFlowDirectiveKind.FLOW_BREAK,
+            RemFlowDirectiveKind.OFF_PAGE_OUT,
+            RemFlowDirectiveKind.OFF_PAGE_IN,
+        )
     }
 
     private fun editorGroupFacets(

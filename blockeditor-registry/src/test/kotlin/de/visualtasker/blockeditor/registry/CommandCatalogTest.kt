@@ -169,6 +169,7 @@ class CommandCatalogTest {
         assertEquals("visual-metadata", region.runtime?.dryRunBehavior)
         assertEquals(BlockCategories.REM_FLOW_NODES, block!!.category)
         assertEquals("region", block.label)
+        assertEquals("\"region\", \"facet\", \"auto\"", block.fields.first { it.key == "args" }.defaultValue)
         assertArgumentNames("rem.region", "name", "mode", "color")
         assertArgumentNames("rem.flowBreak", "label", "direction")
     }
