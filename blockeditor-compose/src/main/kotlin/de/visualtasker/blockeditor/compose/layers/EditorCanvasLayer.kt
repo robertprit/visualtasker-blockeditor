@@ -1,12 +1,21 @@
 package de.visualtasker.blockeditor.compose.layers
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -15,6 +24,7 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.rememberTextMeasurer
+import de.visualtasker.blockeditor.domain.ConnectionKind
 import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
 import de.visualtasker.blockeditor.compose.render.drawBlock
 import de.visualtasker.blockeditor.compose.render.drawInlineReporterDockSlotOverlays
@@ -32,8 +42,11 @@ import de.visualtasker.blockeditor.layout.LayoutCache
 import de.visualtasker.blockeditor.layout.LayoutConstants
 import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
+import kotlinx.coroutines.launch
 
 private const val GhostBlockAlpha = 0.42f
+private const val BlockPlacementAnimationMillis = 170
+private const val SnapGapMinWidth = 112f
 
 /**
  * Ein Canvas: Hintergrund aus Layout-Vorschau (ohne gezogene Blöcke),
@@ -79,6 +92,10 @@ fun EditorCanvasLayer(
     visualPathProvider: BlockVisualPathProvider,
 ) {
     val textMeasurer = rememberTextMeasurer()
+    val animationScope = rememberCoroutineScope()
+    val animatedBlockPositions = remember {
+        mutableStateMapOf<BlockId, Animatable<Offset, androidx.compose.animation.core.AnimationVector2D>>()
+    }
     val draggedIds = dragRender?.session?.includedBlocks.orEmpty()
     val movesWithDrag: (BlockId) -> Boolean = { blockId ->
         blockId in draggedIds ||
@@ -94,6 +111,30 @@ fun EditorCanvasLayer(
         ?.takeIf { it.session.pullMode == DragPullMode.Single }
         ?.session
         ?.rootBlockId
+    LaunchedEffect(staticLayout.documentVersion) {
+        val targets = staticLayout.flatIndex.visibleBlocks.associate { layout ->
+            layout.blockId to Offset(layout.bounds.x, layout.bounds.y)
+        }
+        (animatedBlockPositions.keys - targets.keys).forEach { blockId ->
+            animatedBlockPositions.remove(blockId)
+        }
+        targets.forEach { (blockId, target) ->
+            val animation = animatedBlockPositions[blockId]
+            if (animation == null) {
+                animatedBlockPositions[blockId] = Animatable(target, Offset.VectorConverter)
+            } else if (animation.targetValue != target) {
+                animationScope.launch {
+                    animation.animateTo(
+                        target,
+                        animationSpec = tween(
+                            durationMillis = BlockPlacementAnimationMillis,
+                            easing = FastOutSlowInEasing,
+                        ),
+                    )
+                }
+            }
+        }
+    }
 
     Canvas(modifier = modifier.fillMaxSize()) {
         if (gridVisible) {
@@ -107,6 +148,8 @@ fun EditorCanvasLayer(
                         if (movesWithDrag(layout.blockId) && layout.blockId != ghostRootId) return@forEach
                         val block = document.blocks[layout.blockId] ?: return@forEach
                         val definition = registry.getDefinition(block.type)
+                        val animatedTopLeft = animatedBlockPositions[layout.blockId]?.value
+                            ?: Offset(layout.bounds.x, layout.bounds.y)
                         val blockTopLeft = Offset2(layout.bounds.x, layout.bounds.y)
                         val (branchDividers, branchSections) = ContainerBranchLayout.containerVisuals(
                             blockId = layout.blockId,
@@ -117,12 +160,12 @@ fun EditorCanvasLayer(
                             .find { it.blockId == layout.blockId }
                             ?.relativeTo(layout)
                         val drawStaticBlock = {
-                            drawBlock(
-                                block = block,
-                                definition = definition,
-                                topLeft = Offset(layout.bounds.x, layout.bounds.y),
-                                width = layout.bounds.width,
-                                height = layout.bounds.height,
+	                            drawBlock(
+	                                block = block,
+	                                definition = definition,
+	                                topLeft = animatedTopLeft,
+	                                width = layout.bounds.width,
+	                                height = layout.bounds.height,
                                 textMeasurer = textMeasurer,
                                 colors = colors,
                                 registry = registry,
@@ -136,10 +179,10 @@ fun EditorCanvasLayer(
                         if (layout.blockId == ghostRootId) {
                             drawContext.canvas.saveLayer(
                                 Rect(
-                                    left = layout.bounds.x,
-                                    top = layout.bounds.y,
-                                    right = layout.bounds.x + layout.bounds.width,
-                                    bottom = layout.bounds.y + layout.bounds.height,
+                                    left = animatedTopLeft.x,
+                                    top = animatedTopLeft.y,
+                                    right = animatedTopLeft.x + layout.bounds.width,
+                                    bottom = animatedTopLeft.y + layout.bounds.height,
                                 ),
                                 Paint().apply { alpha = GhostBlockAlpha },
                             )
@@ -154,10 +197,18 @@ fun EditorCanvasLayer(
                     .forEach { inlineLayout ->
                         if (movesWithDrag(inlineLayout.blockId) && inlineLayout.blockId != ghostRootId) return@forEach
                         val block = document.blocks[inlineLayout.blockId] ?: return@forEach
-                        drawInlineReporterDockSlotOverlays(
-                            block = block,
-                            inlineReporterLayout = inlineLayout,
-                        )
+                        val ownerLayout = staticLayout.flatIndex.visibleBlocks
+                            .find { it.blockId == inlineLayout.blockId }
+                            ?: return@forEach
+                        val animatedTopLeft = animatedBlockPositions[inlineLayout.blockId]?.value
+                            ?: Offset(ownerLayout.bounds.x, ownerLayout.bounds.y)
+                        val relativeInlineLayout = inlineLayout.relativeTo(ownerLayout)
+                        translate(animatedTopLeft.x, animatedTopLeft.y) {
+                            drawInlineReporterDockSlotOverlays(
+                                block = block,
+                                inlineReporterLayout = relativeInlineLayout,
+                            )
+                        }
                     }
 
                 if (dragRender != null && dragOffset != null) {
@@ -209,6 +260,35 @@ fun EditorCanvasLayer(
                     val target = staticLayout.flatIndex.connectionAnchors
                         .find { it.connectionId == snapTargetId }
                     if (target != null) {
+                        val targetOwner = staticLayout.flatIndex.visibleBlocks
+                            .find { it.blockId == target.ownerBlockId }
+                        if (targetOwner != null && target.kind in stackGapConnectionKinds) {
+                            val gapHeight = LayoutConstants.ANCHOR_RADIUS * 1.55f
+                            val gapWidth = when (target.kind) {
+                                ConnectionKind.StatementInput ->
+                                    (targetOwner.bounds.width - LayoutConstants.NESTED_INDENT - LayoutConstants.SLOT_PADDING)
+                                        .coerceAtLeast(SnapGapMinWidth)
+                                else -> (targetOwner.bounds.width * 0.78f).coerceAtLeast(SnapGapMinWidth)
+                            }
+                            val gapLeft = when (target.kind) {
+                                ConnectionKind.StatementInput -> target.x
+                                else -> targetOwner.bounds.x + LayoutConstants.SLOT_PADDING
+                            }
+                            val gapTop = target.y - gapHeight / 2f
+                            drawRoundRect(
+                                color = colors.snapHighlight.copy(alpha = 0.46f),
+                                topLeft = Offset(gapLeft, gapTop),
+                                size = Size(gapWidth, gapHeight),
+                                cornerRadius = CornerRadius(gapHeight / 2f, gapHeight / 2f),
+                            )
+                            drawRoundRect(
+                                color = Color(0xFF31C4FF),
+                                topLeft = Offset(gapLeft, gapTop),
+                                size = Size(gapWidth, gapHeight),
+                                cornerRadius = CornerRadius(gapHeight / 2f, gapHeight / 2f),
+                                style = Stroke(width = 2.5f),
+                            )
+                        }
                         val radius = LayoutConstants.ANCHOR_RADIUS * 2.5f
                         drawCircle(
                             color = colors.snapHighlight,
@@ -227,6 +307,12 @@ fun EditorCanvasLayer(
         }
     }
 }
+
+private val stackGapConnectionKinds = setOf(
+    ConnectionKind.Previous,
+    ConnectionKind.Next,
+    ConnectionKind.StatementInput,
+)
 
 private fun DrawScope.drawBlockEditorDotGrid(
     viewport: ViewportState,

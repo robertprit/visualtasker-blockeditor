@@ -12,16 +12,16 @@ import java.util.UUID
 enum class BlockDesignInputKind {
     STATEMENT,
     VALUE,
-    DUMMY,
-    END_FIELD,
+    END_ROW,
 }
 
 @Serializable
 enum class BlockDesignFieldType {
-    LABEL,
+    TEXT,
     TEXT_INPUT,
-    NUMERIC_INPUT,
-    DROPDOWN_LIST,
+    NUMBER_INPUT,
+    DROPDOWN,
+    RADIO_BUTTONS,
     CHECKBOX,
     VARIABLE,
     IMAGE,
@@ -104,6 +104,36 @@ data class BlockDesignFieldBlueprint(
 )
 
 @Serializable
+enum class BlockDesignElementKind {
+    INPUT,
+    FIELD,
+}
+
+@Serializable
+data class BlockDesignElement(
+    val kind: BlockDesignElementKind,
+    val input: BlockDesignInputDefinition? = null,
+    val field: BlockDesignFieldBlueprint? = null,
+) {
+    init {
+        require((kind == BlockDesignElementKind.INPUT) == (input != null)) {
+            "INPUT element requires input and no field."
+        }
+        require((kind == BlockDesignElementKind.FIELD) == (field != null)) {
+            "FIELD element requires field and no input."
+        }
+    }
+
+    companion object {
+        fun input(input: BlockDesignInputDefinition): BlockDesignElement =
+            BlockDesignElement(BlockDesignElementKind.INPUT, input = input)
+
+        fun field(field: BlockDesignFieldBlueprint): BlockDesignElement =
+            BlockDesignElement(BlockDesignElementKind.FIELD, field = field)
+    }
+}
+
+@Serializable
 data class BlockDesignBlueprint(
     val label: String,
     val category: String = BlockCategories.CUSTOM,
@@ -111,6 +141,7 @@ data class BlockDesignBlueprint(
     val hasNext: Boolean = true,
     val isReporter: Boolean = false,
     val outputType: String? = null,
+    val inputsInline: Boolean = false,
     val fields: List<FieldDefinition> = emptyList(),
     val valueInputs: List<ValueInputDefinition> = emptyList(),
     val statementInputs: List<StatementInputDefinition> = emptyList(),
@@ -121,6 +152,7 @@ data class BlockDesignBlueprint(
     val customConnectionTypes: List<CustomConnectionTypeDefinition> = emptyList(),
     val inputs: List<BlockDesignInputDefinition> = emptyList(),
     val infoFields: List<BlockDesignFieldBlueprint> = emptyList(),
+    val elements: List<BlockDesignElement> = emptyList(),
     val generatorTemplate: String = "",
     val svgPath: String? = null,
     val portHandles: List<BlockDesignPortHandle> = emptyList(),
@@ -135,12 +167,15 @@ object BlockDesignFactory {
 
     fun create(blueprint: BlockDesignBlueprint, id: String = nextId(blueprint.label)): BlockDefinition {
         require(blueprint.label.isNotBlank()) { "Block label required" }
-        val generatedValueInputs = blueprint.inputs
+        val designElements = blueprint.effectiveElements()
+        val generatedValueInputs = designElements.mapNotNull { it.input }
             .filter { it.kind == BlockDesignInputKind.VALUE }
             .map { ValueInputDefinition(it.name, it.label, setOf(it.connectionType)) }
-        val generatedStatementInputs = blueprint.inputs
+        val generatedStatementInputs = designElements.mapNotNull { it.input }
             .filter { it.kind == BlockDesignInputKind.STATEMENT }
             .map { StatementInputDefinition(it.name, it.label) }
+        val generatedFields = designElements.mapNotNull { it.field }.map { it.toFieldDefinition() }
+        val metadata = blueprint.rowLayoutMetadata(designElements)
         return BlockDefinition(
             id = blueprint.type.ifBlank { id },
             label = blueprint.label.trim(),
@@ -148,10 +183,12 @@ object BlockDesignFactory {
             hasPrevious = blueprint.hasPrevious,
             hasNext = blueprint.hasNext,
             outputType = blueprint.outputType,
-            fields = blueprint.fields.ifEmpty { blueprint.infoFields.map { it.toFieldDefinition() } },
+            fields = blueprint.fields.ifEmpty { generatedFields },
             valueInputs = blueprint.valueInputs.ifEmpty { generatedValueInputs },
             statementInputs = blueprint.statementInputs.ifEmpty { generatedStatementInputs },
             isReporter = blueprint.isReporter,
+            inputsInline = blueprint.inputsInline,
+            metadata = metadata,
             svgPath = blueprint.svgPath,
         )
     }
@@ -187,72 +224,84 @@ object BlockDesignFactory {
             CustomConnectionTypeDefinition("TemplateImage"),
             CustomConnectionTypeDefinition("ScreenRegion"),
         ),
-        inputs = listOf(
-            BlockDesignInputDefinition(BlockDesignInputKind.VALUE, "image", "image", "Image", required = true),
-            BlockDesignInputDefinition(BlockDesignInputKind.VALUE, "threshold", "threshold", "Number"),
-            BlockDesignInputDefinition(BlockDesignInputKind.VALUE, "timeout", "timeout", "Duration"),
-            BlockDesignInputDefinition(BlockDesignInputKind.VALUE, "retry", "retry", "Number"),
-            BlockDesignInputDefinition(BlockDesignInputKind.VALUE, "region", "region", "Region"),
-        ),
-        infoFields = listOf(
-            BlockDesignFieldBlueprint(
-                name = "imagePath",
-                label = "imagePath",
-                fieldType = BlockDesignFieldType.IMAGE_CAROUSEL,
-                valueType = BlockDesignValueType.IMAGE,
-                required = true,
-                allowedSources = listOf(ParameterSourceKind.FILE, ParameterSourceKind.VARIABLE, ParameterSourceKind.REPORTER),
-            ),
-            BlockDesignFieldBlueprint(
-                name = "threshold",
-                label = "threshold",
-                fieldType = BlockDesignFieldType.THRESHOLD,
-                valueType = BlockDesignValueType.NUMBER,
-                defaultValue = "0.85",
-                required = true,
-                min = 0.0,
-                max = 1.0,
-                step = 0.01,
-                allowedSources = listOf(ParameterSourceKind.MANUAL, ParameterSourceKind.REPORTER, ParameterSourceKind.VARIABLE),
-            ),
-            BlockDesignFieldBlueprint(
-                name = "timeoutMs",
-                label = "timeoutMs",
-                fieldType = BlockDesignFieldType.DURATION,
-                valueType = BlockDesignValueType.DURATION,
-                defaultValue = "3000",
-                required = true,
-                min = 0.0,
-            ),
-            BlockDesignFieldBlueprint(
-                name = "retryCount",
-                label = "retryCount",
-                fieldType = BlockDesignFieldType.RETRY_COUNT,
-                valueType = BlockDesignValueType.NUMBER,
-                defaultValue = "1",
-                min = 0.0,
-            ),
-            BlockDesignFieldBlueprint(
-                name = "searchRegion",
-                label = "searchRegion",
-                fieldType = BlockDesignFieldType.REGION_EDITOR,
-                valueType = BlockDesignValueType.REGION,
-                allowedSources = listOf(
-                    ParameterSourceKind.REGION_MANUAL,
-                    ParameterSourceKind.REGION_REPORTER,
-                    ParameterSourceKind.VARIABLE,
+        elements = listOf(
+            BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.VALUE, "image", "image", "Image", required = true)),
+            BlockDesignElement.field(
+                BlockDesignFieldBlueprint(
+                    name = "imagePath",
+                    label = "imagePath",
+                    fieldType = BlockDesignFieldType.IMAGE_CAROUSEL,
+                    valueType = BlockDesignValueType.IMAGE,
+                    required = true,
+                    allowedSources = listOf(ParameterSourceKind.FILE, ParameterSourceKind.VARIABLE, ParameterSourceKind.REPORTER),
                 ),
             ),
-            BlockDesignFieldBlueprint(
-                name = "regionSource",
-                label = "regionSource",
-                fieldType = BlockDesignFieldType.DROPDOWN_LIST,
-                valueType = BlockDesignValueType.STRING,
-                defaultValue = "manual",
-                options = listOf(
-                    FieldOption("manual", "manual"),
-                    FieldOption("reporter", "reporter"),
-                    FieldOption("variable", "variable"),
+            BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.VALUE, "thresholdInput", "threshold", "Number")),
+            BlockDesignElement.field(
+                BlockDesignFieldBlueprint(
+                    name = "threshold",
+                    label = "threshold",
+                    fieldType = BlockDesignFieldType.THRESHOLD,
+                    valueType = BlockDesignValueType.NUMBER,
+                    defaultValue = "0.85",
+                    required = true,
+                    min = 0.0,
+                    max = 1.0,
+                    step = 0.01,
+                    allowedSources = listOf(ParameterSourceKind.MANUAL, ParameterSourceKind.REPORTER, ParameterSourceKind.VARIABLE),
+                ),
+            ),
+            BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.END_ROW, "row1")),
+            BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.VALUE, "timeoutInput", "timeout", "Duration")),
+            BlockDesignElement.field(
+                BlockDesignFieldBlueprint(
+                    name = "timeoutMs",
+                    label = "timeoutMs",
+                    fieldType = BlockDesignFieldType.DURATION,
+                    valueType = BlockDesignValueType.DURATION,
+                    defaultValue = "3000",
+                    required = true,
+                    min = 0.0,
+                ),
+            ),
+            BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.VALUE, "retryInput", "retry", "Number")),
+            BlockDesignElement.field(
+                BlockDesignFieldBlueprint(
+                    name = "retryCount",
+                    label = "retryCount",
+                    fieldType = BlockDesignFieldType.RETRY_COUNT,
+                    valueType = BlockDesignValueType.NUMBER,
+                    defaultValue = "1",
+                    min = 0.0,
+                ),
+            ),
+            BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.END_ROW, "row2")),
+            BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.VALUE, "regionInput", "region", "Region")),
+            BlockDesignElement.field(
+                BlockDesignFieldBlueprint(
+                    name = "searchRegion",
+                    label = "searchRegion",
+                    fieldType = BlockDesignFieldType.REGION_EDITOR,
+                    valueType = BlockDesignValueType.REGION,
+                    allowedSources = listOf(
+                        ParameterSourceKind.REGION_MANUAL,
+                        ParameterSourceKind.REGION_REPORTER,
+                        ParameterSourceKind.VARIABLE,
+                    ),
+                ),
+            ),
+            BlockDesignElement.field(
+                BlockDesignFieldBlueprint(
+                    name = "regionSource",
+                    label = "regionSource",
+                    fieldType = BlockDesignFieldType.DROPDOWN,
+                    valueType = BlockDesignValueType.STRING,
+                    defaultValue = "manual",
+                    options = listOf(
+                        FieldOption("manual", "manual"),
+                        FieldOption("reporter", "reporter"),
+                        FieldOption("variable", "variable"),
+                    ),
                 ),
             ),
         ),
@@ -274,7 +323,7 @@ object BlockDesignFactory {
     }
 
     fun previewLabel(blueprint: BlockDesignBlueprint): String {
-        val parameterNames = blueprint.infoFields
+        val parameterNames = blueprint.effectiveElements().mapNotNull { it.field }
             .map { it.name }
             .ifEmpty { blueprint.fields.map { it.key } }
             .joinToString(" ")
@@ -285,7 +334,7 @@ object BlockDesignFactory {
 
     fun generatorPreview(blueprint: BlockDesignBlueprint): String =
         blueprint.generatorTemplate.ifBlank {
-            val parameters = blueprint.infoFields
+            val parameters = blueprint.effectiveElements().mapNotNull { it.field }
                 .map { "${it.name}=${'$'}{${it.name}}" }
                 .ifEmpty { blueprint.fields.map { "${it.key}=${'$'}{${it.key}}" } }
                 .joinToString(" ")
@@ -305,13 +354,15 @@ object BlockDesignFactory {
 
 private fun BlockDesignFieldBlueprint.toFieldDefinition(): FieldDefinition {
     val kind = when (fieldType) {
-        BlockDesignFieldType.LABEL,
+        BlockDesignFieldType.TEXT,
         BlockDesignFieldType.TEXT_INPUT,
         -> FieldKind.TEXT
-        BlockDesignFieldType.NUMERIC_INPUT,
+        BlockDesignFieldType.NUMBER_INPUT,
         BlockDesignFieldType.SLIDER,
         -> FieldKind.NUMBER
-        BlockDesignFieldType.DROPDOWN_LIST -> FieldKind.CHOICE
+        BlockDesignFieldType.DROPDOWN,
+        BlockDesignFieldType.RADIO_BUTTONS,
+        -> FieldKind.CHOICE
         BlockDesignFieldType.CHECKBOX,
         BlockDesignFieldType.SWITCH,
         -> FieldKind.BOOLEAN
@@ -338,4 +389,78 @@ private fun BlockDesignFieldBlueprint.toFieldDefinition(): FieldDefinition {
         minValue = min,
         maxValue = max,
     )
+}
+
+fun BlockDesignBlueprint.effectiveElements(): List<BlockDesignElement> =
+    elements.ifEmpty {
+        inputs.map { BlockDesignElement.input(it) } + infoFields.map { BlockDesignElement.field(it) }
+    }
+
+private fun BlockDesignBlueprint.rowLayoutMetadata(elements: List<BlockDesignElement>): Map<String, String> {
+    var row = 0
+    var column = 0
+    var statementIndex = 0
+    var firstStatementRow: Int? = null
+    var maxUsedRow = 0
+    var maxRowColumns = 0
+    val inputRows = mutableMapOf<String, Int>()
+    val inputColumns = mutableMapOf<String, Int>()
+    val fieldRows = mutableMapOf<String, Int>()
+    val fieldColumns = mutableMapOf<String, Int>()
+    val fieldTypes = mutableMapOf<String, String>()
+    elements.forEach { element ->
+        val input = element.input
+        val field = element.field
+        if (input != null) {
+            if (input.kind == BlockDesignInputKind.END_ROW) {
+                maxRowColumns = maxOf(maxRowColumns, column)
+                if (column > 0) {
+                    maxUsedRow = maxOf(maxUsedRow, row)
+                    row += 1
+                    column = 0
+                }
+                return@forEach
+            }
+            if (input.kind == BlockDesignInputKind.STATEMENT) {
+                maxRowColumns = maxOf(maxRowColumns, column)
+                row += if (column == 0) 0 else 1
+                inputRows[input.name] = row
+                inputColumns[input.name] = 0
+                statementIndex += 1
+                firstStatementRow = firstStatementRow ?: row
+                maxUsedRow = maxOf(maxUsedRow, row)
+                row += 1
+                column = 0
+                maxRowColumns = maxOf(maxRowColumns, 1)
+                return@forEach
+            }
+            inputRows[input.name] = row
+            inputColumns[input.name] = column
+            maxUsedRow = maxOf(maxUsedRow, row)
+            column += 1
+            return@forEach
+        }
+        if (field != null) {
+            fieldRows[field.name] = row
+            fieldColumns[field.name] = column
+            fieldTypes[field.name] = field.fieldType.name
+            maxUsedRow = maxOf(maxUsedRow, row)
+            column += 1
+        } else {
+            return@forEach
+        }
+    }
+    maxRowColumns = maxOf(maxRowColumns, column)
+    return buildMap {
+        put("custom.layout.designer", "true")
+        put("custom.layout.rowCount", (maxUsedRow + 1).toString())
+        put("custom.layout.headerRows", (firstStatementRow ?: (maxUsedRow + 1)).coerceAtLeast(1).toString())
+        put("custom.layout.maxRowColumns", maxRowColumns.coerceAtLeast(1).toString())
+        put("custom.layout.statementCount", statementIndex.toString())
+        inputRows.forEach { (name, index) -> put("custom.layout.input.$name.row", index.toString()) }
+        inputColumns.forEach { (name, index) -> put("custom.layout.input.$name.column", index.toString()) }
+        fieldRows.forEach { (name, index) -> put("custom.layout.field.$name.row", index.toString()) }
+        fieldColumns.forEach { (name, index) -> put("custom.layout.field.$name.column", index.toString()) }
+        fieldTypes.forEach { (name, type) -> put("custom.layout.field.$name.type", type) }
+    }
 }

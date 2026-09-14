@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.AdsClick
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.DeviceHub
 import androidx.compose.material.icons.filled.Functions
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -20,6 +21,7 @@ object CategoryIcons {
         BlockCategories.ACTION -> Icons.Filled.AdsClick
         BlockCategories.FEEDBACK -> Icons.AutoMirrored.Filled.VolumeUp
         BlockCategories.EMSCRIPT -> Icons.Filled.Code
+        BlockCategories.REM_FLOW_NODES -> Icons.Filled.DeviceHub
         BlockCategories.CONTROL -> Icons.Filled.Repeat
         BlockCategories.LOGIC -> Icons.Filled.ToggleOn
         BlockCategories.DEBUG -> Icons.Filled.BugReport

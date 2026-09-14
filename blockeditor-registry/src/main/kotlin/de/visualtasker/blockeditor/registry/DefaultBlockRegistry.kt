@@ -29,6 +29,7 @@ object BlockTypes {
     const val VARIABLE_SET = "variable.set"
     const val VARIABLE_REPORTER_PREFIX = "variable.reporter."
     const val EMSCRIPT_COMMAND_PREFIX = "emscript.command."
+    const val REM_FLOW_NODE_PREFIX = "emscript.command.rem."
     const val CUSTOM_PREFIX = "custom."
 
     const val SLOT_DO = "DO"

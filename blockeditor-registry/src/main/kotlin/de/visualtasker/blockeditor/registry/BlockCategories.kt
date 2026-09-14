@@ -8,6 +8,7 @@ object BlockCategories {
     const val INPUT = "input"
     const val PERCEPTION = "perception"
     const val VISION = "vision"
+    const val SCENE = "scene"
     const val TEXT = "text"
     const val FILE = "file"
     const val SYSTEM = "system"
@@ -21,6 +22,7 @@ object BlockCategories {
     const val LOGIC = "logic"
     const val VARIABLES = "variables"
     const val FLOW = "flow"
+    const val REM_FLOW_NODES = "remFlowNodes"
     const val RUNTIME = "runtime"
     const val DEBUG = "debug"
     const val VARIABLE = "variable"
@@ -40,6 +42,7 @@ object BlockCategories {
         CategoryMeta(INPUT, "Input", 0xFF4B6F8F),
         CategoryMeta(PERCEPTION, "Perception", 0xFF3F735F),
         CategoryMeta(VISION, "Vision", 0xFF2E7D78),
+        CategoryMeta(SCENE, "Scene", 0xFF5E8CDA),
         CategoryMeta(TEXT, "Text", 0xFF5D6FA8),
         CategoryMeta(FILE, "File", 0xFF8B6F42),
         CategoryMeta(SYSTEM, "System", 0xFF6B7280),
@@ -53,6 +56,7 @@ object BlockCategories {
         CategoryMeta(LOGIC, "Logic", 0xFF586E4B),
         CategoryMeta(VARIABLES, "Variables", 0xFF6D607E),
         CategoryMeta(FLOW, "Flow", 0xFF7B6750),
+        CategoryMeta(REM_FLOW_NODES, "REM-FlowNodes", 0xFF4F7A8A),
         CategoryMeta(RUNTIME, "Runtime", 0xFF686E78),
         CategoryMeta(DEBUG, "Debug", 0xFF75617A),
         CategoryMeta(VARIABLE, "Variable", 0xFF5A716B),

@@ -149,6 +149,8 @@ object VisualTaskerCommandCatalog : CommandCatalog {
         catalogCommand("tasker.getVariable", "Tasker.getVariable", category = BlockCategories.TASKER, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.TASKER, pluginOwner = "visualtasker.tasker", args = listOf(variableArg("name", "%var"))),
         catalogCommand("tasker.clearVariable", "Tasker.clearVariable", category = BlockCategories.TASKER, sideEffect = CommandSideEffect.VARIABLE_WRITE, capability = CommandCapability.TASKER, pluginOwner = "visualtasker.tasker", args = listOf(variableArg("name", "%var"))),
         catalogCommand("tasker.getVariables", "Tasker.getVariables", category = BlockCategories.TASKER, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.TASKER, pluginOwner = "visualtasker.tasker", args = listOf(textArg("pattern", required = false))),
+        catalogCommand("tasker.lastResult", "Tasker.lastResult", category = BlockCategories.TASKER, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.TASKER, pluginOwner = "visualtasker.tasker", args = listOf(textArg("runId", required = false))),
+        catalogCommand("tasker.error", "Tasker.error", category = BlockCategories.TASKER, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.TASKER, pluginOwner = "visualtasker.tasker", args = listOf(textArg("runId", required = false))),
         catalogCommand("tasker.action", "Tasker.action", category = BlockCategories.TASKER, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.TASKER, pluginOwner = "visualtasker.tasker", args = listOf(textArg("action"), anyArg("args", required = false))),
         catalogCommand("tasker.pluginAction", "Tasker.pluginAction", category = BlockCategories.TASKER, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.TASKER, pluginOwner = "visualtasker.tasker", args = listOf(textArg("plugin"), textArg("action"), anyArg("args", required = false))),
         catalogCommand("tasker.profileEnable", "Tasker.profileEnable", category = BlockCategories.TASKER, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.TASKER, pluginOwner = "visualtasker.tasker", args = listOf(textArg("profile"))),
@@ -374,6 +376,20 @@ object VisualTaskerCommandCatalog : CommandCatalog {
                 CommandArgument("name", CommandArgumentType.TEXT, defaultValue = "template"),
                 CommandArgument("region", CommandArgumentType.REGION, defaultValue = ""),
                 CommandArgument("processing", CommandArgumentType.TEXT, required = false, defaultValue = "grayscale"),
+            ),
+        ),
+        catalogCommand(
+            id = "scene.save",
+            canonicalName = "sceneSave",
+            aliases = listOf("Scene.save", "SAVE_SCENE"),
+            category = BlockCategories.SCENE,
+            sideEffect = CommandSideEffect.VARIABLE_WRITE,
+            capability = CommandCapability.CORE,
+            args = listOf(
+                CommandArgument("name", CommandArgumentType.TEXT, defaultValue = "scene"),
+                CommandArgument("markerMode", CommandArgumentType.TEXT, required = false, defaultValue = "region"),
+                CommandArgument("region", CommandArgumentType.REGION, required = false, defaultValue = ""),
+                CommandArgument("asset", CommandArgumentType.TEXT, required = false, defaultValue = ""),
             ),
         ),
         catalogCommand(
@@ -804,7 +820,80 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             returnType = "Boolean",
             args = listOf(CommandArgument("value", CommandArgumentType.BOOLEAN, defaultValue = "false")),
         ),
-    ) + plannedAdapterCommands
+    ) + remFlowNodeCommands + plannedAdapterCommands
+
+    private val remFlowNodeCommands: List<CommandCatalogEntry>
+        get() = listOf(
+        remFlowNode(
+            id = "rem.region",
+            canonicalName = "rem.region",
+            aliases = listOf("REM_REGION"),
+            args = listOf(
+                textArg("name", "region"),
+                textArg("mode", "facet"),
+                textArg("color", "auto", required = false),
+            ),
+        ),
+        remFlowNode(
+            id = "rem.variableBulk",
+            canonicalName = "rem.variableBulk",
+            aliases = listOf("REM_VARIABLE_BULK"),
+            args = listOf(
+                textArg("name", "variables"),
+                textArg("layout", "stack", required = false),
+                anyArg("variables", required = false),
+            ),
+        ),
+        remFlowNode(
+            id = "rem.expressionCapsule",
+            canonicalName = "rem.expressionCapsule",
+            aliases = listOf("REM_EXPRESSION_CAPSULE"),
+            args = listOf(
+                textArg("name", "expression"),
+                textArg("strategy", "collapse", required = false),
+                anyArg("nodes", required = false),
+            ),
+        ),
+        remFlowNode(
+            id = "rem.flowBreak",
+            canonicalName = "rem.flowBreak",
+            aliases = listOf("REM_FLOW_BREAK"),
+            args = listOf(
+                textArg("label", "break"),
+                textArg("direction", "right", required = false),
+            ),
+        ),
+        remFlowNode(
+            id = "rem.offPageOut",
+            canonicalName = "rem.offPageOut",
+            aliases = listOf("REM_OFF_PAGE_OUT"),
+            args = listOf(textArg("connector", "A")),
+        ),
+        remFlowNode(
+            id = "rem.offPageIn",
+            canonicalName = "rem.offPageIn",
+            aliases = listOf("REM_OFF_PAGE_IN"),
+            args = listOf(textArg("connector", "A")),
+        ),
+        remFlowNode(
+            id = "rem.group",
+            canonicalName = "rem.group",
+            aliases = listOf("REM_GROUP"),
+            args = listOf(
+                textArg("name", "group"),
+                boolArg("active", "true", required = false),
+            ),
+        ),
+        remFlowNode(
+            id = "rem.layoutHint",
+            canonicalName = "rem.layoutHint",
+            aliases = listOf("REM_LAYOUT_HINT"),
+            args = listOf(
+                textArg("mode", "vertical"),
+                textArg("scope", "next", required = false),
+            ),
+        ),
+    )
 
     private val byId = entries.associateBy(CommandCatalogEntry::id)
     private val byCanonicalName = entries.groupBy { it.canonicalName.lowercase() }
@@ -926,6 +1015,7 @@ internal fun CommandCatalogEntry.shortDisplayName(): String =
         "ChromeTab.requestPostMessageChannel" -> "requestMsg"
         "ChromeTab.validateRelationship" -> "validateRel"
         "Tasker.pluginAction" -> "pluginAct"
+        "Tasker.lastResult" -> "lastResult"
         "Tasker.profileEnable" -> "profileOn"
         "Tasker.profileDisable" -> "profileOff"
         "Tasker.profileToggle" -> "profileTog"
@@ -1014,6 +1104,26 @@ private fun catalogCommand(
         },
         liveCapabilityGate = capability,
     ),
+)
+
+private fun remFlowNode(
+    id: String,
+    canonicalName: String,
+    aliases: List<String> = emptyList(),
+    args: List<CommandArgument> = emptyList(),
+): CommandCatalogEntry = CommandCatalogEntry(
+    id = id,
+    canonicalName = canonicalName,
+    acceptedAliases = aliases,
+    kind = CommandCatalogKind.STATEMENT,
+    category = BlockCategories.REM_FLOW_NODES,
+    arguments = args,
+    sideEffect = CommandSideEffect.CONTROL_FLOW,
+    capabilities = setOf(CommandCapability.CORE),
+    pluginOwner = "visualtasker.flowchart",
+    block = CommandBlockBinding(BlockTypes.EMSCRIPT_COMMAND_PREFIX + id),
+    flowchart = CommandFlowchartBinding("rem-flow-node"),
+    runtime = CommandRuntimeBinding("visual-metadata", CommandCapability.CORE),
 )
 
 private fun variable(

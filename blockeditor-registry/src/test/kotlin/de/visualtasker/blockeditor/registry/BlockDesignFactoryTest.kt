@@ -65,7 +65,7 @@ class BlockDesignFactoryTest {
         assertEquals(true, definition.hasPrevious)
         assertEquals(true, definition.hasNext)
         assertEquals(
-            listOf("image", "threshold", "timeout", "retry", "region"),
+            listOf("image", "thresholdInput", "timeoutInput", "retryInput", "regionInput"),
             definition.valueInputs.map { it.name },
         )
         assertEquals(
@@ -80,11 +80,13 @@ class BlockDesignFactoryTest {
     @Test
     fun previewUsesParameterNamesButNotConcreteValues() {
         val blueprint = BlockDesignFactory.findTemplateBlueprint().copy(
-            infoFields = listOf(
-                BlockDesignFieldBlueprint(
-                    name = "imagePath",
-                    defaultValue = "/sdcard/screenshots/very-long-private-path.png",
-                    fieldType = BlockDesignFieldType.FILE_PATH,
+            elements = listOf(
+                BlockDesignElement.field(
+                    BlockDesignFieldBlueprint(
+                        name = "imagePath",
+                        defaultValue = "/sdcard/screenshots/very-long-private-path.png",
+                        fieldType = BlockDesignFieldType.FILE_PATH,
+                    ),
                 ),
             ),
         )
@@ -109,17 +111,21 @@ class BlockDesignFactoryTest {
         val baseline = BlockDesignFactory.findTemplateBlueprint()
         val withRenamedType = baseline.copy(type = "vision.findTemplate.v2")
         val withInput = withRenamedType.copy(
-            inputs = withRenamedType.inputs + BlockDesignInputDefinition(
-                kind = BlockDesignInputKind.VALUE,
-                name = "debug",
-                connectionType = "Bool",
+            elements = withRenamedType.elements + BlockDesignElement.input(
+                BlockDesignInputDefinition(
+                    kind = BlockDesignInputKind.VALUE,
+                    name = "debug",
+                    connectionType = "Bool",
+                ),
             ),
         )
         val withField = withInput.copy(
-            infoFields = withInput.infoFields + BlockDesignFieldBlueprint(
-                name = "debugFlag",
-                fieldType = BlockDesignFieldType.SWITCH,
-                valueType = BlockDesignValueType.BOOL,
+            elements = withInput.elements + BlockDesignElement.field(
+                BlockDesignFieldBlueprint(
+                    name = "debugFlag",
+                    fieldType = BlockDesignFieldType.SWITCH,
+                    valueType = BlockDesignValueType.BOOL,
+                ),
             ),
         )
         var state = BlockDesignHistoryState(baseline)
@@ -127,14 +133,63 @@ class BlockDesignFactoryTest {
             .record(withInput)
             .record(withField)
 
-        assertEquals("debugFlag", state.present.infoFields.last().name)
+        assertEquals("debugFlag", state.present.elements.last().field?.name)
         state = state.undo()!!
-        assertEquals("debug", state.present.inputs.last().name)
+        assertEquals("debug", state.present.elements.last().input?.name)
         state = state.undo()!!
         assertEquals("vision.findTemplate.v2", state.present.type)
         state = state.redo()!!
-        assertEquals("debug", state.present.inputs.last().name)
+        assertEquals("debug", state.present.elements.last().input?.name)
         state = state.redo()!!
-        assertEquals("debugFlag", state.present.infoFields.last().name)
+        assertEquals("debugFlag", state.present.elements.last().field?.name)
+    }
+
+    @Test
+    fun endRowInputsIncreaseFactoryLayoutRowsWithoutCreatingConnection() {
+        val blueprint = BlockDesignBlueprint(
+            type = "user.rows",
+            label = "Rows",
+            elements = listOf(
+                BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.VALUE, "first", connectionType = "String")),
+                BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.END_ROW, "row1")),
+                BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.VALUE, "second", connectionType = "Number")),
+                BlockDesignElement.field(BlockDesignFieldBlueprint("field1", fieldType = BlockDesignFieldType.SWITCH)),
+                BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.STATEMENT, "BODY")),
+            ),
+        )
+
+        val definition = BlockDesignFactory.create(blueprint)
+
+        assertEquals(listOf("first", "second"), definition.valueInputs.map { it.name })
+        assertEquals(listOf("BODY"), definition.statementInputs.map { it.name })
+        assertEquals("true", definition.metadata["custom.layout.designer"])
+        assertEquals("3", definition.metadata["custom.layout.rowCount"])
+        assertEquals("2", definition.metadata["custom.layout.maxRowColumns"])
+        assertEquals("0", definition.metadata["custom.layout.input.first.row"])
+        assertEquals("1", definition.metadata["custom.layout.input.second.row"])
+        assertEquals("2", definition.metadata["custom.layout.input.BODY.row"])
+        assertEquals("1", definition.metadata["custom.layout.field.field1.row"])
+        assertEquals("1", definition.metadata["custom.layout.field.field1.column"])
+    }
+
+    @Test
+    fun repeatedEndRowsBeforeStatementDoNotCreateEmptyRows() {
+        val blueprint = BlockDesignBlueprint(
+            type = "user.compactStatement",
+            label = "Compact Statement",
+            elements = listOf(
+                BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.VALUE, "first")),
+                BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.END_ROW, "row1")),
+                BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.END_ROW, "row2")),
+                BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.END_ROW, "row3")),
+                BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.STATEMENT, "body1")),
+            ),
+        )
+
+        val definition = BlockDesignFactory.create(blueprint)
+
+        assertEquals("2", definition.metadata["custom.layout.rowCount"])
+        assertEquals("0", definition.metadata["custom.layout.input.first.row"])
+        assertEquals("1", definition.metadata["custom.layout.input.body1.row"])
     }
 }

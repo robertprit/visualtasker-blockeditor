@@ -657,6 +657,7 @@ class BlockEditorController(
             blockId = blockId,
             typeId = block.type,
             label = definition.label,
+            displayLabel = block.fields["displayLabel"]?.asString()?.takeIf { it.isNotBlank() } ?: definition.label,
             categoryLabel = category.label,
             categoryAccentArgb = category.accentArgb,
             fields = (definition.fields + CommonBlockInfoFields).map { it.toBlockInfoField(block) },
@@ -685,6 +686,10 @@ class BlockEditorController(
         if (disposed.get()) return
         val blockId = selectedBlockId ?: return
         val block = document.blocks[blockId] ?: return
+        if (fieldKey == "displayLabel") {
+            onAction(WorkspaceAction.UpdateField(blockId, fieldKey, FieldValue.Text(rawValue)))
+            return
+        }
         if (fieldKey == "displayMode" && resolveReporterFamily(block.type, registry.getDefinition(block.type)) != null) {
             setSelectedReporterVisualMode(ReporterVisualMode.fromMetadata(rawValue))
             return

@@ -37,7 +37,9 @@ internal object BlockPathCache {
             else -> "s"
         }
         val branches = branchDividerYs.joinToString(",") { it.toInt().toString() }
-        return "$type:$kind:${size.width.toInt()}:${size.height.toInt()}:$branches"
+        val headerRows = definition?.metadata?.get("custom.layout.headerRows").orEmpty()
+        val valueType = definition?.outputType.orEmpty()
+        return "$type:$kind:$valueType:${size.width.toInt()}:${size.height.toInt()}:$headerRows:$branches"
     }
 
     fun shape(definition: BlockDefinition?): BlockVisualShape = when {
@@ -53,7 +55,7 @@ internal object BlockPathCache {
         branchDividerYs: List<Float>,
     ): Path = when {
         definition?.isReporter == true && definition.inputsInline -> BlockShapes.inlineReporterPath(size)
-        definition?.isReporter == true -> BlockShapes.reporterPath(size)
+        definition?.isReporter == true -> BlockShapes.reporterPath(size, definition.outputType)
         definition.isStartStatement() -> BlockShapes.startStatementPath(size)
         definition?.statementInputs?.isNotEmpty() == true -> {
             val dividers = branchDividerYs.ifEmpty {
@@ -61,7 +63,7 @@ internal object BlockPathCache {
             }
             BlockShapes.containerPath(
                 size,
-                LayoutConstants.HEADER_HEIGHT,
+                definition.designerHeaderHeight(),
                 LayoutConstants.FOOTER_HEIGHT,
                 dividers,
             )
@@ -71,4 +73,12 @@ internal object BlockPathCache {
 
     private fun BlockDefinition?.isStartStatement(): Boolean =
         (this?.id == BlockTypes.EVENT_START || this?.id == "em_on_start") && statementInputs.isEmpty()
+
+    private fun BlockDefinition?.designerHeaderHeight(): Float {
+        val rows = this?.metadata?.get("custom.layout.headerRows")
+            ?.toIntOrNull()
+            ?.coerceAtLeast(1)
+            ?: 1
+        return LayoutConstants.HEADER_HEIGHT * rows
+    }
 }

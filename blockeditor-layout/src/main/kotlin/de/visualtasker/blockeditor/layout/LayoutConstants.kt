@@ -23,6 +23,7 @@ object LayoutConstants {
     const val FOOTER_HEIGHT = 24f
     const val ANCHOR_RADIUS = 12f
     const val FIELD_HEIGHT = 32f
+    const val DESIGNER_ELEMENT_WIDTH = 86f
     const val ELIF_SECTION_HEIGHT = HEADER_HEIGHT
     /** Horizontaler Mittelsteg zwischen Container-Zweigen – muss mit [BlockShapes] übereinstimmen. */
     const val BRANCH_SHELF = HEADER_HEIGHT

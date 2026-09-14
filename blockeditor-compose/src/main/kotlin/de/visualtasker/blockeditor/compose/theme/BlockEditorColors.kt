@@ -49,6 +49,7 @@ fun defaultBlockCategoryColor(category: String): Color = when (category) {
     BlockCategories.LOGIC -> Color(0xFF586E4B)
     BlockCategories.VARIABLES -> Color(0xFF6D607E)
     BlockCategories.FLOW -> Color(0xFF7B6750)
+    BlockCategories.REM_FLOW_NODES -> Color(0xFF4F7A8A)
     BlockCategories.RUNTIME -> Color(0xFF686E78)
     BlockCategories.DEBUG -> Color(0xFF75617A)
     BlockCategories.VARIABLE -> Color(0xFF5A716B)

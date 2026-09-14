@@ -21,6 +21,7 @@ data class BlockShapeRequest(
     val blockType: String?,
     val size: Size,
     val family: BlockShapeFamily,
+    val valueType: String? = null,
     val branchDividerYs: List<Float> = emptyList(),
 ) {
     init {

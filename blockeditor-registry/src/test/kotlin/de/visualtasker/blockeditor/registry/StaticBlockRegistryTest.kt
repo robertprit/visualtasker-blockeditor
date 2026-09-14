@@ -69,6 +69,7 @@ class StaticBlockRegistryTest {
             BlockCategories.LOGIC to "Logic",
             BlockCategories.VARIABLES to "Variables",
             BlockCategories.FLOW to "Flow",
+            BlockCategories.REM_FLOW_NODES to "REM-FlowNodes",
             BlockCategories.RUNTIME to "Runtime",
         )
 
@@ -83,6 +84,8 @@ class StaticBlockRegistryTest {
         val generatedEntries = VisualTaskerCommandCatalog.allEntries()
             .filter { it.block?.blockType?.startsWith(BlockTypes.EMSCRIPT_COMMAND_PREFIX) == true }
         assertNotNull(generatedEntries.firstOrNull { it.canonicalName == "Tasker.runTask" })
+        assertNotNull(generatedEntries.firstOrNull { it.canonicalName == "Tasker.lastResult" })
+        assertNotNull(generatedEntries.firstOrNull { it.canonicalName == "Tasker.error" })
         assertNotNull(generatedEntries.firstOrNull { it.canonicalName == "Termux.shell" })
         assertNotNull(generatedEntries.firstOrNull { it.canonicalName == "Shizuku.exec" })
         assertNotNull(generatedEntries.firstOrNull { it.canonicalName == "Scrcpy.start" })

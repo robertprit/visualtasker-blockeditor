@@ -22,6 +22,7 @@ data class BlockVisualPathRequest(
     val definition: BlockDefinition?,
     val shape: BlockVisualShape,
     val targetSize: Size,
+    val valueType: String? = null,
     val branchDividerYs: List<Float> = emptyList(),
 )
 
@@ -67,6 +68,7 @@ internal fun resolveBlockVisualPath(
         definition = definition?.presentationSnapshot(),
         shape = shape,
         targetSize = size,
+        valueType = definition?.outputType,
         branchDividerYs = branchDividerYs.toList(),
     )
     val result = try {
@@ -105,6 +107,7 @@ private fun BlockVisualPathRequest.toShapeRequest(): BlockShapeRequest =
             BlockVisualShape.InlineReporter -> BlockShapeFamily.InlineOperator
             BlockVisualShape.Container -> BlockShapeFamily.Container
         },
+        valueType = valueType,
         branchDividerYs = branchDividerYs,
     )
 

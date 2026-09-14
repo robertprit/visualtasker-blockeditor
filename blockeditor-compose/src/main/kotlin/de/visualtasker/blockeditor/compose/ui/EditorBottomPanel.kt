@@ -161,6 +161,7 @@ fun BlockInfoCard(
         BlockInspectorHeader(
             info = info,
             accent = accent,
+            onFieldChange = onFieldChange,
             onReplaceBlockType = onReplaceBlockType,
         )
         InspectorActions(
@@ -219,9 +220,14 @@ fun BlockInfoCard(
 private fun BlockInspectorHeader(
     info: BlockInfoSnapshot,
     accent: Color,
+    onFieldChange: (String, String) -> Unit,
     onReplaceBlockType: (String) -> Boolean,
 ) {
     var typeMenuExpanded by remember(info.blockId, info.typeId) { mutableStateOf(false) }
+    var displayLabelDraft by remember(info.blockId) { mutableStateOf(info.displayLabel) }
+    LaunchedEffect(info.blockId, info.displayLabel) {
+        displayLabelDraft = info.displayLabel
+    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -229,9 +235,11 @@ private fun BlockInspectorHeader(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             OutlinedTextField(
-                value = info.label,
-                onValueChange = {},
-                readOnly = true,
+                value = displayLabelDraft,
+                onValueChange = {
+                    displayLabelDraft = it
+                    onFieldChange("displayLabel", it)
+                },
                 singleLine = true,
                 label = { Text("Anzeige-Label") },
                 modifier = Modifier.weight(1f),

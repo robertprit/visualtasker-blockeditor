@@ -33,6 +33,7 @@ import de.visualtasker.blockeditor.layout.LayoutConstants
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.BlockTypes
+import de.visualtasker.blockeditor.registry.FieldKind
 import de.visualtasker.blockeditor.registry.VisualTaskerCommandCatalog
 import kotlin.math.pow
 
@@ -63,10 +64,12 @@ internal fun DrawScope.drawBlock(
     val strokeColor = if (unsupported) colors.unsupportedStroke else colors.blockStroke
     val textColor = if (unsupported) colors.unsupportedText else contrastTextColor(fillColor)
     val strokePathEffect = if (unsupported) PathEffect.dashPathEffect(floatArrayOf(12f, 8f)) else null
+    val pathDefinition = definition?.takeUnless { block.collapsed && !it.isReporter }
+        ?: definition?.copy(statementInputs = emptyList(), valueInputs = emptyList())
     val path = resolveBlockVisualPath(
-        definition = definition,
+        definition = pathDefinition,
         size = Size(width, height),
-        branchDividerYs = branchDividerYs,
+        branchDividerYs = if (block.collapsed) emptyList() else branchDividerYs,
         provider = visualPathProvider,
     )
     translate(topLeft.x, topLeft.y) {
@@ -79,7 +82,7 @@ internal fun DrawScope.drawBlock(
             color = textColor.copy(alpha = 0.85f),
             fontSize = 11.sp,
         )
-        branchSections.forEach { section ->
+        if (!block.collapsed) branchSections.forEach { section ->
             val bounds = section.bounds
             val sectionTextSize = safeDrawableTextSize(
                 width = bounds.width - LayoutConstants.SLOT_PADDING * 2,
@@ -308,6 +311,18 @@ internal fun DrawScope.drawBlock(
             availableWidth = drawableTextWidth,
             availableHeight = drawableTextHeight,
         )
+        if (!block.collapsed && definition?.isDesignerBlock() == true) {
+            drawDesignerBlockElements(
+                block = block,
+                definition = definition,
+                width = width,
+                height = height,
+                textMeasurer = textMeasurer,
+                textColor = textColor,
+                colors = colors,
+                metrics = renderMetrics,
+            )
+        }
         if (!isReporter && blockType.startsWith(BlockTypes.EMSCRIPT_COMMAND_PREFIX)) {
             drawCommandRuntimeBadge(
                 block = block,
@@ -329,21 +344,154 @@ internal fun DrawScope.drawBlock(
                 cornerRadius = CornerRadius(markerHeight / 2f, markerHeight / 2f),
                 style = Fill,
             )
-            val markerStyle = TextStyle(color = textColor.copy(alpha = 0.82f), fontSize = 12.sp)
-            val markerTextSize = safeDrawableTextSize(markerWidth, markerHeight) ?: return@translate
-            val markerLayout = measureTextSafely(textMeasurer, "...", markerStyle, markerTextSize)
-            drawTextSafely(
-                textMeasurer = textMeasurer,
-                text = "...",
-                topLeft = Offset(
-                    markerLeft + (markerWidth - markerLayout.size.width) / 2f,
-                    markerTop + (markerHeight - markerLayout.size.height) / 2f,
-                ),
-                style = markerStyle,
-                availableWidth = markerTextSize.width,
-                availableHeight = markerTextSize.height,
-            )
+            val expand = Path().apply {
+                val center = Offset(markerLeft + markerWidth / 2f, markerTop + markerHeight / 2f)
+                moveTo(center.x - 4f, center.y - 5f)
+                lineTo(center.x + 5f, center.y)
+                lineTo(center.x - 4f, center.y + 5f)
+                close()
+            }
+            drawPath(expand, textColor.copy(alpha = 0.86f), style = Fill)
         }
+    }
+}
+
+private fun DrawScope.drawDesignerBlockElements(
+    block: BlockNode,
+    definition: BlockDefinition,
+    width: Float,
+    height: Float,
+    textMeasurer: TextMeasurer,
+    textColor: Color,
+    colors: BlockEditorColors,
+    metrics: BlockRenderMetrics,
+) {
+    block.valueInputs.forEach { input ->
+        val column = definition.designerInputColumn(input.name)
+        val row = definition.designerInputRow(input.name)
+        val topLeft = Offset(
+            x = LayoutConstants.NESTED_INDENT + column * LayoutConstants.DESIGNER_ELEMENT_WIDTH + LayoutConstants.SLOT_PADDING,
+            y = row * LayoutConstants.HEADER_HEIGHT + (LayoutConstants.HEADER_HEIGHT - LayoutConstants.REPORTER_HEIGHT) / 2f,
+        )
+        drawReporterDockSlot(
+            topLeft = topLeft,
+            size = Size(LayoutConstants.REPORTER_WIDTH, LayoutConstants.REPORTER_HEIGHT),
+            outlineColor = textColor,
+            backgroundColor = colors.slotBackground,
+            connected = input.connection.connectedTo != null,
+            dataType = input.connection.accepts.firstOrNull(),
+            metrics = metrics,
+            showOutputAnchor = true,
+        )
+        val label = input.name.take(1).uppercase()
+        val style = TextStyle(color = textColor.copy(alpha = 0.86f), fontSize = 10.sp)
+        val labelLayout = textMeasurer.measure(label, style)
+        drawTextSafely(
+            textMeasurer = textMeasurer,
+            text = label,
+            topLeft = Offset(
+                topLeft.x + (LayoutConstants.REPORTER_WIDTH - labelLayout.size.width) / 2f,
+                topLeft.y + (LayoutConstants.REPORTER_HEIGHT - labelLayout.size.height) / 2f,
+            ),
+            style = style,
+            availableWidth = LayoutConstants.REPORTER_WIDTH,
+            availableHeight = LayoutConstants.REPORTER_HEIGHT,
+        )
+    }
+
+    definition.fields.forEach { field ->
+        val column = definition.designerFieldColumn(field.key)
+        val row = definition.designerFieldRow(field.key)
+        if (column == null || row == null) return@forEach
+        val topLeft = Offset(
+            x = LayoutConstants.NESTED_INDENT + column * LayoutConstants.DESIGNER_ELEMENT_WIDTH + LayoutConstants.SLOT_PADDING,
+            y = row * LayoutConstants.HEADER_HEIGHT + 7f,
+        )
+        val fieldSize = Size(LayoutConstants.DESIGNER_ELEMENT_WIDTH - LayoutConstants.SLOT_PADDING, LayoutConstants.FIELD_HEIGHT)
+        drawRoundRect(
+            color = Color.White.copy(alpha = 0.14f),
+            topLeft = topLeft,
+            size = fieldSize,
+            cornerRadius = CornerRadius(fieldSize.height / 2f, fieldSize.height / 2f),
+            style = Fill,
+        )
+        drawRoundRect(
+            color = textColor.copy(alpha = 0.34f),
+            topLeft = topLeft,
+            size = fieldSize,
+            cornerRadius = CornerRadius(fieldSize.height / 2f, fieldSize.height / 2f),
+            style = Stroke(width = 1.1f),
+        )
+        val value = block.fields[field.key]?.asString()?.takeIf { it.isNotBlank() } ?: field.defaultValue
+        val label = when (field.kind) {
+            FieldKind.BOOLEAN -> if (value.equals("true", ignoreCase = true)) "ON" else "OFF"
+            FieldKind.CHOICE -> value.ifBlank { field.options.firstOrNull()?.label.orEmpty() }
+            FieldKind.NUMBER,
+            FieldKind.TIMEOUT_MS,
+            FieldKind.RETRY_COUNT,
+            FieldKind.THRESHOLD,
+            -> value.ifBlank { "0" }
+            FieldKind.IMAGE_TEMPLATE -> "img"
+            FieldKind.REGION -> "region"
+            FieldKind.VARIABLE_REF -> "var"
+            FieldKind.FILE_PATH -> "file"
+            FieldKind.TEXT -> value.ifBlank { field.label }
+        }.ifBlank { field.label }
+        val style = TextStyle(color = textColor, fontSize = 10.sp)
+        val clipped = truncateLabel(label, fieldSize.width - 12f, textMeasurer, style)
+        val layout = textMeasurer.measure(clipped, style)
+        drawTextSafely(
+            textMeasurer = textMeasurer,
+            text = clipped,
+            topLeft = Offset(topLeft.x + 6f, topLeft.y + (fieldSize.height - layout.size.height) / 2f),
+            style = style,
+            availableWidth = fieldSize.width - 12f,
+            availableHeight = fieldSize.height,
+        )
+    }
+
+    val statementRows = block.statementInputs
+        .map { it to definition.designerInputRow(it.name) }
+        .sortedBy { it.second }
+    val headerHeight = definition.designerHeaderHeight()
+    statementRows.forEachIndexed { index, (input, _) ->
+        val branchTop = headerHeight + LayoutConstants.SLOT_PADDING +
+            index * (LayoutConstants.STATEMENT_MIN_HEIGHT + LayoutConstants.BRANCH_SHELF + LayoutConstants.SLOT_PADDING)
+        val branchBottom = if (index < statementRows.lastIndex) {
+            branchTop + LayoutConstants.STATEMENT_MIN_HEIGHT
+        } else {
+            height - LayoutConstants.FOOTER_HEIGHT
+        }
+        val branchHeight = (branchBottom - branchTop).coerceAtLeast(LayoutConstants.STATEMENT_MIN_HEIGHT)
+        val branchBounds = androidx.compose.ui.geometry.Rect(
+            left = LayoutConstants.NESTED_INDENT,
+            top = branchTop,
+            right = width - LayoutConstants.SLOT_PADDING,
+            bottom = branchTop + branchHeight,
+        )
+        drawRoundRect(
+            color = colors.slotBackground.copy(alpha = 0.34f),
+            topLeft = Offset(branchBounds.left, branchBounds.top),
+            size = Size(branchBounds.width, branchBounds.height),
+            cornerRadius = CornerRadius(8f, 8f),
+            style = Fill,
+        )
+        drawRoundRect(
+            color = textColor.copy(alpha = 0.38f),
+            topLeft = Offset(branchBounds.left, branchBounds.top),
+            size = Size(branchBounds.width, branchBounds.height),
+            cornerRadius = CornerRadius(8f, 8f),
+            style = Stroke(width = 1.2f),
+        )
+        val style = TextStyle(color = textColor.copy(alpha = 0.7f), fontSize = 10.sp)
+        drawTextSafely(
+            textMeasurer = textMeasurer,
+            text = input.name.lowercase(),
+            topLeft = Offset(branchBounds.left + 6f, branchBounds.top + 4f),
+            style = style,
+            availableWidth = branchBounds.width - 12f,
+            availableHeight = 18f,
+        )
     }
 }
 
@@ -406,24 +554,18 @@ private fun DrawScope.drawReporterDockSlot(
     metrics: BlockRenderMetrics,
     showOutputAnchor: Boolean,
 ) {
-    val radius = if (size == metrics.reporterDockSize) {
-        metrics.reporterDockRadius
-    } else {
-        CornerRadius(size.height / 2f, size.height / 2f)
-    }
     val style = reporterDockVisualStyle(dataType, connected)
-    drawRoundRect(
+    val slotPath = Path().apply {
+        addPath(BlockShapes.reporterSocketPath(size, dataType), topLeft)
+    }
+    drawPath(
+        path = slotPath,
         color = backgroundColor.copy(alpha = style.fillAlpha),
-        topLeft = topLeft,
-        size = size,
-        cornerRadius = radius,
         style = Fill,
     )
-    drawRoundRect(
+    drawPath(
+        path = slotPath,
         color = style.accent.copy(alpha = style.strokeAlpha),
-        topLeft = topLeft,
-        size = size,
-        cornerRadius = radius,
         style = Stroke(width = if (connected) metrics.dockConnectedStrokeWidth else metrics.dockStrokeWidth),
     )
     if (showOutputAnchor) {
@@ -549,6 +691,7 @@ private fun BlockNode.structuralLabel(
         if (type.startsWith(BlockTypes.EMSCRIPT_COMMAND_PREFIX)) {
             return commandCanvasLabel(definition)
         }
+        fields["displayLabel"]?.asString()?.takeIf { it.isNotBlank() }?.let { return it }
         val base = definition?.label ?: fallback
         val detailed = fields["displayMode"]?.asString() == "detailed"
         val parameterNames = if (detailed) {
@@ -595,6 +738,26 @@ private fun BlockNode.commandCanvasLabel(definition: BlockDefinition?): String {
         ?: definition?.label?.takeIf { it.isNotBlank() }
         ?: type.removePrefix(BlockTypes.EMSCRIPT_COMMAND_PREFIX).substringAfterLast('.')
 }
+
+private fun BlockDefinition.isDesignerBlock(): Boolean =
+    metadata["custom.layout.designer"] == "true"
+
+private fun BlockDefinition.designerInputRow(inputName: String): Int =
+    metadata["custom.layout.input.$inputName.row"]?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+
+private fun BlockDefinition.designerInputColumn(inputName: String): Int =
+    metadata["custom.layout.input.$inputName.column"]?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+
+private fun BlockDefinition.designerHeaderHeight(): Float {
+    val rows = metadata["custom.layout.headerRows"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+    return LayoutConstants.HEADER_HEIGHT * rows
+}
+
+private fun BlockDefinition.designerFieldRow(fieldName: String): Int? =
+    metadata["custom.layout.field.$fieldName.row"]?.toIntOrNull()?.coerceAtLeast(0)
+
+private fun BlockDefinition.designerFieldColumn(fieldName: String): Int? =
+    metadata["custom.layout.field.$fieldName.column"]?.toIntOrNull()?.coerceAtLeast(0)
 
 private fun BlockNode.isStartBlock(): Boolean =
     type == BlockTypes.EVENT_START ||
@@ -783,11 +946,6 @@ private fun DrawScope.drawReporterCompactBadge(
             drawRoundRect(shapeStroke, chipTopLeft, Size(edge, edge), radius, style = Stroke(1.8f))
         }
         ReporterFamily.ANY, ReporterFamily.OPERATOR_ANY -> {
-            val center = Offset(chipTopLeft.x + edge / 2f, chipTopLeft.y + edge / 2f)
-            drawCircle(shapeColor, edge / 2f, center)
-            drawCircle(shapeStroke, edge / 2f, center, style = Stroke(1.8f))
-        }
-        ReporterFamily.CUSTOM, ReporterFamily.OPERATOR_CUSTOM, ReporterFamily.OPERATOR_BOOL -> {
             val diamond = Path().apply {
                 moveTo(chipTopLeft.x + edge / 2f, chipTopLeft.y)
                 lineTo(chipTopLeft.x + edge, chipTopLeft.y + edge / 2f)
@@ -797,6 +955,11 @@ private fun DrawScope.drawReporterCompactBadge(
             }
             drawPath(diamond, shapeColor, style = Fill)
             drawPath(diamond, shapeStroke, style = Stroke(1.8f))
+        }
+        ReporterFamily.CUSTOM, ReporterFamily.OPERATOR_CUSTOM, ReporterFamily.OPERATOR_BOOL -> {
+            val center = Offset(chipTopLeft.x + edge / 2f, chipTopLeft.y + edge / 2f)
+            drawCircle(shapeColor, edge / 2f, center)
+            drawCircle(shapeStroke, edge / 2f, center, style = Stroke(1.8f))
         }
         ReporterFamily.BOOLEAN -> return
     }

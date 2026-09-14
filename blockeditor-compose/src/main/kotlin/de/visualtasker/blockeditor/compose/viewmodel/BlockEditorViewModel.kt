@@ -15,6 +15,7 @@ import de.visualtasker.blockeditor.domain.WorkspaceAction
 import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.domain.WorkspaceGraph
 import de.visualtasker.blockeditor.domain.WorkspaceReducer
+import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.domain.withRootOffset
 import de.visualtasker.blockeditor.interaction.DragLayoutPreview
 import de.visualtasker.blockeditor.interaction.DragOperations
@@ -53,6 +54,7 @@ data class BlockInfoSnapshot(
     val blockId: BlockId,
     val typeId: String,
     val label: String,
+    val displayLabel: String,
     val categoryLabel: String,
     val categoryAccentArgb: Long,
     val fields: List<BlockInfoField>,
@@ -416,6 +418,7 @@ class BlockEditorViewModel(
             blockId = blockId,
             typeId = block.type,
             label = definition.label,
+            displayLabel = block.fields["displayLabel"]?.asString()?.takeIf { it.isNotBlank() } ?: definition.label,
             categoryLabel = category.label,
             categoryAccentArgb = category.accentArgb,
             fields = (definition.fields + CommonBlockInfoFields).map { it.toBlockInfoField(block) },
@@ -427,6 +430,10 @@ class BlockEditorViewModel(
     fun updateBlockField(fieldKey: String, rawValue: String) {
         val blockId = selectedBlockId ?: return
         val block = document.blocks[blockId] ?: return
+        if (fieldKey == "displayLabel") {
+            onAction(WorkspaceAction.UpdateField(blockId, fieldKey, FieldValue.Text(rawValue)))
+            return
+        }
         val fieldDef = (registry.getDefinition(block.type)?.fields.orEmpty() + CommonBlockInfoFields)
             .find { it.key == fieldKey }
             ?: return

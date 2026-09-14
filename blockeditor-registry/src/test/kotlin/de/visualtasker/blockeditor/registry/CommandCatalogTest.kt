@@ -119,6 +119,10 @@ class CommandCatalogTest {
         assertEquals("canRun", termuxCanRun.label)
         assertEquals("Termux.canRunCommands", termuxCanRun.metadata[VisualTaskerCommandCatalog.METADATA_CANONICAL_NAME])
         assertEquals("canRun", termuxCanRun.metadata[VisualTaskerCommandCatalog.METADATA_SHORT_NAME])
+
+        val sceneSave = DefaultBlockRegistry.getDefinition("${BlockTypes.EMSCRIPT_COMMAND_PREFIX}scene.save")!!
+        assertEquals(BlockCategories.SCENE, sceneSave.category)
+        assertEquals("sceneSave", sceneSave.metadata[VisualTaskerCommandCatalog.METADATA_CANONICAL_NAME])
     }
 
     @Test
@@ -127,12 +131,15 @@ class CommandCatalogTest {
         assertArgumentNames("chromeTab.validateRelationship", "origin", "relation")
         assertArgumentNames("tasker.pluginAction", "plugin", "action", "args")
         assertArgumentNames("tasker.getVariable", "name")
+        assertArgumentNames("tasker.lastResult", "runId")
+        assertArgumentNames("tasker.error", "runId")
         assertArgumentNames("shizuku.call", "service", "method", "args")
         assertArgumentNames("termux.writeStdin", "sessionId", "text")
         assertArgumentNames("scrcpy.scroll", "x", "y", "deltaY", "deltaX")
         assertArgumentNames("scrcpy.setScreenPower", "on")
         assertArgumentNames("chart.setData", "id", "data")
         assertArgumentNames("chart.capture", "id", "path")
+        assertArgumentNames("scene.save", "name", "markerMode", "region", "asset")
 
         val noArgCommands = listOf(
             "chromeTab.isSupported",
@@ -142,6 +149,28 @@ class CommandCatalogTest {
             "scrcpy.devices",
         )
         assertTrue(noArgCommands.all { VisualTaskerCommandCatalog.findById(it)?.arguments?.isEmpty() == true })
+    }
+
+    @Test
+    fun remFlowNodesAreCataloguedAsVisualMetadataBlocks() {
+        val region = VisualTaskerCommandCatalog.findById("rem.region")
+        val bulk = VisualTaskerCommandCatalog.findById("rem.variableBulk")
+        val flowBreak = VisualTaskerCommandCatalog.findById("rem.flowBreak")
+        val offPageOut = VisualTaskerCommandCatalog.findById("rem.offPageOut")
+        val block = DefaultBlockRegistry.getDefinition("${BlockTypes.EMSCRIPT_COMMAND_PREFIX}rem.region")
+
+        assertNotNull(region)
+        assertNotNull(bulk)
+        assertNotNull(flowBreak)
+        assertNotNull(offPageOut)
+        assertNotNull(block)
+        assertEquals(BlockCategories.REM_FLOW_NODES, region!!.category)
+        assertEquals("visualtasker.flowchart", region.pluginOwner)
+        assertEquals("visual-metadata", region.runtime?.dryRunBehavior)
+        assertEquals(BlockCategories.REM_FLOW_NODES, block!!.category)
+        assertEquals("region", block.label)
+        assertArgumentNames("rem.region", "name", "mode", "color")
+        assertArgumentNames("rem.flowBreak", "label", "direction")
     }
 
     @Test

@@ -130,10 +130,7 @@ object MaterialExpressiveBlockShapeBuilder {
     ): BlockVisualGeometry {
         val width = request.size.width
         val height = request.size.height
-        val radius = min(height / 2f, width / 2f)
-        val path = Path().apply {
-            addRoundRect(RoundRect(Rect(0f, 0f, width, height), CornerRadius(radius, radius)))
-        }
+        val path = materialReporterPath(width, height, request.valueType, tokens)
         val bounds = Rect(0f, 0f, width, height)
         return BlockVisualGeometry(
             path = path,
@@ -148,6 +145,67 @@ object MaterialExpressiveBlockShapeBuilder {
                 ),
             ),
         )
+    }
+
+    private fun materialReporterPath(
+        width: Float,
+        height: Float,
+        valueType: String?,
+        tokens: ResolvedBlockShapeTokens,
+    ): Path {
+        val normalized = valueType?.trim()?.lowercase().orEmpty()
+        return when (normalized) {
+            "number", "num", "int", "integer", "float", "double", "duration" -> Path().apply {
+                val radius = min(height / 2f, width / 2f)
+                addRoundRect(RoundRect(Rect(0f, 0f, width, height), CornerRadius(radius, radius)))
+            }
+            "string", "text", "char", "regex" -> Path().apply {
+                val radius = min(tokens.branchCorner, min(width, height) / 2f)
+                addRoundRect(RoundRect(Rect(0f, 0f, width, height), CornerRadius(radius, radius)))
+            }
+            "boolean", "bool" -> Path().apply {
+                val insetX = min(width * 0.16f, tokens.nodeHorizontalPadding)
+                val insetY = min(height * 0.08f, tokens.grid)
+                moveTo(width / 2f, insetY)
+                lineTo(width - insetX, height - insetY)
+                lineTo(insetX, height - insetY)
+                close()
+            }
+            "any", "*", "" -> Path().apply {
+                val insetX = min(width * 0.08f, tokens.grid * 2f)
+                val insetY = min(height * 0.08f, tokens.grid)
+                moveTo(width / 2f, insetY)
+                lineTo(width - insetX, height / 2f)
+                lineTo(width / 2f, height - insetY)
+                lineTo(insetX, height / 2f)
+                close()
+            }
+            "custom" -> Path().apply {
+                val radius = min(tokens.eventCorner, min(width, height) / 2f)
+                moveTo(radius, 0f)
+                lineTo(width - radius, 0f)
+                arcTo(Rect(width - radius * 2f, 0f, width, radius * 2f), 270f, 90f, false)
+                lineTo(width, height)
+                lineTo(0f, height)
+                lineTo(0f, radius)
+                arcTo(Rect(0f, 0f, radius * 2f, radius * 2f), 180f, 90f, false)
+                close()
+            }
+            else -> Path().apply {
+                val cut = min(width, height) * 0.22f
+                val radius = min(tokens.branchCorner, height / 2f)
+                moveTo(cut, 0f)
+                lineTo(width - cut, 0f)
+                quadraticTo(width, 0f, width, radius)
+                lineTo(width, height - radius)
+                quadraticTo(width, height, width - cut, height)
+                lineTo(cut, height)
+                quadraticTo(0f, height, 0f, height - radius)
+                lineTo(0f, radius)
+                quadraticTo(0f, 0f, cut, 0f)
+                close()
+            }
+        }
     }
 
     private fun annotationGeometry(

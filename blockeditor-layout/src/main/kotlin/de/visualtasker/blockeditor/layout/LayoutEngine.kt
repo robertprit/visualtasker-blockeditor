@@ -51,7 +51,7 @@ class LayoutEngine(
                     bounds = bounds,
                     zIndex = zStart,
                 )
-                addAnchors(block, blockId, bounds, zStart, connectionAnchors)
+                addAnchors(block, definition, blockId, bounds, zStart, connectionAnchors)
                 return zStart + 1
             }
 
@@ -60,6 +60,24 @@ class LayoutEngine(
                     document, block, blockId, x, y, zStart,
                     visibleBlocks, hitPrimitives, connectionAnchors,
                 ) { id, cx, cy, z -> layoutBlock(id, cx, cy, z) }
+            }
+
+            if (definition?.isDesignerBlock() == true) {
+                return layoutDesignerBlock(
+                    document = document,
+                    block = block,
+                    definition = definition,
+                    blockId = blockId,
+                    x = x,
+                    y = y,
+                    zStart = zStart,
+                    visibleBlocks = visibleBlocks,
+                    hitPrimitives = hitPrimitives,
+                    connectionAnchors = connectionAnchors,
+                    statementSlots = statementSlots,
+                    branchSections = branchSections,
+                    layoutChild = { id, cx, cy, z -> layoutBlock(id, cx, cy, z) },
+                )
             }
 
             if (definition?.statementInputs?.isNotEmpty() == true) {
@@ -87,7 +105,7 @@ class LayoutEngine(
             }
 
             val width = blockWidth(document, definition, block)
-            val height = if (definition?.isReporter == true) LayoutConstants.REPORTER_HEIGHT else LayoutConstants.HEADER_HEIGHT
+            val height = blockHeight(definition)
             val bounds = Rect(x, y, width, height)
             var maxZ = zStart + 1
             var subtreeBottom = bounds.bottom
@@ -103,7 +121,8 @@ class LayoutEngine(
 
             block.valueInputs.forEachIndexed { index, input ->
                 val slotX = x + width + LayoutConstants.VALUE_DOCK_GAP(index)
-                val slotBounds = Rect(slotX, y, LayoutConstants.REPORTER_WIDTH, LayoutConstants.REPORTER_HEIGHT)
+                val slotY = y + valueInputAnchorY(definition, input.name) - LayoutConstants.REPORTER_HEIGHT / 2f
+                val slotBounds = Rect(slotX, slotY, LayoutConstants.REPORTER_WIDTH, LayoutConstants.REPORTER_HEIGHT)
                 hitPrimitives += HitPrimitive(
                     id = "${blockId.value}:value:${input.name}",
                     blockId = blockId,
@@ -129,7 +148,7 @@ class LayoutEngine(
                 }
             }
 
-            addAnchors(block, blockId, bounds, zStart, connectionAnchors, includeValueInputs = false)
+            addAnchors(block, definition, blockId, bounds, zStart, connectionAnchors, includeValueInputs = false)
             updateSubtreeBounds(visibleBlocks, blockId, bounds, subtreeBottom)
             return maxOf(maxZ, zStart + 1)
         }
@@ -465,7 +484,7 @@ class LayoutEngine(
             zIndex = zStart,
         )
 
-        addAnchors(block, blockId, bounds, zStart, connectionAnchors, includeStatementInputs = false, includeValueInputs = false)
+        addAnchors(block, definition, blockId, bounds, zStart, connectionAnchors, includeStatementInputs = false, includeValueInputs = false)
         updateSubtreeBounds(visibleBlocks, blockId, bounds, bodyBottom + LayoutConstants.FOOTER_HEIGHT)
         return maxZ
     }
@@ -515,6 +534,141 @@ class LayoutEngine(
             maxZ = layoutChild(valueBlockId, dockX, dockY, maxZ)
         }
         return maxZ
+    }
+
+    private fun layoutDesignerBlock(
+        document: WorkspaceDocument,
+        block: BlockNode,
+        definition: BlockDefinition,
+        blockId: BlockId,
+        x: Float,
+        y: Float,
+        zStart: Int,
+        visibleBlocks: MutableList<BlockLayout>,
+        hitPrimitives: MutableList<HitPrimitive>,
+        connectionAnchors: MutableList<ConnectionAnchor>,
+        statementSlots: MutableList<StatementSlotLayout>,
+        branchSections: MutableList<BranchSectionLayout>,
+        layoutChild: (BlockId, Float, Float, Int) -> Int,
+    ): Int {
+        val width = blockWidth(document, definition, block)
+        var maxZ = zStart + 1
+        val headerHeight = definition.designerHeaderHeight()
+        var currentStatementTop = y + headerHeight + LayoutConstants.SLOT_PADDING
+        var bottom = y + headerHeight + LayoutConstants.STATEMENT_MIN_HEIGHT + LayoutConstants.FOOTER_HEIGHT
+
+        val statementRows = block.statementInputs.associate { input ->
+            input.name to definition.designerInputRow(input.name)
+        }
+        statementRows.toList().sortedBy { it.second }.forEachIndexed { index, (slotName, _) ->
+            if (index > 0) {
+                val dividerBounds = Rect(
+                    x + LayoutConstants.NESTED_INDENT,
+                    currentStatementTop,
+                    width - LayoutConstants.NESTED_INDENT - LayoutConstants.SLOT_PADDING,
+                    LayoutConstants.BRANCH_SHELF,
+                )
+                branchSections += BranchSectionLayout(
+                    blockId = blockId,
+                    kind = BranchSectionKind.BranchDivider,
+                    label = slotName.branchLabel(),
+                    bounds = dividerBounds,
+                    zIndex = zStart,
+                )
+                currentStatementTop += LayoutConstants.BRANCH_SHELF + LayoutConstants.SLOT_PADDING
+            }
+            val slotTop = currentStatementTop
+            val stackHeight = computeStatementStackHeight(document, blockId, slotName)
+            val slotBounds = Rect(
+                x + LayoutConstants.NESTED_INDENT,
+                slotTop,
+                (width - LayoutConstants.NESTED_INDENT - LayoutConstants.SLOT_PADDING).coerceAtLeast(LayoutConstants.STANDARD_WIDTH * 0.45f),
+                stackHeight,
+            )
+            statementSlots += StatementSlotLayout(blockId, slotName, slotBounds, zStart)
+            hitPrimitives += HitPrimitive(
+                id = "${blockId.value}:stmt:$slotName",
+                blockId = blockId,
+                kind = HitKind.StatementSlot,
+                bounds = slotBounds,
+                zIndex = zStart,
+                inputName = slotName,
+            )
+            block.statementInputs.find { it.name == slotName }?.let { input ->
+                connectionAnchors += ConnectionAnchor(
+                    connectionId = input.connection.id,
+                    ownerBlockId = blockId,
+                    kind = ConnectionKind.StatementInput,
+                    type = null,
+                    x = slotBounds.x,
+                    y = slotBounds.y,
+                    radius = LayoutConstants.ANCHOR_RADIUS,
+                    zIndex = zStart,
+                )
+            }
+            var childY = slotBounds.y
+            WorkspaceGraph.statementStack(document, blockId, slotName).forEach { childId ->
+                maxZ = layoutChild(childId, slotBounds.x, childY, maxZ)
+                val childLayout = visibleBlocks.find { it.blockId == childId }
+                val childHeight = childLayout?.subtreeBounds?.height
+                    ?: childLayout?.bounds?.height
+                    ?: LayoutConstants.HEADER_HEIGHT
+                childY += childHeight + LayoutConstants.LINEAR_STACK_GAP
+            }
+            bottom = maxOf(bottom, childY, slotBounds.bottom + LayoutConstants.FOOTER_HEIGHT)
+            currentStatementTop = maxOf(childY, slotBounds.bottom) + LayoutConstants.SLOT_PADDING
+        }
+
+        val bounds = Rect(x, y, width, bottom - y)
+        visibleBlocks += BlockLayout(blockId, bounds, bounds, zStart, collapsed = false)
+        hitPrimitives += HitPrimitive(
+            id = "${blockId.value}:header",
+            blockId = blockId,
+            kind = HitKind.Header,
+            bounds = bounds,
+            zIndex = zStart,
+        )
+        hitPrimitives += HitPrimitive(
+            id = "${blockId.value}:body",
+            blockId = blockId,
+            kind = HitKind.BlockBody,
+            bounds = bounds,
+            zIndex = zStart,
+        )
+
+        block.valueInputs.forEachIndexed { index, input ->
+            val slotWidth = LayoutConstants.REPORTER_WIDTH
+            val slotX = x + designerValueInputX(definition, input.name)
+            val slotY = y + valueInputAnchorY(definition, input.name) - LayoutConstants.REPORTER_HEIGHT / 2f
+            val slotBounds = Rect(slotX, slotY, slotWidth, LayoutConstants.REPORTER_HEIGHT)
+            hitPrimitives += HitPrimitive(
+                id = "${blockId.value}:value:${input.name}",
+                blockId = blockId,
+                kind = HitKind.ValueInput,
+                bounds = slotBounds,
+                zIndex = zStart,
+                inputName = input.name,
+            )
+            connectionAnchors += ConnectionAnchor(
+                connectionId = input.connection.id,
+                ownerBlockId = blockId,
+                kind = ConnectionKind.ValueInput,
+                type = input.connection.accepts.firstOrNull(),
+                x = slotBounds.x,
+                y = slotBounds.y + LayoutConstants.REPORTER_HEIGHT / 2f,
+                radius = LayoutConstants.ANCHOR_RADIUS,
+                zIndex = zStart,
+            )
+            input.connection.connectedTo?.let { connId ->
+                val (valueBlockId, _) = WorkspaceGraph.findConnection(document, connId) ?: return@let
+                maxZ = layoutChild(valueBlockId, slotX, slotY, maxZ)
+                bottom = maxOf(bottom, maxZBound(visibleBlocks, valueBlockId))
+            }
+        }
+
+        addAnchors(block, definition, blockId, bounds, zStart, connectionAnchors, includeStatementInputs = false, includeValueInputs = false)
+        updateSubtreeBounds(visibleBlocks, blockId, bounds, bottom)
+        return maxOf(maxZ, zStart + 1)
     }
 
     private fun layoutInlineReporter(
@@ -659,6 +813,7 @@ class LayoutEngine(
 
     private fun addAnchors(
         block: BlockNode,
+        definition: BlockDefinition?,
         blockId: BlockId,
         bounds: Rect,
         zIndex: Int,
@@ -710,7 +865,7 @@ class LayoutEngine(
                     kind = ConnectionKind.ValueInput,
                     type = input.connection.accepts.firstOrNull(),
                     x = bounds.right - LayoutConstants.SLOT_PADDING,
-                    y = bounds.y + LayoutConstants.HEADER_HEIGHT / 2,
+                    y = bounds.y + valueInputAnchorY(definition, input.name),
                     radius = LayoutConstants.ANCHOR_RADIUS,
                     zIndex = zIndex,
                 )
@@ -737,6 +892,7 @@ class LayoutEngine(
         definition: BlockDefinition?,
         block: BlockNode,
     ): Float = when {
+        definition?.isDesignerBlock() == true -> customDesignerWidth(definition)
         definition?.inputsInline == true -> inlineReporterWidth(document, block)
         definition?.isReporter == true -> LayoutConstants.REPORTER_WIDTH
         definition.isDecorativeEventContainer() -> LayoutConstants.STANDARD_WIDTH
@@ -754,9 +910,38 @@ class LayoutEngine(
         else -> blockWidth(document, definition, block)
     }
 
+    private fun blockHeight(definition: BlockDefinition?): Float = when {
+        definition?.isReporter == true -> LayoutConstants.REPORTER_HEIGHT
+        definition?.isDesignerBlock() == true -> definition.designerHeaderHeight() +
+            if (definition.statementInputs.isNotEmpty()) {
+                LayoutConstants.STATEMENT_MIN_HEIGHT + LayoutConstants.FOOTER_HEIGHT
+            } else {
+                0f
+            }
+        else -> LayoutConstants.HEADER_HEIGHT
+    }
+
     private fun collapsedBlockHeight(definition: BlockDefinition?): Float = when {
         definition?.isReporter == true -> LayoutConstants.COLLAPSED_REPORTER_HEIGHT
         else -> LayoutConstants.COLLAPSED_HEIGHT
+    }
+
+    private fun valueInputAnchorY(definition: BlockDefinition?, inputName: String): Float {
+        val row = definition?.metadata?.get("custom.layout.input.$inputName.row")?.toIntOrNull() ?: 0
+        return LayoutConstants.HEADER_HEIGHT * row + LayoutConstants.HEADER_HEIGHT / 2f
+    }
+
+    private fun designerValueInputX(definition: BlockDefinition, inputName: String): Float {
+        val column = definition.metadata["custom.layout.input.$inputName.column"]?.toIntOrNull() ?: 0
+        return LayoutConstants.NESTED_INDENT + column * LayoutConstants.DESIGNER_ELEMENT_WIDTH + LayoutConstants.SLOT_PADDING
+    }
+
+    private fun customDesignerWidth(definition: BlockDefinition): Float {
+        val columns = definition.metadata["custom.layout.maxRowColumns"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+        return maxOf(
+            LayoutConstants.STANDARD_WIDTH,
+            LayoutConstants.NESTED_INDENT + columns * LayoutConstants.DESIGNER_ELEMENT_WIDTH + LayoutConstants.SLOT_PADDING * 2,
+        )
     }
 
     private fun controlContainerWidth(
@@ -876,5 +1061,19 @@ class LayoutEngine(
                 this == "condition" || this == "CONDITION" -> "if"
                 else -> lowercase()
             }
+
+        fun BlockDefinition?.designerRowCount(): Int =
+            this?.metadata?.get("custom.layout.rowCount")?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+
+        fun BlockDefinition.isDesignerBlock(): Boolean =
+            metadata["custom.layout.designer"] == "true"
+
+        fun BlockDefinition.designerInputRow(inputName: String): Int =
+            metadata["custom.layout.input.$inputName.row"]?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+
+        fun BlockDefinition.designerHeaderHeight(): Float {
+            val rows = metadata["custom.layout.headerRows"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+            return LayoutConstants.HEADER_HEIGHT * rows
+        }
     }
 }

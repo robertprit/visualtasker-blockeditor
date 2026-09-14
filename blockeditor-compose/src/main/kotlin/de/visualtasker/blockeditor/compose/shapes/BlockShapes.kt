@@ -264,10 +264,90 @@ object BlockShapes {
         close()
     }
 
-    fun reporterPath(size: Size): Path = Path().apply {
-        // Korrektur: Verhindert überlappende Radien bei extrem schmalen Blöcken
+    fun reporterPath(size: Size, valueType: String? = null): Path =
+        reporterSocketPath(size, valueType)
+
+    fun reporterSocketPath(size: Size, valueType: String? = null): Path = when (valueType.reporterSocketShape()) {
+        ReporterSocketShape.NumberPill -> pillPath(size)
+        ReporterSocketShape.StringRectangle -> roundedRectPath(size, radius = 6f)
+        ReporterSocketShape.BooleanTriangle -> booleanTrianglePath(size)
+        ReporterSocketShape.AnyDiamond -> diamondPath(size)
+        ReporterSocketShape.CustomArch -> archPath(size)
+        ReporterSocketShape.FallbackClamShell -> clamShellPath(size)
+    }
+
+    private fun pillPath(size: Size): Path = Path().apply {
         val radius = minOf(REPORTER_RADIUS, size.height / 2f, size.width / 2f)
         addRoundRect(RoundRect(Rect(0f, 0f, size.width, size.height), CornerRadius(radius, radius)))
+    }
+
+    private fun roundedRectPath(size: Size, radius: Float): Path = Path().apply {
+        val safeRadius = minOf(radius, size.height / 2f, size.width / 2f)
+        addRoundRect(RoundRect(Rect(0f, 0f, size.width, size.height), CornerRadius(safeRadius, safeRadius)))
+    }
+
+    private fun booleanTrianglePath(size: Size): Path = Path().apply {
+        val insetX = (size.width * 0.12f).coerceAtMost(12f)
+        val insetY = (size.height * 0.08f).coerceAtMost(4f)
+        moveTo(size.width / 2f, insetY)
+        lineTo(size.width - insetX, size.height - insetY)
+        lineTo(insetX, size.height - insetY)
+        close()
+    }
+
+    private fun diamondPath(size: Size): Path = Path().apply {
+        val insetX = (size.width * 0.06f).coerceAtMost(8f)
+        val insetY = (size.height * 0.08f).coerceAtMost(4f)
+        moveTo(size.width / 2f, insetY)
+        lineTo(size.width - insetX, size.height / 2f)
+        lineTo(size.width / 2f, size.height - insetY)
+        lineTo(insetX, size.height / 2f)
+        close()
+    }
+
+    private fun archPath(size: Size): Path = Path().apply {
+        val radius = minOf(size.height * 0.7f, size.width / 2f)
+        moveTo(radius, 0f)
+        lineTo(size.width - radius, 0f)
+        arcTo(Rect(size.width - radius * 2f, 0f, size.width, radius * 2f), 270f, 90f, false)
+        lineTo(size.width, size.height)
+        lineTo(0f, size.height)
+        lineTo(0f, radius)
+        arcTo(Rect(0f, 0f, radius * 2f, radius * 2f), 180f, 90f, false)
+        close()
+    }
+
+    private fun clamShellPath(size: Size): Path = Path().apply {
+        val cut = minOf(size.width, size.height) * 0.2f
+        val radius = minOf(size.height / 2f, 8f)
+        moveTo(cut, 0f)
+        lineTo(size.width - cut, 0f)
+        quadraticTo(size.width, 0f, size.width, radius)
+        lineTo(size.width, size.height - radius)
+        quadraticTo(size.width, size.height, size.width - cut, size.height)
+        lineTo(cut, size.height)
+        quadraticTo(0f, size.height, 0f, size.height - radius)
+        lineTo(0f, radius)
+        quadraticTo(0f, 0f, cut, 0f)
+        close()
+    }
+
+    private enum class ReporterSocketShape {
+        NumberPill,
+        StringRectangle,
+        BooleanTriangle,
+        AnyDiamond,
+        CustomArch,
+        FallbackClamShell,
+    }
+
+    private fun String?.reporterSocketShape(): ReporterSocketShape = when (this?.trim()?.lowercase()) {
+        "number", "num", "int", "integer", "float", "double", "duration" -> ReporterSocketShape.NumberPill
+        "string", "text", "char", "regex" -> ReporterSocketShape.StringRectangle
+        "boolean", "bool" -> ReporterSocketShape.BooleanTriangle
+        "any", "*", "" -> ReporterSocketShape.AnyDiamond
+        "custom" -> ReporterSocketShape.CustomArch
+        else -> ReporterSocketShape.FallbackClamShell
     }
 
     /** Reporter mit Output-Tab links (Blockly-inline). */
