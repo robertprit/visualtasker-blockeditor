@@ -185,6 +185,41 @@ class CommandCatalogTest {
     }
 
     @Test
+    fun capabilityDescriptorsExposeSharedRuntimeAndEditorContract() {
+        val descriptors = VisualTaskerCommandCatalog.capabilityDescriptors()
+        val wait = descriptors.first { it.id == "action.wait" }
+        val touch = descriptors.first { it.id == "input.touch" }
+        val taskerVariable = descriptors.first { it.id == "tasker.getVariable" }
+
+        assertEquals("wait", wait.canonicalName)
+        assertEquals(CommandCapability.TIMING, wait.requiredAdapter)
+        assertEquals(BlockTypes.ACTION_WAIT, wait.blockType)
+        assertEquals("action", wait.flowNodeKind)
+        assertTrue("WAIT" in wait.acceptedNames)
+        assertTrue(wait.liveImplemented)
+
+        assertEquals(CommandCapability.A11Y, touch.requiredAdapter)
+        assertEquals("adapter-gated", touch.dryRunBehavior)
+        assertEquals(false, touch.liveImplemented)
+
+        assertEquals(CommandCapability.TASKER, taskerVariable.requiredAdapter)
+        assertEquals("visualtasker.tasker", taskerVariable.pluginOwner)
+        assertEquals(listOf("name"), taskerVariable.arguments.map { it.name })
+        assertEquals("CAPABILITY_ADAPTER_REQUIRED", taskerVariable.diagnosticCode)
+    }
+
+    @Test
+    fun runtimeDescriptorsAreDerivedFromCatalogEntries() {
+        val descriptors = VisualTaskerCommandCatalog.runtimeCapabilityDescriptors()
+        val names = descriptors.flatMap { it.acceptedNames }.toSet()
+
+        assertTrue("beep" in names)
+        assertTrue("Tasker.lastResult" in names)
+        assertTrue("Shizuku.shell" in names)
+        assertTrue(descriptors.all { it.requiredAdapter != null })
+    }
+
+    @Test
     fun commandCatalogSchemaIsValid() {
         assertEquals(emptyList<CommandCatalogDiagnostic>(), VisualTaskerCommandCatalog.validate())
     }

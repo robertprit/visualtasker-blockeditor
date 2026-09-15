@@ -80,6 +80,8 @@ data class CommandFlowchartBinding(
 data class CommandRuntimeBinding(
     val dryRunBehavior: String,
     val liveCapabilityGate: CommandCapability,
+    val liveImplemented: Boolean = true,
+    val diagnosticCode: String = "CAPABILITY_ADAPTER_REQUIRED",
 )
 
 @Serializable
@@ -97,6 +99,26 @@ data class CommandCatalogEntry(
     val block: CommandBlockBinding? = null,
     val flowchart: CommandFlowchartBinding? = null,
     val runtime: CommandRuntimeBinding? = null,
+)
+
+@Serializable
+data class CommandCapabilityDescriptor(
+    val id: String,
+    val canonicalName: String,
+    val acceptedNames: Set<String>,
+    val kind: CommandCatalogKind,
+    val category: String,
+    val arguments: List<CommandArgument>,
+    val returnType: String?,
+    val sideEffect: CommandSideEffect,
+    val declaredCapabilities: Set<CommandCapability>,
+    val requiredAdapter: CommandCapability?,
+    val pluginOwner: String,
+    val blockType: String?,
+    val flowNodeKind: String?,
+    val dryRunBehavior: String,
+    val liveImplemented: Boolean,
+    val diagnosticCode: String,
 )
 
 enum class CommandCatalogDiagnosticCode {
@@ -932,6 +954,15 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             .flatMap { entry -> entry.acceptedAliases + entry.canonicalName }
             .toSet()
 
+    fun capabilityDescriptors(): List<CommandCapabilityDescriptor> =
+        entries.map(CommandCatalogEntry::toCapabilityDescriptor)
+
+    fun runtimeCapabilityDescriptors(): List<CommandCapabilityDescriptor> =
+        capabilityDescriptors().filter { it.requiredAdapter != null }
+
+    fun capabilityDescriptorForAcceptedName(name: String): CommandCapabilityDescriptor? =
+        findByAcceptedName(name)?.toCapabilityDescriptor()
+
     fun metadataForBlockType(blockType: String): Map<String, String> {
         val entry = findByBlockType(blockType) ?: return emptyMap()
         return mapOf(
@@ -948,6 +979,26 @@ object VisualTaskerCommandCatalog : CommandCatalog {
 
     fun validate(): List<CommandCatalogDiagnostic> = validateCommandCatalog(entries)
 }
+
+fun CommandCatalogEntry.toCapabilityDescriptor(): CommandCapabilityDescriptor =
+    CommandCapabilityDescriptor(
+        id = id,
+        canonicalName = canonicalName,
+        acceptedNames = (acceptedAliases + canonicalName).toSet(),
+        kind = kind,
+        category = category,
+        arguments = arguments,
+        returnType = returnType,
+        sideEffect = sideEffect,
+        declaredCapabilities = capabilities,
+        requiredAdapter = runtime?.liveCapabilityGate,
+        pluginOwner = pluginOwner,
+        blockType = block?.blockType,
+        flowNodeKind = flowchart?.nodeKind,
+        dryRunBehavior = runtime?.dryRunBehavior ?: "none",
+        liveImplemented = runtime?.liveImplemented == true,
+        diagnosticCode = runtime?.diagnosticCode ?: "CAPABILITY_NOT_EXECUTABLE",
+    )
 
 fun validateCommandCatalog(entries: List<CommandCatalogEntry>): List<CommandCatalogDiagnostic> = buildList {
     entries
@@ -1098,11 +1149,12 @@ private fun catalogCommand(
     runtime = CommandRuntimeBinding(
         dryRunBehavior = when {
             pluginOwner == "visualtasker.core" &&
-                capability in setOf(CommandCapability.CORE, CommandCapability.A11Y, CommandCapability.SCREEN_CAPTURE) &&
+        capability in setOf(CommandCapability.CORE, CommandCapability.A11Y, CommandCapability.SCREEN_CAPTURE) &&
                 canonicalName != "touch" -> "simulate"
             else -> "adapter-gated"
         },
         liveCapabilityGate = capability,
+        liveImplemented = canonicalName != "touch",
     ),
 )
 

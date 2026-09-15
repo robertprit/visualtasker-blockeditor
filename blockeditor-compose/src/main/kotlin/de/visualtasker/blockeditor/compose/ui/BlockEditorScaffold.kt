@@ -341,7 +341,7 @@ fun BlockEditorScaffold(
     var floatingInspectorHeightDp by remember { mutableFloatStateOf(128f) }
     val floatingInspectorHeightPx = with(density) { floatingInspectorHeightDp.dp.toPx() }
     val shouldHandleWorkspacePointerStart: (Offset2) -> Boolean = { point ->
-        !showFloatingInspector || point.y < canvasSize.y - floatingInspectorHeightPx - trashMarginPx
+        !showFloatingInspector || point.y < canvasSize.y - floatingInspectorHeightPx
     }
     val gridVisible = gridEnabled
     val deleteCandidate = blockDragActive &&
