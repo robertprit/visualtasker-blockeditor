@@ -59,6 +59,24 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class BlockEditorControllerTest {
     @Test
+    fun hostFocusSelectsBlockWithoutMutatingDocument() {
+        val controller = BlockEditorController(initialDocument = WorkspaceBootstrap.empty())
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
+        val blockId = controller.document.rootBlocks.single()
+        val before = controller.document
+        controller.onCanvasSizeChange(Offset2(480f, 360f))
+        val viewportBeforeFocus = controller.viewport
+
+        assertTrue(controller.focusBlock(blockId, select = true))
+
+        assertEquals(before, controller.document)
+        assertEquals(viewportBeforeFocus, controller.viewport)
+        assertEquals(setOf(blockId), controller.selectedBlockIds)
+        assertEquals(blockId, controller.selectedBlockInfo()?.blockId)
+        controller.close()
+    }
+
+    @Test
     fun hostSoundEffectsAreOptInByDefault() {
         assertFalse(BlockEditorHostUiConfig().soundEffectsEnabled)
         assertFalse(BlockEditorHostUiConfig().hapticFeedbackEnabled)
@@ -584,7 +602,7 @@ class BlockEditorControllerTest {
     }
 
     @Test
-    fun replaceWorkspaceDocumentDefersImportedRootFocusUntilCanvasSizeIsKnown() {
+    fun replaceWorkspaceDocumentKeepsViewportWhenImportedRootIsAlreadyVisible() {
         val controller = BlockEditorController(
             initialDocument = WorkspaceBootstrap.empty(),
         )
@@ -609,7 +627,7 @@ class BlockEditorControllerTest {
         val right = rootLayout.subtreeBounds.right * controller.viewport.scale + controller.viewport.panX
         val bottom = rootLayout.subtreeBounds.bottom * controller.viewport.scale + controller.viewport.panY
         assertTrue(left <= 480f && top <= 360f && right >= 0f && bottom >= 0f)
-        assertNotEquals(ViewportState(), controller.viewport)
+        assertEquals(ViewportState(), controller.viewport)
 
         controller.close()
     }

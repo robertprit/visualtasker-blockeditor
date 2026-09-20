@@ -834,6 +834,21 @@ class BlockEditorController(
         }
     }
 
+    /** Focuses an existing block without replacing or mutating the workspace document. */
+    fun focusBlock(blockId: BlockId, select: Boolean = true): Boolean {
+        if (disposed.get() || blockId !in document.blocks) return false
+        if (focusBlockInCanvas(blockId, selectFocusedBlock = select)) {
+            initialCanvasFitApplied = true
+            pendingFocusBlockId = null
+            pendingFocusSelect = false
+            return true
+        }
+        if (select) selectSingle(blockId)
+        pendingFocusBlockId = blockId
+        pendingFocusSelect = select
+        return true
+    }
+
     /**
      * Host-owned release checklist update. `RUNNING` is only possible after a complete checklist.
      */
@@ -1076,12 +1091,13 @@ class BlockEditorController(
         val layout = layoutCache.flatIndex.visibleBlocks.find { it.blockId == blockId }
             ?: return false
         val bounds = layout.subtreeBounds
+        if (bounds.isVisibleIn(viewport, size, margin)) {
+            if (selectFocusedBlock) selectSingle(blockId)
+            return true
+        }
         val contentWidth = max(1f, bounds.width)
         val contentHeight = max(1f, bounds.height)
-        val availableWidth = max(1f, size.x - margin * 2f)
-        val availableHeight = max(1f, size.y - margin * 2f)
-        val scale = min(availableWidth / contentWidth, availableHeight / contentHeight)
-            .coerceIn(0.5f, 1.25f)
+        val scale = viewport.scale.coerceIn(0.25f, 4f)
         val panX = (size.x - contentWidth * scale) / 2f - bounds.x * scale
         val panY = (size.y - contentHeight * scale) / 2f - bounds.y * scale
         if (!panX.isFinite() || !panY.isFinite() || !scale.isFinite()) return false
@@ -1299,6 +1315,7 @@ class BlockEditorController(
     private fun selectSingle(blockId: BlockId) {
         selectedBlockIds = setOf(blockId)
         selectedBlockId = blockId
+        infoPanelBlockId = blockId
     }
 
     private fun clearSelection() {
