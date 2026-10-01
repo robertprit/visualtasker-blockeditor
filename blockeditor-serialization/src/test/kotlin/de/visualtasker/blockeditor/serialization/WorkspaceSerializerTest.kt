@@ -49,6 +49,30 @@ class WorkspaceSerializerTest {
     }
 
     @Test
+    fun stableAndLegacyOperatorValuesRoundTripWithoutEnumOrdinals() {
+        val compareId = BlockId("stable-compare")
+        val legacyId = BlockId("legacy-operate")
+        val compare = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_COMPARE)!!
+            .createNode(compareId)
+        val legacy = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_OPERATE)!!
+            .createNode(legacyId)
+            .copy(fields = mapOf("operator" to FieldValue.Text("MUL")))
+        val document = WorkspaceDocument(
+            id = "operator-values",
+            blocks = mapOf(compareId to compare, legacyId to legacy),
+            rootBlocks = listOf(compareId, legacyId),
+        )
+
+        val json = WorkspaceSerializer.serialize(document)
+        val restored = WorkspaceSerializer.deserialize(json)
+
+        assertTrue(json.contains("greaterOrEqual"))
+        assertFalse(json.contains("\"operator\":5"))
+        assertEquals("greaterOrEqual", restored.blocks.getValue(compareId).fields.getValue("operator").asString())
+        assertEquals("MUL", restored.blocks.getValue(legacyId).fields.getValue("operator").asString())
+    }
+
+    @Test
     fun serializeDeserializeSerialize_isByteIdentical() {
         val document = SampleWorkspaceFactory.createDemo()
         val first = WorkspaceSerializer.serialize(document)
@@ -116,6 +140,63 @@ class WorkspaceSerializerTest {
         assertEquals("0", restored.variables.variables.getValue("score-id").defaultValue)
         assertEquals("variable.reporter.score-id", restored.blocks.getValue(getter.id).type)
         assertEquals("score-id", restored.blocks.getValue(setter.id).fields.getValue("variableId").asString())
+    }
+
+    @Test
+    fun nullableVariableTypeRoundTripsLosslessly() {
+        val document = WorkspaceDocument(
+            id = "nullable-variable",
+            variables = VariableRegistry(
+                mapOf(
+                    "maybe" to VariableDefinition(
+                        id = "maybe",
+                        name = "maybe",
+                        type = "String?",
+                        scope = VariableScope.Script,
+                    ),
+                ),
+            ),
+        )
+
+        val serialized = WorkspaceSerializer.serialize(document)
+        val restored = WorkspaceSerializer.deserialize(serialized)
+
+        assertTrue(serialized.contains("String?"))
+        assertEquals("String?", restored.variables.variables.getValue("maybe").type)
+        assertEquals(serialized, WorkspaceSerializer.serialize(restored))
+    }
+
+    @Test
+    fun legacyExpressionAliasesReadAndWriteAsCanonicalProjections() {
+        val variableBlockId = BlockId("legacy-variable-get")
+        val booleanBlockId = BlockId("legacy-logic-boolean")
+        val legacyVariable = DefaultBlockRegistry.getDefinition(BlockTypes.VARIABLE_GET)!!
+            .createNode(variableBlockId)
+            .copy(fields = mapOf("variable" to FieldValue.Text("stable-id")))
+        val legacyBoolean = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_BOOLEAN)!!
+            .createNode(booleanBlockId)
+            .copy(fields = mapOf("value" to FieldValue.Bool(true)))
+        val legacy = WorkspaceDocument(
+            id = "legacy-expression-aliases",
+            blocks = mapOf(variableBlockId to legacyVariable, booleanBlockId to legacyBoolean),
+            rootBlocks = listOf(variableBlockId, booleanBlockId),
+            variables = VariableRegistry(
+                mapOf("stable-id" to VariableDefinition("stable-id", "Display label", "Number", VariableScope.Script)),
+            ),
+        )
+
+        val canonicalJson = WorkspaceSerializer.serialize(legacy)
+        val restored = WorkspaceSerializer.deserialize(canonicalJson)
+
+        assertFalse(canonicalJson.contains("\"type\":\"variable.get\""))
+        assertFalse(canonicalJson.contains("\"type\":\"logic.boolean\""))
+        assertTrue(canonicalJson.contains("\"type\":\"variable.reporter.stable-id\""))
+        assertTrue(canonicalJson.contains("\"type\":\"literal.boolean\""))
+        assertEquals(variableBlockId, restored.blocks.getValue(variableBlockId).id)
+        assertEquals(FieldValue.Text("stable-id"), restored.blocks.getValue(variableBlockId).fields["variableId"])
+        assertEquals(FieldValue.Text("Display label"), restored.blocks.getValue(variableBlockId).fields["variableLabel"])
+        assertEquals(BlockTypes.LITERAL_BOOLEAN, restored.blocks.getValue(booleanBlockId).type)
+        assertEquals(canonicalJson, WorkspaceSerializer.serialize(restored))
     }
 
     @Test

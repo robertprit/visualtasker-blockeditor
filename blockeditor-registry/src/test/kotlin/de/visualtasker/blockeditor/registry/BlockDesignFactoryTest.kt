@@ -192,4 +192,22 @@ class BlockDesignFactoryTest {
         assertEquals("0", definition.metadata["custom.layout.input.first.row"])
         assertEquals("1", definition.metadata["custom.layout.input.body1.row"])
     }
+
+    @Test
+    fun leadingEndRowsDoNotCreateEmptyRows() {
+        val blueprint = BlockDesignBlueprint(
+            type = "user.leadingRows",
+            label = "Leading Rows",
+            elements = listOf(
+                BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.END_ROW, "row1")),
+                BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.END_ROW, "row2")),
+                BlockDesignElement.input(BlockDesignInputDefinition(BlockDesignInputKind.VALUE, "first")),
+            ),
+        )
+
+        val definition = BlockDesignFactory.create(blueprint)
+
+        assertEquals("1", definition.metadata["custom.layout.rowCount"])
+        assertEquals("0", definition.metadata["custom.layout.input.first.row"])
+    }
 }

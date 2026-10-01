@@ -4,6 +4,8 @@ import de.visualtasker.blockeditor.domain.BlockId
 import de.visualtasker.blockeditor.domain.ConnectionId
 
 sealed interface ValidationError {
+    val code: String
+        get() = "WORKSPACE_VALIDATION"
     val message: String
 }
 
@@ -18,7 +20,22 @@ data class TypeMismatch(
     val inputName: String,
     val expected: Set<String>,
     val actual: String?,
-    override val message: String = "Block ${blockId.value} input '$inputName' expects $expected but got $actual",
+    val commandId: String? = null,
+    override val code: String = "EMSCRIPT_ARGUMENT_TYPE_MISMATCH",
+    override val message: String = buildString {
+        commandId?.let { append("Command '$it' ") }
+        append("block ${blockId.value} input '$inputName' expects $expected but got $actual")
+    },
+) : ValidationError
+
+data class AssignmentTypeMismatch(
+    val blockId: BlockId,
+    val variableId: String,
+    val expectedType: String,
+    val actualType: String?,
+    override val code: String = "EMSCRIPT_ASSIGNMENT_TYPE_MISMATCH",
+    override val message: String =
+        "Variable '$variableId' expects $expectedType but got ${actualType ?: "Unknown"}",
 ) : ValidationError
 
 data class CycleDetected(

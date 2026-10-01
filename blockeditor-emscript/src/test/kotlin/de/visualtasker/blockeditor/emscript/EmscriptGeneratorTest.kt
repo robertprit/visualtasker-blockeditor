@@ -95,7 +95,9 @@ class EmscriptGeneratorTest {
                     de.visualtasker.blockeditor.ir.IrStatement.Beep(),
                     de.visualtasker.blockeditor.ir.IrStatement.Beep(880, 150, 75),
                     de.visualtasker.blockeditor.ir.IrStatement.Vibrate(listOf(0L, 80L, 40L, 120L)),
-                    de.visualtasker.blockeditor.ir.IrStatement.Log("hello"),
+                    de.visualtasker.blockeditor.ir.IrStatement.Log(
+                        de.visualtasker.blockeditor.ir.IrExpression.LiteralString("hello"),
+                    ),
                     de.visualtasker.blockeditor.ir.IrStatement.SetVariable("count", "3"),
                 ),
             ),
@@ -139,6 +141,54 @@ class EmscriptGeneratorTest {
             ),
         )
         assertEquals("if ((3 >= 2)) {\n    wait(100);\n}", script)
+    }
+
+    @Test fun stableOperatorIdsSerializeToCanonicalSymbols() {
+        val number = de.visualtasker.blockeditor.ir.IrExpression.LiteralNumber(1.0)
+        val comparisons = linkedMapOf(
+            "equal" to "==",
+            "notEqual" to "!=",
+            "less" to "<",
+            "lessOrEqual" to "<=",
+            "greater" to ">",
+            "greaterOrEqual" to ">=",
+        )
+        val arithmetic = linkedMapOf(
+            "add" to "+",
+            "subtract" to "-",
+            "multiply" to "*",
+            "divide" to "/",
+            "modulo" to "%",
+        )
+
+        comparisons.forEach { (id, symbol) ->
+            val script = generator.generate(
+                de.visualtasker.blockeditor.ir.IrScript(
+                    id,
+                    listOf(
+                        de.visualtasker.blockeditor.ir.IrStatement.If(
+                            de.visualtasker.blockeditor.ir.IrExpression.Compare(id, number, number),
+                            emptyList(),
+                        ),
+                    ),
+                ),
+            )
+            assertEquals("if ((1 $symbol 1)) {\n}", script)
+        }
+        arithmetic.forEach { (id, symbol) ->
+            val script = generator.generate(
+                de.visualtasker.blockeditor.ir.IrScript(
+                    id,
+                    listOf(
+                        de.visualtasker.blockeditor.ir.IrStatement.While(
+                            de.visualtasker.blockeditor.ir.IrExpression.Operate(id, number, number),
+                            emptyList(),
+                        ),
+                    ),
+                ),
+            )
+            assertEquals("while ((1 $symbol 1)) {\n}", script)
+        }
     }
 
     @Test fun emitsEmptyCompareSlotsAsBooleanFallbacks() {
@@ -195,7 +245,9 @@ class EmscriptGeneratorTest {
                 "escaped-text",
                 listOf(
                     de.visualtasker.blockeditor.ir.IrStatement.ClickText("A\tB"),
-                    de.visualtasker.blockeditor.ir.IrStatement.Log("line 1\nline 2"),
+                    de.visualtasker.blockeditor.ir.IrStatement.Log(
+                        de.visualtasker.blockeditor.ir.IrExpression.LiteralString("line 1\nline 2"),
+                    ),
                     de.visualtasker.blockeditor.ir.IrStatement.While(
                         de.visualtasker.blockeditor.ir.IrExpression.ScreenContains("He said \"OK\""),
                         emptyList(),

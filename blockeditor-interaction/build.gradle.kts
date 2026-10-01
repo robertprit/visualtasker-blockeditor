@@ -9,7 +9,7 @@ kotlin {
 dependencies {
     implementation(project(":blockeditor-domain"))
     implementation(project(":blockeditor-layout"))
-    testImplementation(project(":blockeditor-registry"))
+    implementation(project(":blockeditor-registry"))
     testImplementation(libs.junit)
 }
 

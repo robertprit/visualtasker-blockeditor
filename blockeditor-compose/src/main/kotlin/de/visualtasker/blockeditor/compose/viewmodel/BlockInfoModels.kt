@@ -4,13 +4,18 @@ import de.visualtasker.blockeditor.domain.BlockNode
 import de.visualtasker.blockeditor.domain.FieldValue
 import de.visualtasker.blockeditor.domain.asString
 import de.visualtasker.blockeditor.compose.model.reporterVisualModeFor
+import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.blockeditor.registry.BlockNodePresentationContract
 import de.visualtasker.blockeditor.registry.FieldDefinition
 import de.visualtasker.blockeditor.registry.FieldKind
 import de.visualtasker.blockeditor.registry.FieldOption
 import de.visualtasker.blockeditor.registry.ParameterSourceKind
+import de.visualtasker.blockeditor.registry.SemanticPropertyCategory
 
 data class BlockInfoField(
     val key: String,
+    val semanticPropertyId: String,
+    val semanticCategory: SemanticPropertyCategory,
     val label: String,
     val kind: FieldKind,
     val value: String,
@@ -78,7 +83,8 @@ internal fun FieldDefinition.parseInfoValue(rawValue: String): FieldValue? = whe
     -> FieldValue.Text(rawValue)
 }
 
-internal fun FieldDefinition.toBlockInfoField(block: BlockNode): BlockInfoField {
+internal fun FieldDefinition.toBlockInfoField(blockId: BlockId, block: BlockNode): BlockInfoField {
+    val category = BlockNodePresentationContract.fieldCategory(this)
     val value = if (key == "displayMode") {
         reporterVisualModeFor(block).name.lowercase()
     } else {
@@ -87,6 +93,8 @@ internal fun FieldDefinition.toBlockInfoField(block: BlockNode): BlockInfoField 
     val source = block.infoSource(this)
     return BlockInfoField(
         key = key,
+        semanticPropertyId = BlockNodePresentationContract.fieldPropertyId(blockId.value, key),
+        semanticCategory = category,
         label = label.ifEmpty { key },
         kind = kind,
         value = value,
@@ -95,8 +103,7 @@ internal fun FieldDefinition.toBlockInfoField(block: BlockNode): BlockInfoField 
         source = source,
         sourceOptions = sourceOptions,
         diagnostic = diagnoseParameter(value, source),
-        reporterAllowed = ParameterSourceKind.REPORTER in sourceOptions ||
-            ParameterSourceKind.REGION_REPORTER in sourceOptions,
+        reporterAllowed = BlockNodePresentationContract.fieldIsReporterSlotCandidate(this),
         variableAllowed = ParameterSourceKind.VARIABLE in sourceOptions,
     )
 }

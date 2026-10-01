@@ -6,7 +6,11 @@ import de.visualtasker.blockeditor.domain.Connection
 import de.visualtasker.blockeditor.domain.ConnectionId
 import de.visualtasker.blockeditor.domain.ConnectionKind
 import de.visualtasker.blockeditor.domain.Offset2
+import de.visualtasker.blockeditor.domain.FieldValue
 import de.visualtasker.blockeditor.domain.ValueInput
+import de.visualtasker.blockeditor.domain.VariableDefinition
+import de.visualtasker.blockeditor.domain.VariableRegistry
+import de.visualtasker.blockeditor.domain.VariableScope
 import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.layout.ConnectionAnchor
 import de.visualtasker.blockeditor.layout.FlatLayoutIndex
@@ -15,7 +19,9 @@ import de.visualtasker.blockeditor.layout.SpatialIndex
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.SampleWorkspaceFactory
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
+import de.visualtasker.blockeditor.registry.VisualTaskerCommandCatalog
 import de.visualtasker.blockeditor.registry.asFactory
+import de.visualtasker.blockeditor.registry.createNode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -358,5 +364,138 @@ class SnapEngineTest {
         val candidate = snapEngine.findSnapCandidate(layout, dragSession, document)
 
         assertNull(candidate)
+    }
+
+    @Test
+    fun findSnapCandidate_usesTargetVariableTypeForSetValueInput() {
+        val reporter = DefaultBlockRegistry.getDefinition(BlockTypes.LITERAL_STRING)!!
+            .createNode(BlockId("string-value"))
+        val setBlock = DefaultBlockRegistry.getDefinition(BlockTypes.VARIABLE_SET)!!
+            .createNode(BlockId("set-number"))
+            .copy(fields = mapOf("variableId" to FieldValue.Text("stable-id")))
+        val output = reporter.output!!
+        val input = setBlock.valueInputs.single()
+        val document = WorkspaceDocument(
+            id = "typed-variable-set-snap",
+            blocks = mapOf(reporter.id to reporter, setBlock.id to setBlock),
+            rootBlocks = listOf(reporter.id, setBlock.id),
+            variables = VariableRegistry(
+                mapOf(
+                    "stable-id" to VariableDefinition(
+                        id = "stable-id",
+                        name = "Renamable label",
+                        type = "Number",
+                        scope = VariableScope.Global,
+                    ),
+                ),
+            ),
+        )
+        val outputAnchor = ConnectionAnchor(
+            connectionId = output.id,
+            ownerBlockId = reporter.id,
+            kind = ConnectionKind.Output,
+            type = "Text",
+            x = 0f,
+            y = 0f,
+            radius = 8f,
+            zIndex = 1,
+        )
+        val inputAnchor = ConnectionAnchor(
+            connectionId = input.connection.id,
+            ownerBlockId = setBlock.id,
+            kind = ConnectionKind.ValueInput,
+            type = "Any",
+            x = 6f,
+            y = 0f,
+            radius = 8f,
+            zIndex = 0,
+        )
+        val anchorIndex = SpatialIndex<ConnectionAnchor>()
+        anchorIndex.insert(inputAnchor, de.visualtasker.blockeditor.domain.Rect(-2f, -8f, 16f, 16f))
+        val layout = FlatLayoutIndex(
+            visibleBlocks = emptyList(),
+            hitPrimitives = emptyList(),
+            connectionAnchors = listOf(outputAnchor, inputAnchor),
+            statementSlots = emptyList(),
+            branchSections = emptyList(),
+            hitIndex = SpatialIndex(),
+            anchorIndex = anchorIndex,
+        )
+        val dragSession = DragSession(
+            rootBlockId = reporter.id,
+            includedBlocks = setOf(reporter.id),
+            pullMode = DragPullMode.Single,
+            startPointer = Offset2(0f, 0f),
+            currentPointer = Offset2(0f, 0f),
+            originalLayoutPosition = Offset2(0f, 0f),
+            dragOffset = Offset2(0f, 0f),
+            originalAnchors = listOf(outputAnchor),
+        )
+
+        assertNull(snapEngine.findSnapCandidate(layout, dragSession, document))
+    }
+
+    @Test
+    fun findSnapCandidate_rejectsNumberAndBooleanForDatastoreStringInputs() {
+        val datastoreType = VisualTaskerCommandCatalog.findByCanonicalName("datastorePut")!!
+            .block!!
+            .blockType
+            .let { DefaultBlockRegistry.getDefinition(it)!! }
+
+        listOf(BlockTypes.LITERAL_NUMBER, BlockTypes.LITERAL_BOOLEAN).forEachIndexed { index, reporterType ->
+            val reporter = DefaultBlockRegistry.getDefinition(reporterType)!!.createNode(BlockId("source-$index"))
+            val datastore = datastoreType.createNode(BlockId("datastore-$index"))
+            val output = reporter.output!!
+            val input = datastore.valueInputs.single { it.name == "value" }.connection
+            val document = WorkspaceDocument(
+                id = "datastore-string-snap-$index",
+                blocks = mapOf(reporter.id to reporter, datastore.id to datastore),
+                rootBlocks = listOf(reporter.id, datastore.id),
+            )
+            val sourceAnchor = ConnectionAnchor(
+                connectionId = output.id,
+                ownerBlockId = reporter.id,
+                kind = ConnectionKind.Output,
+                type = output.provides,
+                x = 0f,
+                y = 0f,
+                radius = 8f,
+                zIndex = 1,
+            )
+            val targetAnchor = ConnectionAnchor(
+                connectionId = input.id,
+                ownerBlockId = datastore.id,
+                kind = ConnectionKind.ValueInput,
+                type = input.accepts.single(),
+                x = 6f,
+                y = 0f,
+                radius = 8f,
+                zIndex = 0,
+            )
+            val anchorIndex = SpatialIndex<ConnectionAnchor>().apply {
+                insert(targetAnchor, de.visualtasker.blockeditor.domain.Rect(-2f, -8f, 16f, 16f))
+            }
+            val layout = FlatLayoutIndex(
+                visibleBlocks = emptyList(),
+                hitPrimitives = emptyList(),
+                connectionAnchors = listOf(sourceAnchor, targetAnchor),
+                statementSlots = emptyList(),
+                branchSections = emptyList(),
+                hitIndex = SpatialIndex(),
+                anchorIndex = anchorIndex,
+            )
+            val dragSession = DragSession(
+                rootBlockId = reporter.id,
+                includedBlocks = setOf(reporter.id),
+                pullMode = DragPullMode.Single,
+                startPointer = Offset2(0f, 0f),
+                currentPointer = Offset2(0f, 0f),
+                originalLayoutPosition = Offset2(0f, 0f),
+                dragOffset = Offset2(0f, 0f),
+                originalAnchors = listOf(sourceAnchor),
+            )
+
+            assertNull(reporterType, snapEngine.findSnapCandidate(layout, dragSession, document))
+        }
     }
 }

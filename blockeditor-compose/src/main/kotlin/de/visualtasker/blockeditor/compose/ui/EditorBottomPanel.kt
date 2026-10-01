@@ -47,6 +47,7 @@ import de.visualtasker.blockeditor.compose.viewmodel.label
 import de.visualtasker.blockeditor.domain.BlockId
 import de.visualtasker.blockeditor.registry.FieldKind
 import de.visualtasker.blockeditor.registry.ParameterSourceKind
+import de.visualtasker.blockeditor.registry.SemanticPropertyCategory
 
 @Composable
 fun EditorBottomPanel(
@@ -203,13 +204,21 @@ fun BlockInfoCard(
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(top = 4.dp),
             )
-            parameterFields.forEach { field ->
-                BlockFieldEditor(
-                    blockId = info.blockId,
-                    field = field,
-                    onFieldChange = onFieldChange,
-                    onFieldSourceChange = onFieldSourceChange,
+            SemanticPropertyCategory.entries.forEach { category ->
+                val categoryFields = parameterFields.filter { it.semanticCategory == category }
+                if (categoryFields.isEmpty()) return@forEach
+                CategoryBadge(
+                    label = category.name,
+                    color = accent,
                 )
+                categoryFields.forEach { field ->
+                    BlockFieldEditor(
+                        blockId = info.blockId,
+                        field = field,
+                        onFieldChange = onFieldChange,
+                        onFieldSourceChange = onFieldSourceChange,
+                    )
+                }
             }
         }
     }
@@ -370,6 +379,11 @@ private fun BlockFieldEditor(
     onFieldSourceChange: (String, String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = "ID: ${field.semanticPropertyId}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         if (field.sourceOptions.size > 1) {
             SourceFieldEditor(field, onFieldSourceChange)
         } else {

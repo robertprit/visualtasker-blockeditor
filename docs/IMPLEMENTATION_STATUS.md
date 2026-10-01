@@ -42,6 +42,21 @@ Alle Unit-Tests grün (`./gradlew test`).
 - Collapse/Expand UI
 - Variable-Editor UI
 
+## Block/Node Designer (aktuell)
+
+- Der bestehende `BlockDesignFactory`-Designer bleibt die einzige Definition.
+- `BlockDesignBlueprint` enthält zusätzlich Projektion (`nodeProjection`) und Mutator-State.
+- Preview verwendet dieselbe Designer-Quelle parallel für:
+  - Block Preview
+  - Node Preview
+- SemanticPropertyRefs werden über `BlockNodePresentationContract` aus derselben semantischen Definition erzeugt.
+- Mutator-Änderungen (z. B. IF/ELSEIF/ELSE) werden vor der Aufspaltung angewendet und aktualisieren beide Previews gleichzeitig.
+- Die Factory-UI folgt einer linearen Blockly-Factory-Metapher:
+  - Palette (`INPUTS`, `FIELDS`)
+  - lineare DnD-Liste `elements[]`
+  - eigenschaftsabhängiger Properties-Editor
+  - Live-Preview ohne extra Apply-Schritt
+
 ## Entfernt
 
 Alte Module `blockeditor-model`, `blockeditor-renderer`, `blockeditor-codegen`, alte `blockeditor-interaction` – komplett gelöscht.

@@ -1,5 +1,8 @@
 package de.visualtasker.blockeditor.domain
 
+import de.visualtasker.emscript.contract.LanguageTypeCompatibility
+import de.visualtasker.emscript.contract.CoreTypes
+import de.visualtasker.emscript.contract.LanguageTypeRef
 import java.util.UUID
 
 fun interface BlockFactory {
@@ -10,7 +13,6 @@ fun newBlockId(): BlockId = BlockId(UUID.randomUUID().toString())
 
 object WorkspaceReducer {
     private val variableNamePattern = Regex("[A-Za-z_][A-Za-z0-9_]*")
-    private val supportedVariableTypes = setOf("STRING", "NUMBER", "BOOL", "BOOLEAN", "ANY")
 
     fun reduce(
         document: WorkspaceDocument,
@@ -364,8 +366,14 @@ object WorkspaceReducer {
     private fun typesCompatible(output: Connection, input: Connection): Boolean {
         val outputType = output.provides ?: output.accepts.firstOrNull() ?: return true
         if (input.accepts.isEmpty()) return true
-        if (outputType == "Any" || "Any" in input.accepts) return true
-        return outputType in input.accepts
+        if (outputType.equals("Any", ignoreCase = true)) return true
+        if (input.accepts.any { it.equals("Any", ignoreCase = true) }) {
+            return !outputType.trim().endsWith('?')
+        }
+        val actual = LanguageTypeCompatibility.fromWorkspaceName(outputType) ?: return false
+        return input.accepts
+            .mapNotNull(LanguageTypeCompatibility::fromWorkspaceName)
+            .any { expected -> LanguageTypeCompatibility.isAssignable(actual, expected) }
     }
 
     private fun moveRoot(document: WorkspaceDocument, blockId: BlockId, x: Float, y: Float): WorkspaceDocument {
@@ -454,6 +462,9 @@ object WorkspaceReducer {
 
     private fun String.isValidVariableName(): Boolean = matches(variableNamePattern)
 
-    private fun String.isValidVariableType(): Boolean =
-        trim().uppercase() in supportedVariableTypes
+    private fun String.isValidVariableType(): Boolean = runCatching {
+        val type = LanguageTypeCompatibility.fromWorkspaceName(this) ?: return@runCatching false
+        type != CoreTypes.VOID.ref &&
+            !(type is LanguageTypeRef.Nullable && type.baseType == CoreTypes.VOID.ref)
+    }.getOrDefault(false)
 }

@@ -16,6 +16,7 @@ import de.visualtasker.blockeditor.domain.WorkspacePoint
 import de.visualtasker.blockeditor.domain.rootOffset
 import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
+import de.visualtasker.blockeditor.registry.WorkspaceExpressionProjectionNormalizer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
@@ -128,7 +129,7 @@ object WorkspaceSerializer {
     }
 
     fun serialize(document: WorkspaceDocument): String =
-        json.encodeToString(document.toDto())
+        json.encodeToString(WorkspaceExpressionProjectionNormalizer.normalize(document).toDto())
 
     fun decode(
         raw: String,
@@ -205,7 +206,7 @@ object WorkspaceSerializer {
                     "expected $WORKSPACE_SCHEMA_VERSION.",
             )
         }
-        return dto.toDomain()
+        return WorkspaceExpressionProjectionNormalizer.normalize(dto.toDomain())
     }
 
     private fun rawSchemaVersion(raw: String): Int? = runCatching {

@@ -77,6 +77,87 @@ data class BlockDesignPortHandle(
 )
 
 @Serializable
+enum class BlockDesignMutatorFamily {
+    NONE,
+    IF,
+    WHILE,
+}
+
+@Serializable
+data class BlockDesignMutatorDefinition(
+    val family: BlockDesignMutatorFamily = BlockDesignMutatorFamily.NONE,
+    val maxElseIfBranches: Int = 4,
+    val allowElseBranch: Boolean = true,
+)
+
+@Serializable
+data class BlockDesignMutatorBranchInstance(
+    val instanceId: String,
+    val displayLabel: String = "ELSE IF",
+)
+
+@Serializable
+data class BlockDesignMutatorState(
+    val elseIfBranches: List<BlockDesignMutatorBranchInstance> = emptyList(),
+    val hasElseBranch: Boolean = false,
+    val nextElseIfIndex: Int = 1,
+) {
+    fun addElseIf(definition: BlockDesignMutatorDefinition): BlockDesignMutatorState {
+        if (definition.family != BlockDesignMutatorFamily.IF) return this
+        if (elseIfBranches.size >= definition.maxElseIfBranches.coerceAtLeast(0)) return this
+        val branch = BlockDesignMutatorBranchInstance(
+            instanceId = "elseif_${nextElseIfIndex.coerceAtLeast(1)}",
+        )
+        return copy(
+            elseIfBranches = elseIfBranches + branch,
+            nextElseIfIndex = nextElseIfIndex + 1,
+        )
+    }
+
+    fun removeElseIf(instanceId: String? = null): BlockDesignMutatorState {
+        val branch = instanceId?.let { id -> elseIfBranches.firstOrNull { it.instanceId == id } }
+            ?: elseIfBranches.lastOrNull()
+            ?: return this
+        return copy(elseIfBranches = elseIfBranches - branch)
+    }
+
+    fun setElseEnabled(enabled: Boolean, definition: BlockDesignMutatorDefinition): BlockDesignMutatorState {
+        if (definition.family != BlockDesignMutatorFamily.IF || !definition.allowElseBranch) {
+            return copy(hasElseBranch = false)
+        }
+        return copy(hasElseBranch = enabled)
+    }
+}
+
+@Serializable
+enum class BlockDesignNodeShapeRole {
+    AUTO,
+    ACTION,
+    CONDITION,
+    LOOP,
+    VALUE,
+    BOOLEAN_VALUE,
+    EVENT,
+}
+
+@Serializable
+data class BlockDesignNodeProjection(
+    val shapeRole: BlockDesignNodeShapeRole = BlockDesignNodeShapeRole.AUTO,
+    val showControlFlowInput: Boolean = true,
+    val showControlFlowOutput: Boolean = true,
+    val showValueInputPorts: Boolean = true,
+    val showValueOutputPort: Boolean = true,
+    val showStructurePorts: Boolean = true,
+    val embeddedFieldKeys: List<String> = emptyList(),
+    val inspectorPropertyOrder: List<String> = emptyList(),
+)
+
+@Serializable
+data class BlockDesignInspectorProjection(
+    val propertyOrder: List<String> = emptyList(),
+)
+
+@Serializable
 data class BlockDesignInputDefinition(
     val kind: BlockDesignInputKind,
     val name: String,
@@ -111,6 +192,7 @@ enum class BlockDesignElementKind {
 
 @Serializable
 data class BlockDesignElement(
+    val elementId: String = "",
     val kind: BlockDesignElementKind,
     val input: BlockDesignInputDefinition? = null,
     val field: BlockDesignFieldBlueprint? = null,
@@ -126,10 +208,10 @@ data class BlockDesignElement(
 
     companion object {
         fun input(input: BlockDesignInputDefinition): BlockDesignElement =
-            BlockDesignElement(BlockDesignElementKind.INPUT, input = input)
+            BlockDesignElement(kind = BlockDesignElementKind.INPUT, input = input)
 
         fun field(field: BlockDesignFieldBlueprint): BlockDesignElement =
-            BlockDesignElement(BlockDesignElementKind.FIELD, field = field)
+            BlockDesignElement(kind = BlockDesignElementKind.FIELD, field = field)
     }
 }
 
@@ -156,6 +238,11 @@ data class BlockDesignBlueprint(
     val generatorTemplate: String = "",
     val svgPath: String? = null,
     val portHandles: List<BlockDesignPortHandle> = emptyList(),
+    val mutatorDefinition: BlockDesignMutatorDefinition = BlockDesignMutatorDefinition(),
+    val mutatorState: BlockDesignMutatorState = BlockDesignMutatorState(),
+    val nodeProjection: BlockDesignNodeProjection = BlockDesignNodeProjection(),
+    val inspectorProjection: BlockDesignInspectorProjection = BlockDesignInspectorProjection(),
+    val nextElementIndex: Int = 1,
 )
 
 object BlockDesignFactory {
@@ -167,7 +254,8 @@ object BlockDesignFactory {
 
     fun create(blueprint: BlockDesignBlueprint, id: String = nextId(blueprint.label)): BlockDefinition {
         require(blueprint.label.isNotBlank()) { "Block label required" }
-        val designElements = blueprint.effectiveElements()
+        val designElements = blueprint.withEnsuredElementIds().effectiveElements()
+        val usesLinearElementModel = blueprint.elements.isNotEmpty()
         val generatedValueInputs = designElements.mapNotNull { it.input }
             .filter { it.kind == BlockDesignInputKind.VALUE }
             .map { ValueInputDefinition(it.name, it.label, setOf(it.connectionType)) }
@@ -183,9 +271,9 @@ object BlockDesignFactory {
             hasPrevious = blueprint.hasPrevious,
             hasNext = blueprint.hasNext,
             outputType = blueprint.outputType,
-            fields = blueprint.fields.ifEmpty { generatedFields },
-            valueInputs = blueprint.valueInputs.ifEmpty { generatedValueInputs },
-            statementInputs = blueprint.statementInputs.ifEmpty { generatedStatementInputs },
+            fields = if (usesLinearElementModel) generatedFields else blueprint.fields.ifEmpty { generatedFields },
+            valueInputs = if (usesLinearElementModel) generatedValueInputs else blueprint.valueInputs.ifEmpty { generatedValueInputs },
+            statementInputs = if (usesLinearElementModel) generatedStatementInputs else blueprint.statementInputs.ifEmpty { generatedStatementInputs },
             isReporter = blueprint.isReporter,
             inputsInline = blueprint.inputsInline,
             metadata = metadata,
@@ -396,6 +484,87 @@ fun BlockDesignBlueprint.effectiveElements(): List<BlockDesignElement> =
         inputs.map { BlockDesignElement.input(it) } + infoFields.map { BlockDesignElement.field(it) }
     }
 
+fun BlockDesignBlueprint.withEnsuredElementIds(): BlockDesignBlueprint {
+    if (elements.isEmpty()) return this
+    var next = nextElementIndex.coerceAtLeast(1)
+    var changed = false
+    val rewritten = elements.map { element ->
+        if (element.elementId.isNotBlank()) {
+            element
+        } else {
+            changed = true
+            val id = "el_${next++}"
+            element.copy(elementId = id)
+        }
+    }
+    if (!changed) return this.copy(nextElementIndex = maxOf(nextElementIndex, next))
+    return copy(elements = rewritten, nextElementIndex = maxOf(nextElementIndex, next))
+}
+
+fun BlockDesignBlueprint.addElement(element: BlockDesignElement): BlockDesignBlueprint {
+    val normalized = withEnsuredElementIds()
+    val id = if (element.elementId.isNotBlank()) element.elementId else "el_${normalized.nextElementIndex}"
+    return normalized.copy(
+        elements = normalized.elements + element.copy(elementId = id),
+        nextElementIndex = normalized.nextElementIndex + 1,
+    )
+}
+
+fun BlockDesignBlueprint.removeElement(elementId: String): BlockDesignBlueprint {
+    val normalized = withEnsuredElementIds()
+    return normalized.copy(elements = normalized.elements.filterNot { it.elementId == elementId })
+}
+
+fun BlockDesignBlueprint.duplicateElement(elementId: String): BlockDesignBlueprint {
+    val normalized = withEnsuredElementIds()
+    val sourceIndex = normalized.elements.indexOfFirst { it.elementId == elementId }
+    if (sourceIndex < 0) return normalized
+    val source = normalized.elements[sourceIndex]
+    val duplicated = source.copy(elementId = "el_${normalized.nextElementIndex}")
+    return normalized.copy(
+        elements = normalized.elements.toMutableList().apply {
+            add(sourceIndex + 1, duplicated)
+        },
+        nextElementIndex = normalized.nextElementIndex + 1,
+    )
+}
+
+fun BlockDesignBlueprint.reorderElement(
+    elementId: String,
+    targetIndex: Int,
+): BlockDesignBlueprint {
+    val normalized = withEnsuredElementIds()
+    val currentIndex = normalized.elements.indexOfFirst { it.elementId == elementId }
+    if (currentIndex < 0) return normalized
+    val clamped = targetIndex.coerceIn(0, normalized.elements.lastIndex)
+    if (clamped == currentIndex) return normalized
+    val mutable = normalized.elements.toMutableList()
+    val element = mutable.removeAt(currentIndex)
+    mutable.add(clamped, element)
+    return normalized.copy(elements = mutable)
+}
+
+fun BlockDesignBlueprint.updateElement(
+    elementId: String,
+    transform: (BlockDesignElement) -> BlockDesignElement,
+): BlockDesignBlueprint {
+    val normalized = withEnsuredElementIds()
+    return normalized.copy(
+        elements = normalized.elements.map { element ->
+            if (element.elementId == elementId) transform(element).copy(elementId = element.elementId) else element
+        },
+    )
+}
+
+fun BlockDesignBlueprint.withAddedElseIf(): BlockDesignBlueprint =
+    copy(mutatorState = mutatorState.addElseIf(mutatorDefinition))
+
+fun BlockDesignBlueprint.withRemovedElseIf(instanceId: String? = null): BlockDesignBlueprint =
+    copy(mutatorState = mutatorState.removeElseIf(instanceId))
+
+fun BlockDesignBlueprint.withElseEnabled(enabled: Boolean): BlockDesignBlueprint =
+    copy(mutatorState = mutatorState.setElseEnabled(enabled, mutatorDefinition))
+
 private fun BlockDesignBlueprint.rowLayoutMetadata(elements: List<BlockDesignElement>): Map<String, String> {
     var row = 0
     var column = 0
@@ -403,6 +572,7 @@ private fun BlockDesignBlueprint.rowLayoutMetadata(elements: List<BlockDesignEle
     var firstStatementRow: Int? = null
     var maxUsedRow = 0
     var maxRowColumns = 0
+    var previousWasEndRow = false
     val inputRows = mutableMapOf<String, Int>()
     val inputColumns = mutableMapOf<String, Int>()
     val fieldRows = mutableMapOf<String, Int>()
@@ -414,13 +584,16 @@ private fun BlockDesignBlueprint.rowLayoutMetadata(elements: List<BlockDesignEle
         if (input != null) {
             if (input.kind == BlockDesignInputKind.END_ROW) {
                 maxRowColumns = maxOf(maxRowColumns, column)
-                if (column > 0) {
+                // Collapse consecutive layout breaks into one logical newline.
+                if (!previousWasEndRow && column > 0) {
                     maxUsedRow = maxOf(maxUsedRow, row)
                     row += 1
-                    column = 0
                 }
+                column = 0
+                previousWasEndRow = true
                 return@forEach
             }
+            previousWasEndRow = false
             if (input.kind == BlockDesignInputKind.STATEMENT) {
                 maxRowColumns = maxOf(maxRowColumns, column)
                 row += if (column == 0) 0 else 1
@@ -441,6 +614,7 @@ private fun BlockDesignBlueprint.rowLayoutMetadata(elements: List<BlockDesignEle
             return@forEach
         }
         if (field != null) {
+            previousWasEndRow = false
             fieldRows[field.name] = row
             fieldColumns[field.name] = column
             fieldTypes[field.name] = field.fieldType.name
@@ -454,7 +628,8 @@ private fun BlockDesignBlueprint.rowLayoutMetadata(elements: List<BlockDesignEle
     return buildMap {
         put("custom.layout.designer", "true")
         put("custom.layout.rowCount", (maxUsedRow + 1).toString())
-        put("custom.layout.headerRows", (firstStatementRow ?: (maxUsedRow + 1)).coerceAtLeast(1).toString())
+        // Linear factory keeps a single visual header row; additional rows are body layout.
+        put("custom.layout.headerRows", "1")
         put("custom.layout.maxRowColumns", maxRowColumns.coerceAtLeast(1).toString())
         put("custom.layout.statementCount", statementIndex.toString())
         inputRows.forEach { (name, index) -> put("custom.layout.input.$name.row", index.toString()) }

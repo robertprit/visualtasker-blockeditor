@@ -1,6 +1,12 @@
 package de.visualtasker.blockeditor.ir
 
 sealed interface IrExpression {
+    data class CommandCall(
+        val commandId: String,
+        val command: String,
+        val arguments: List<IrExpression>,
+        val returnType: String,
+    ) : IrExpression
     data class ScreenContains(val text: String) : IrExpression
     data class And(val left: IrExpression, val right: IrExpression) : IrExpression
     data class Or(val left: IrExpression, val right: IrExpression) : IrExpression
@@ -26,6 +32,7 @@ sealed interface IrStatement {
     data class CommandCall(
         val command: String,
         val arguments: String,
+        val expressionArguments: List<IrExpression> = emptyList(),
     ) : IrStatement
 
     data class ClickText(val text: String) : IrStatement
@@ -36,8 +43,14 @@ sealed interface IrStatement {
         val volume: Int = 100,
     ) : IrStatement
     data class Vibrate(val pattern: List<Long>) : IrStatement
-    data class Log(val message: String) : IrStatement
-    data class SetVariable(val name: String, val value: String) : IrStatement
+    data class Log(val value: IrExpression) : IrStatement
+    data class SetVariable(
+        val name: String,
+        val value: String,
+        val expression: IrExpression? = null,
+        val assignmentKind: String = "SET",
+        val declaredType: String? = null,
+    ) : IrStatement
     data class Repeat(val times: Int, val body: List<IrStatement>) : IrStatement
     data class While(val condition: IrExpression, val body: List<IrStatement>) : IrStatement
     data class If(

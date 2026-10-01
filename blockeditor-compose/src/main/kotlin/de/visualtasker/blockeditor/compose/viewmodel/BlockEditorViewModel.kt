@@ -421,7 +421,7 @@ class BlockEditorViewModel(
             displayLabel = block.fields["displayLabel"]?.asString()?.takeIf { it.isNotBlank() } ?: definition.label,
             categoryLabel = category.label,
             categoryAccentArgb = category.accentArgb,
-            fields = (definition.fields + CommonBlockInfoFields).map { it.toBlockInfoField(block) },
+            fields = (definition.fields + CommonBlockInfoFields).map { it.toBlockInfoField(blockId, block) },
             slotContext = slotContext,
             chainSummary = chainPart,
         )

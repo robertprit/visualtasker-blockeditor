@@ -3,15 +3,87 @@ package de.visualtasker.blockeditor.ir
 import de.visualtasker.blockeditor.domain.BlockId
 import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.registry.BlockTypes
+import de.visualtasker.blockeditor.registry.BlockDefinition
+import de.visualtasker.blockeditor.registry.BlockRegistry
+import de.visualtasker.blockeditor.registry.CommandBlockBinding
+import de.visualtasker.blockeditor.registry.CommandCapability
+import de.visualtasker.blockeditor.registry.CommandCatalog
+import de.visualtasker.blockeditor.registry.CommandCatalogEntry
+import de.visualtasker.blockeditor.registry.CommandCatalogKind
+import de.visualtasker.blockeditor.registry.CommandSideEffect
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
 import de.visualtasker.blockeditor.registry.SampleWorkspaceFactory
 import de.visualtasker.blockeditor.registry.createNode
+import de.visualtasker.blockeditor.registry.toGeneratedBlockDefinition
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IrGeneratorTest {
     private val generator = IrGenerator()
+
+    @Test
+    fun syntheticNonVoidCommandProjectsToGenericIrExpression() {
+        val entry = CommandCatalogEntry(
+            id = "test.queryString",
+            canonicalName = "test.queryString",
+            kind = CommandCatalogKind.STATEMENT,
+            category = "test",
+            returnType = "String",
+            sideEffect = CommandSideEffect.NONE,
+            capabilities = setOf(CommandCapability.CORE),
+            block = CommandBlockBinding(BlockTypes.EMSCRIPT_COMMAND_PREFIX + "test.queryString"),
+        )
+        val definition = entry.toGeneratedBlockDefinition()
+        val registry = object : BlockRegistry {
+            override fun getDefinition(id: String): BlockDefinition? =
+                if (id == definition.id) definition else DefaultBlockRegistry.getDefinition(id)
+
+            override fun allDefinitions(): List<BlockDefinition> = DefaultBlockRegistry.allDefinitions() + definition
+        }
+        val catalog = object : CommandCatalog {
+            override fun allEntries() = listOf(entry)
+            override fun findById(id: String) = entry.takeIf { it.id == id }
+            override fun findByCanonicalName(name: String) = entry.takeIf { it.canonicalName == name }
+            override fun findByAcceptedName(name: String) = entry.takeIf { it.canonicalName == name }
+            override fun findByBlockType(blockType: String) = entry.takeIf { it.block?.blockType == blockType }
+        }
+        val start = DefaultBlockRegistry.getDefinition(BlockTypes.EVENT_START)!!.createNode(BlockId("start"))
+        val log = DefaultBlockRegistry.getDefinition(BlockTypes.DEBUG_LOG)!!.createNode(BlockId("log"))
+        val query = definition.createNode(BlockId("query"))
+        val connectedStart = start.copy(next = start.next!!.copy(connectedTo = log.previous!!.id))
+        val connectedLog = log.copy(
+            previous = log.previous!!.copy(connectedTo = start.next!!.id),
+            valueInputs = log.valueInputs.map { input ->
+                input.copy(connection = input.connection.copy(connectedTo = query.output!!.id))
+            },
+        )
+        val connectedQuery = query.copy(output = query.output!!.copy(connectedTo = log.valueInputs.single().connection.id))
+        val document = WorkspaceDocument(
+            id = "generic-query",
+            blocks = mapOf(start.id to connectedStart, log.id to connectedLog, query.id to connectedQuery),
+            rootBlocks = listOf(start.id, query.id),
+        )
+
+        val expression = (IrGenerator(registry, catalog).generate(document).statements.single() as IrStatement.Log).value
+
+        assertEquals(
+            IrExpression.CommandCall("test.queryString", "test.queryString", emptyList(), "String"),
+            expression,
+        )
+    }
+
+    @Test
+    fun syntheticNullableCommandPreservesReturnTypeInIr() {
+        val expression = IrExpression.CommandCall(
+            commandId = "test.stringNullable",
+            command = "test.stringNullable",
+            arguments = emptyList(),
+            returnType = "String?",
+        )
+
+        assertEquals("String?", expression.returnType)
+    }
 
     @Test
     fun sampleWorkspace_emitsStartChain() {
@@ -209,7 +281,7 @@ class IrGeneratorTest {
         val script = generator.generate(document)
         val ifStmt = script.statements.single() as IrStatement.If
         val condition = ifStmt.condition as IrExpression.Operate
-        assertEquals("lt", condition.operator)
+        assertEquals("less", condition.operator)
         assertEquals(IrExpression.GetVariable("a"), condition.a)
         assertEquals(IrExpression.GetVariable("b"), condition.b)
         assertEquals(null, condition.c)
@@ -288,7 +360,7 @@ class IrGeneratorTest {
         val script = generator.generate(document)
         val ifStmt = script.statements.single() as IrStatement.If
         val condition = ifStmt.condition as IrExpression.Compare
-        assertEquals("GREATER_OR_EQUAL", condition.operator)
+        assertEquals("greaterOrEqual", condition.operator)
         assertEquals(IrExpression.LiteralNumber(3.0), condition.left)
         assertEquals(IrExpression.LiteralNumber(2.0), condition.right)
     }

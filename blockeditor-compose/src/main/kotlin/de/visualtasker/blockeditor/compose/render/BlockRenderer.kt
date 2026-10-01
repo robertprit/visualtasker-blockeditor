@@ -366,12 +366,73 @@ private fun DrawScope.drawDesignerBlockElements(
     colors: BlockEditorColors,
     metrics: BlockRenderMetrics,
 ) {
+    val rowHeight = LayoutConstants.HEADER_HEIGHT
+    val bodyTop = definition.designerHeaderHeight()
+    val rowStartX = LayoutConstants.NESTED_INDENT + LayoutConstants.SLOT_PADDING
+    data class StatementBranchVisual(
+        val input: de.visualtasker.blockeditor.domain.StatementInput,
+        val bounds: androidx.compose.ui.geometry.Rect,
+    )
+
+    val statementRows = block.statementInputs
+        .map { it to definition.designerInputRow(it.name) }
+        .sortedBy { it.second }
+    val headerHeight = bodyTop
+    val maxOccupiedRow = buildList {
+        definition.valueInputs.forEach { add(definition.designerInputRow(it.name)) }
+        definition.fields.forEach { field ->
+            definition.designerFieldRow(field.key)?.let { add(it) }
+        }
+        definition.statementInputs.forEach { add(definition.designerInputRow(it.name)) }
+    }.maxOrNull() ?: 0
+    val branchVisuals = statementRows.mapIndexed { index, (input, rowIndex) ->
+        val nextRowIndex = statementRows.getOrNull(index + 1)?.second
+        val rowTop = bodyTop + rowIndex * rowHeight
+        val branchTop = maxOf(headerHeight + 2f, rowTop + 2f)
+        val branchBottom = when {
+            nextRowIndex != null -> {
+                val nextTop = bodyTop + nextRowIndex * rowHeight
+                maxOf(
+                    branchTop + LayoutConstants.STATEMENT_MIN_HEIGHT,
+                    nextTop - 2f,
+                )
+            }
+            maxOccupiedRow > rowIndex -> {
+                val tailBottom = bodyTop + (maxOccupiedRow + 1) * rowHeight
+                maxOf(
+                    branchTop + LayoutConstants.STATEMENT_MIN_HEIGHT,
+                    tailBottom - 2f,
+                )
+            }
+            else -> branchTop + LayoutConstants.STATEMENT_MIN_HEIGHT
+        }
+        val branchHeight = (branchBottom - branchTop).coerceAtLeast(LayoutConstants.STATEMENT_MIN_HEIGHT)
+        val branchBounds = androidx.compose.ui.geometry.Rect(
+            left = LayoutConstants.NESTED_INDENT,
+            top = branchTop,
+            right = width - LayoutConstants.SLOT_PADDING,
+            bottom = branchTop + branchHeight,
+        )
+        StatementBranchVisual(input = input, bounds = branchBounds)
+    }
+
+    // First pass: branch body below value/field content.
+    branchVisuals.forEach { branch ->
+        drawRoundRect(
+            color = colors.slotBackground.copy(alpha = 0.34f),
+            topLeft = Offset(branch.bounds.left, branch.bounds.top),
+            size = Size(branch.bounds.width, branch.bounds.height),
+            cornerRadius = CornerRadius(8f, 8f),
+            style = Fill,
+        )
+    }
+
     block.valueInputs.forEach { input ->
         val column = definition.designerInputColumn(input.name)
         val row = definition.designerInputRow(input.name)
         val topLeft = Offset(
-            x = LayoutConstants.NESTED_INDENT + column * LayoutConstants.DESIGNER_ELEMENT_WIDTH + LayoutConstants.SLOT_PADDING,
-            y = row * LayoutConstants.HEADER_HEIGHT + (LayoutConstants.HEADER_HEIGHT - LayoutConstants.REPORTER_HEIGHT) / 2f,
+            x = rowStartX + column * LayoutConstants.DESIGNER_ELEMENT_WIDTH,
+            y = bodyTop + row * rowHeight + (rowHeight - LayoutConstants.REPORTER_HEIGHT) / 2f,
         )
         drawReporterDockSlot(
             topLeft = topLeft,
@@ -404,8 +465,8 @@ private fun DrawScope.drawDesignerBlockElements(
         val row = definition.designerFieldRow(field.key)
         if (column == null || row == null) return@forEach
         val topLeft = Offset(
-            x = LayoutConstants.NESTED_INDENT + column * LayoutConstants.DESIGNER_ELEMENT_WIDTH + LayoutConstants.SLOT_PADDING,
-            y = row * LayoutConstants.HEADER_HEIGHT + 7f,
+            x = rowStartX + column * LayoutConstants.DESIGNER_ELEMENT_WIDTH,
+            y = bodyTop + row * rowHeight + 7f,
         )
         val fieldSize = Size(LayoutConstants.DESIGNER_ELEMENT_WIDTH - LayoutConstants.SLOT_PADDING, LayoutConstants.FIELD_HEIGHT)
         drawRoundRect(
@@ -450,49 +511,56 @@ private fun DrawScope.drawDesignerBlockElements(
         )
     }
 
-    val statementRows = block.statementInputs
-        .map { it to definition.designerInputRow(it.name) }
-        .sortedBy { it.second }
-    val headerHeight = definition.designerHeaderHeight()
-    statementRows.forEachIndexed { index, (input, _) ->
-        val branchTop = headerHeight + LayoutConstants.SLOT_PADDING +
-            index * (LayoutConstants.STATEMENT_MIN_HEIGHT + LayoutConstants.BRANCH_SHELF + LayoutConstants.SLOT_PADDING)
-        val branchBottom = if (index < statementRows.lastIndex) {
-            branchTop + LayoutConstants.STATEMENT_MIN_HEIGHT
-        } else {
-            height - LayoutConstants.FOOTER_HEIGHT
-        }
-        val branchHeight = (branchBottom - branchTop).coerceAtLeast(LayoutConstants.STATEMENT_MIN_HEIGHT)
-        val branchBounds = androidx.compose.ui.geometry.Rect(
-            left = LayoutConstants.NESTED_INDENT,
-            top = branchTop,
-            right = width - LayoutConstants.SLOT_PADDING,
-            bottom = branchTop + branchHeight,
-        )
-        drawRoundRect(
-            color = colors.slotBackground.copy(alpha = 0.34f),
-            topLeft = Offset(branchBounds.left, branchBounds.top),
-            size = Size(branchBounds.width, branchBounds.height),
-            cornerRadius = CornerRadius(8f, 8f),
-            style = Fill,
-        )
+    // Second pass: stroke/labels above value/field content so branches stay visible.
+    branchVisuals.forEach { branch ->
         drawRoundRect(
             color = textColor.copy(alpha = 0.38f),
-            topLeft = Offset(branchBounds.left, branchBounds.top),
-            size = Size(branchBounds.width, branchBounds.height),
+            topLeft = Offset(branch.bounds.left, branch.bounds.top),
+            size = Size(branch.bounds.width, branch.bounds.height),
             cornerRadius = CornerRadius(8f, 8f),
             style = Stroke(width = 1.2f),
         )
         val style = TextStyle(color = textColor.copy(alpha = 0.7f), fontSize = 10.sp)
         drawTextSafely(
             textMeasurer = textMeasurer,
-            text = input.name.lowercase(),
-            topLeft = Offset(branchBounds.left + 6f, branchBounds.top + 4f),
+            text = branch.input.name.lowercase(),
+            topLeft = Offset(branch.bounds.left + 6f, branch.bounds.top + 4f),
             style = style,
-            availableWidth = branchBounds.width - 12f,
+            availableWidth = branch.bounds.width - 12f,
             availableHeight = 18f,
         )
+        val chipLabel = statementChipLabel(branch.input.name)
+        val chipStyle = TextStyle(color = Color(0xFFEFF4FF), fontSize = 9.sp)
+        val chipText = truncateLabel(chipLabel, 100f, textMeasurer, chipStyle)
+        val chipLayout = textMeasurer.measure(chipText, chipStyle)
+        val chipWidth = (chipLayout.size.width + 14f).coerceAtLeast(36f)
+        val chipHeight = 16f
+        val chipTop = (branch.bounds.top - chipHeight / 2f).coerceAtLeast(headerHeight + 2f)
+        drawRoundRect(
+            color = Color(0xFF6D5BD0),
+            topLeft = Offset(branch.bounds.left + 8f, chipTop),
+            size = Size(chipWidth, chipHeight),
+            cornerRadius = CornerRadius(8f, 8f),
+            style = Fill,
+        )
+        drawTextSafely(
+            textMeasurer = textMeasurer,
+            text = chipText,
+            topLeft = Offset(branch.bounds.left + 15f, chipTop + 3f),
+            style = chipStyle,
+            availableWidth = chipWidth - 10f,
+            availableHeight = chipHeight - 4f,
+        )
     }
+
+}
+
+private fun statementChipLabel(name: String): String = when {
+    name == "THEN" -> "IF"
+    name == "ELSE" -> "ELSE"
+    name.startsWith("ELIF_") -> "ELSE IF"
+    name == "BODY" || name.startsWith("BODY") -> "DO"
+    else -> name.lowercase()
 }
 
 internal fun BlockNode.inlineOperatorLabel(definition: BlockDefinition?): String {

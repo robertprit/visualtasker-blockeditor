@@ -11,6 +11,7 @@ import de.visualtasker.blockeditor.registry.StaticBlockRegistry
 import de.visualtasker.blockeditor.registry.ValueInputDefinition
 import de.visualtasker.blockeditor.registry.createNode
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -112,5 +113,51 @@ class ValidatorTest {
         val result = Validator.validate(document, registry)
 
         assertTrue(result.errors.toString(), result.isValid)
+    }
+
+    @Test
+    fun nullableReporterToNonNullParameterUsesStructuredDiagnostic() {
+        val consumerDef = BlockDefinition(
+            id = "custom.consumer.string",
+            label = "Consume String",
+            category = "custom",
+            hasPrevious = false,
+            hasNext = false,
+            valueInputs = listOf(
+                ValueInputDefinition("value", "value", accepts = setOf("String"), required = true),
+            ),
+        )
+        val reporterDef = BlockDefinition(
+            id = "custom.reporter.nullable-string",
+            label = "Nullable String",
+            category = "custom",
+            hasPrevious = false,
+            hasNext = false,
+            outputType = "String?",
+            isReporter = true,
+        )
+        val registry = StaticBlockRegistry(
+            listOf(consumerDef, reporterDef) + de.visualtasker.blockeditor.registry.DefaultBlockRegistry.allDefinitions(),
+        )
+        val consumer = consumerDef.createNode(BlockId("consumer"))
+        val reporter = reporterDef.createNode(BlockId("reporter"))
+        val inputId = consumer.valueInputs.single().connection.id
+        val outputId = requireNotNull(reporter.output).id
+        val document = WorkspaceDocument(
+            id = "nullable-parameter",
+            blocks = mapOf(
+                consumer.id to consumer.copy(
+                    valueInputs = consumer.valueInputs.map { input ->
+                        input.copy(connection = input.connection.copy(connectedTo = outputId))
+                    },
+                ),
+                reporter.id to reporter.copy(output = reporter.output!!.copy(connectedTo = inputId)),
+            ),
+            rootBlocks = listOf(consumer.id, reporter.id),
+        )
+
+        val mismatch = Validator.validate(document, registry).errors.filterIsInstance<TypeMismatch>().single()
+
+        assertEquals("NULLABLE_ARGUMENT_TO_NONNULL_PARAMETER", mismatch.code)
     }
 }

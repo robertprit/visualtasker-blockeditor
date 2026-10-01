@@ -325,6 +325,7 @@ class BlockEditorController(
             layoutCache = layoutEngine.build(newDocument)
             pendingDetachActive = false
         }
+        applyPendingFocusAfterInteraction()
     }
 
     fun cancelActiveDrag() {
@@ -339,6 +340,7 @@ class BlockEditorController(
         logController("cancelActiveDrag active")
         dragRender = null
         pendingDetachActive = false
+        applyPendingFocusAfterInteraction()
         callbacks.onValidationEvent(
             BlockEditorValidationEvent(
                 phase = BlockEditorValidationPhase.DRAG_CANCEL,
@@ -660,7 +662,7 @@ class BlockEditorController(
             displayLabel = block.fields["displayLabel"]?.asString()?.takeIf { it.isNotBlank() } ?: definition.label,
             categoryLabel = category.label,
             categoryAccentArgb = category.accentArgb,
-            fields = (definition.fields + CommonBlockInfoFields).map { it.toBlockInfoField(block) },
+            fields = (definition.fields + CommonBlockInfoFields).map { it.toBlockInfoField(blockId, block) },
             slotContext = slotContext,
             chainSummary = chainPart,
             branchCount = block.ifBranchCount().takeIf { block.statementInputs.isNotEmpty() } ?: 0,
@@ -837,6 +839,11 @@ class BlockEditorController(
     /** Focuses an existing block without replacing or mutating the workspace document. */
     fun focusBlock(blockId: BlockId, select: Boolean = true): Boolean {
         if (disposed.get() || blockId !in document.blocks) return false
+        if (dragRender != null) {
+            pendingFocusBlockId = blockId
+            pendingFocusSelect = select
+            return true
+        }
         if (focusBlockInCanvas(blockId, selectFocusedBlock = select)) {
             initialCanvasFitApplied = true
             pendingFocusBlockId = null
@@ -847,6 +854,17 @@ class BlockEditorController(
         pendingFocusBlockId = blockId
         pendingFocusSelect = select
         return true
+    }
+
+    private fun applyPendingFocusAfterInteraction() {
+        if (dragRender != null) return
+        val blockId = pendingFocusBlockId?.takeIf { it in document.blocks } ?: return
+        val select = pendingFocusSelect
+        if (focusBlockInCanvas(blockId, selectFocusedBlock = select)) {
+            initialCanvasFitApplied = true
+            pendingFocusBlockId = null
+            pendingFocusSelect = false
+        }
     }
 
     /**

@@ -33,6 +33,7 @@ import de.visualtasker.blockeditor.registry.CompositeBlockRegistry
 import de.visualtasker.blockeditor.registry.FieldDefinition
 import de.visualtasker.blockeditor.registry.FieldKind
 import de.visualtasker.blockeditor.registry.FieldOption
+import de.visualtasker.blockeditor.registry.BlockNodePresentationContract
 import de.visualtasker.blockeditor.registry.StatementInputDefinition
 import de.visualtasker.blockeditor.registry.StaticBlockRegistry
 import de.visualtasker.blockeditor.registry.ValueInputDefinition
@@ -59,6 +60,25 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class BlockEditorControllerTest {
     @Test
+    fun selectedBlockInfoUsesStableSemanticPropertyIds() {
+        val controller = BlockEditorController(initialDocument = WorkspaceBootstrap.empty())
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
+        val blockId = controller.document.rootBlocks.single()
+        controller.selectBlockCenter(blockId)
+
+        val field = controller.selectedBlockInfo()!!
+            .fields
+            .first { it.key == "ms" }
+
+        assertEquals(
+            BlockNodePresentationContract.fieldPropertyId(blockId.value, "ms"),
+            field.semanticPropertyId,
+        )
+
+        controller.close()
+    }
+
+    @Test
     fun hostFocusSelectsBlockWithoutMutatingDocument() {
         val controller = BlockEditorController(initialDocument = WorkspaceBootstrap.empty())
         controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
@@ -73,6 +93,36 @@ class BlockEditorControllerTest {
         assertEquals(viewportBeforeFocus, controller.viewport)
         assertEquals(setOf(blockId), controller.selectedBlockIds)
         assertEquals(blockId, controller.selectedBlockInfo()?.blockId)
+        controller.close()
+    }
+
+    @Test
+    fun hostFocusWaitsUntilActiveDragEnds() {
+        val controller = BlockEditorController(initialDocument = WorkspaceBootstrap.empty())
+        controller.onCanvasSizeChange(Offset2(320f, 240f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 80f, 80f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 1200f, 900f))
+        val draggedId = controller.document.rootBlocks[0]
+        val focusId = controller.document.rootBlocks[1]
+        val draggedBounds = controller.layoutCache.flatIndex.visibleBlocks
+            .single { it.blockId == draggedId }
+            .bounds
+        val dragPoint = Offset2(
+            draggedBounds.x + draggedBounds.width * 0.85f,
+            draggedBounds.y + draggedBounds.height * 0.5f,
+        )
+
+        assertTrue(controller.onLongPressDragStart(dragPoint))
+        val viewportDuringDrag = controller.viewport
+        assertTrue(controller.focusBlock(focusId, select = true))
+
+        assertEquals(viewportDuringDrag, controller.viewport)
+        assertFalse(focusId in controller.selectedBlockIds)
+
+        controller.cancelActiveDrag()
+
+        assertEquals(setOf(focusId), controller.selectedBlockIds)
+        assertNotEquals(viewportDuringDrag, controller.viewport)
         controller.close()
     }
 

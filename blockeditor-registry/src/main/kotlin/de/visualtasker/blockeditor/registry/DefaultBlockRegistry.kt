@@ -21,6 +21,7 @@ object BlockTypes {
     const val LOGIC_COMPARE = "logic.compare"
     const val LITERAL_NUMBER = "literal.number"
     const val LITERAL_STRING = "literal.string"
+    const val LITERAL_REGION = "literal.region"
     const val LITERAL_BOOLEAN = "literal.boolean"
     const val VARIABLE_GET = "variable.get"
     const val VARIABLE_REPORTER = "variable.reporter"
@@ -199,6 +200,14 @@ object DefaultBlockRegistry : BlockRegistry {
                     required = true,
                 ),
             ),
+            valueInputs = listOf(
+                ValueInputDefinition(
+                    name = "patternMs",
+                    label = "patternMs",
+                    accepts = setOf("Number"),
+                    required = false,
+                ),
+            ),
         ),
         BlockDefinition(
             id = BlockTypes.DEBUG_LOG,
@@ -206,7 +215,7 @@ object DefaultBlockRegistry : BlockRegistry {
             category = "debug",
             hasPrevious = true,
             hasNext = true,
-            fields = listOf(FieldDefinition("message", "msg", defaultValue = "debug")),
+            valueInputs = listOf(ValueInputDefinition("value", "value", setOf("Any"))),
         ),
         BlockDefinition(
             id = BlockTypes.CONTROL_REPEAT,
@@ -322,7 +331,15 @@ object DefaultBlockRegistry : BlockRegistry {
                 FieldDefinition(
                     key = "operator",
                     label = "operator",
+                    kind = FieldKind.CHOICE,
                     defaultValue = "add",
+                    options = listOf(
+                        FieldOption("add", "+"),
+                        FieldOption("subtract", "-"),
+                        FieldOption("multiply", "*"),
+                        FieldOption("divide", "/"),
+                        FieldOption("modulo", "%"),
+                    ),
                 ),
             ),
             valueInputs = listOf(
@@ -344,14 +361,14 @@ object DefaultBlockRegistry : BlockRegistry {
                     key = "operator",
                     label = "operator",
                     kind = FieldKind.CHOICE,
-                    defaultValue = "GREATER_OR_EQUAL",
+                    defaultValue = "greaterOrEqual",
                     options = listOf(
-                        FieldOption("EQUAL", "=="),
-                        FieldOption("NOT_EQUAL", "!="),
-                        FieldOption("LESS", "<"),
-                        FieldOption("LESS_OR_EQUAL", "<="),
-                        FieldOption("GREATER", ">"),
-                        FieldOption("GREATER_OR_EQUAL", ">="),
+                        FieldOption("equal", "=="),
+                        FieldOption("notEqual", "!="),
+                        FieldOption("less", "<"),
+                        FieldOption("lessOrEqual", "<="),
+                        FieldOption("greater", ">"),
+                        FieldOption("greaterOrEqual", ">="),
                     ),
                 ),
             ),
@@ -381,6 +398,22 @@ object DefaultBlockRegistry : BlockRegistry {
             fields = listOf(FieldDefinition("value", "value", FieldKind.TEXT, "")),
         ),
         BlockDefinition(
+            id = BlockTypes.LITERAL_REGION,
+            label = "Region",
+            category = BlockCategories.VISION,
+            hasPrevious = false,
+            hasNext = false,
+            outputType = "Region",
+            isReporter = true,
+            inputsInline = true,
+            fields = listOf(
+                FieldDefinition("x", "x", FieldKind.NUMBER, "0"),
+                FieldDefinition("y", "y", FieldKind.NUMBER, "0"),
+                FieldDefinition("width", "width", FieldKind.NUMBER, "1"),
+                FieldDefinition("height", "height", FieldKind.NUMBER, "1"),
+            ),
+        ),
+        BlockDefinition(
             id = BlockTypes.LITERAL_BOOLEAN,
             label = "Boolean",
             category = "logic",
@@ -407,8 +440,12 @@ object DefaultBlockRegistry : BlockRegistry {
             hasPrevious = true,
             hasNext = true,
             fields = listOf(
+                FieldDefinition("assignmentKind", "kind", defaultValue = "SET"),
                 FieldDefinition("variable", "var", defaultValue = ""),
                 FieldDefinition("value", "value", defaultValue = ""),
+            ),
+            valueInputs = listOf(
+                ValueInputDefinition(WorkspaceValueTypeSystem.VARIABLE_SET_VALUE_INPUT, "value", setOf("Any")),
             ),
         ),
     )
@@ -418,22 +455,7 @@ object DefaultBlockRegistry : BlockRegistry {
             .mapNotNull { entry ->
                 val blockType = entry.block?.blockType ?: return@mapNotNull null
                 if (!blockType.startsWith(BlockTypes.EMSCRIPT_COMMAND_PREFIX)) return@mapNotNull null
-                BlockDefinition(
-                    id = blockType,
-                    label = entry.shortDisplayName(),
-                    category = entry.category,
-                    hasPrevious = true,
-                    hasNext = true,
-                    fields = listOf(
-                        FieldDefinition("command", "cmd", defaultValue = entry.canonicalName),
-                        FieldDefinition(
-                            key = "args",
-                            label = "args",
-                            kind = FieldKind.TEXT,
-                            defaultValue = entry.arguments.joinToString { it.defaultArgumentLiteral() },
-                        ),
-                    ),
-                )
+                entry.toGeneratedBlockDefinition()
             }
 
     private val definitions: Map<String, BlockDefinition> = (baseDefinitions + generatedCommandDefinitions)
@@ -443,6 +465,57 @@ object DefaultBlockRegistry : BlockRegistry {
     override fun getDefinition(id: String): BlockDefinition? = definitions[id]
 
     override fun allDefinitions(): List<BlockDefinition> = definitions.values.toList()
+}
+
+fun CommandCatalogEntry.toGeneratedBlockDefinition(): BlockDefinition {
+    val valueCommand = canBeUsedAsExpression()
+    return BlockDefinition(
+        id = requireNotNull(block).blockType,
+        label = shortDisplayName(),
+        category = category,
+        hasPrevious = !valueCommand,
+        hasNext = !valueCommand,
+        outputType = returnType.takeIf { valueCommand },
+        isReporter = valueCommand,
+        fields = listOf(
+            FieldDefinition("command", "cmd", defaultValue = canonicalName),
+            FieldDefinition(
+                key = "args",
+                label = "args",
+                kind = FieldKind.TEXT,
+                defaultValue = arguments.joinToString { it.defaultArgumentLiteral() },
+            ),
+        ),
+        valueInputs = arguments
+            .filter { argument ->
+                argument.type != CommandArgumentType.STATEMENT_BODY &&
+                    (valueCommand || argument.acceptedTypes.isNotEmpty())
+            }
+            .map { argument ->
+                ValueInputDefinition(
+                    name = argument.name,
+                    label = argument.name,
+                    accepts = argument.acceptedTypes.ifEmpty { argument.workspaceAcceptedTypes() },
+                    required = argument.required,
+                )
+            },
+    )
+}
+
+private fun CommandArgument.workspaceAcceptedTypes(): Set<String> = when (type) {
+    CommandArgumentType.BOOLEAN -> setOf("Boolean")
+    CommandArgumentType.NUMBER,
+    CommandArgumentType.DURATION_MS,
+    CommandArgumentType.FREQUENCY_HZ,
+    CommandArgumentType.PERCENT,
+    -> setOf("Number")
+    CommandArgumentType.TEXT,
+    CommandArgumentType.IMAGE_TEMPLATE,
+    CommandArgumentType.VARIABLE_REF,
+    -> setOf("String")
+    CommandArgumentType.REGION -> setOf("Region")
+    CommandArgumentType.ANY -> setOf("Any")
+    CommandArgumentType.STATEMENT_BODY -> emptySet()
 }
 
 private fun CommandArgument.defaultArgumentLiteral(): String {

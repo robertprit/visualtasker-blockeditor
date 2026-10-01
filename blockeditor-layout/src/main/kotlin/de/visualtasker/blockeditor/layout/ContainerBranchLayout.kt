@@ -43,6 +43,20 @@ object ContainerBranchLayout {
         if (definition?.statementInputs == null || definition.statementInputs.size <= 1) {
             return emptyList()
         }
+        if (definition.metadata["custom.layout.designer"] == "true") {
+            val rowHeight = LayoutConstants.HEADER_HEIGHT
+            val headerRows = definition.metadata["custom.layout.headerRows"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+            val headerHeight = headerRows * rowHeight
+            return definition.statementInputs
+                .drop(1)
+                .mapNotNull { input ->
+                    val row = definition.metadata["custom.layout.input.${input.name}.row"]
+                        ?.toIntOrNull()
+                        ?.coerceAtLeast(1)
+                        ?: return@mapNotNull null
+                    headerHeight + (row * rowHeight) - LayoutConstants.SLOT_PADDING
+                }
+        }
         val dividers = mutableListOf<Float>()
         var slotY = LayoutConstants.HEADER_HEIGHT + LayoutConstants.SLOT_PADDING
         definition.statementInputs.forEach { slotDef ->

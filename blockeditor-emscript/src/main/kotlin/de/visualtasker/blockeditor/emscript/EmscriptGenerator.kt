@@ -2,6 +2,7 @@ package de.visualtasker.blockeditor.emscript
 
 import de.visualtasker.blockeditor.domain.NormalizedOperator
 import de.visualtasker.blockeditor.domain.OperatorNormalization
+import de.visualtasker.blockeditor.domain.canonicalSymbol
 import de.visualtasker.blockeditor.ir.IrExpression
 import de.visualtasker.blockeditor.ir.IrGenerator
 import de.visualtasker.blockeditor.ir.IrScript
@@ -26,19 +27,29 @@ class EmscriptGenerator(
         when (statement) {
             is IrStatement.CommandCall -> {
                 val command = sanitizeCommandName(statement.command)
-                appendLine(depth, "$command(${statement.arguments});")
+                val arguments = statement.expressionArguments
+                    .takeIf { it.isNotEmpty() }
+                    ?.joinToString(", ") { emitExpression(it) }
+                    ?: statement.arguments
+                appendLine(depth, "$command($arguments);")
             }
             is IrStatement.ClickText -> appendLine(depth, "click(\"${escape(statement.text)}\");")
             is IrStatement.Wait -> appendLine(depth, "wait(${statement.milliseconds});")
             is IrStatement.Beep -> appendLine(depth, "${statement.toEmscript()};")
             is IrStatement.Vibrate -> appendLine(depth, "${statement.toEmscript()};")
-            is IrStatement.Log -> appendLine(depth, "log(\"${escape(statement.message)}\");")
+            is IrStatement.Log -> appendLine(depth, "log(${emitExpression(statement.value)});")
             is IrStatement.SetVariable -> {
                 val name = sanitizeIdentifier(statement.name, "variable")
-                require(isSafeScalarExpression(statement.value)) {
-                    "Unsupported EMScript set expression: ${statement.value}"
+                val value = statement.expression?.let(::emitExpression) ?: statement.value
+                require(statement.expression != null || isSafeScalarExpression(value)) {
+                    "Unsupported EMScript set expression: $value"
                 }
-                appendLine(depth, "set $name = ${statement.value};")
+                val keyword = if (statement.assignmentKind.equals("LET", ignoreCase = true)) "let" else "set"
+                val declaredType = statement.declaredType
+                    ?.takeIf { keyword == "let" }
+                    ?.let { ":$it" }
+                    .orEmpty()
+                appendLine(depth, "$keyword $name$declaredType = $value;")
             }
             is IrStatement.Repeat -> {
                 require(statement.times >= 0) { "repeat count must not be negative" }
@@ -68,6 +79,8 @@ class EmscriptGenerator(
     }
 
     private fun emitExpression(expression: IrExpression): String = when (expression) {
+        is IrExpression.CommandCall ->
+            "${sanitizeCommandName(expression.command)}(${expression.arguments.joinToString(", ") { emitExpression(it) }})"
         is IrExpression.ScreenContains -> "screenContains(\"${escape(expression.text)}\")"
         is IrExpression.And -> "(${emitExpression(expression.left)} && ${emitExpression(expression.right)})"
         is IrExpression.Or -> "(${emitExpression(expression.left)} || ${emitExpression(expression.right)})"
@@ -78,14 +91,14 @@ class EmscriptGenerator(
         is IrExpression.LiteralText -> "\"${escape(expression.value)}\""
         is IrExpression.Compare -> {
             val operator = when (val normalized = OperatorNormalization.normalize(expression.operator)) {
-                is NormalizedOperator.Compare -> normalized.value.symbol
+                is NormalizedOperator.Compare -> normalized.canonicalSymbol
                 else -> unsupportedExpression("compare:${expression.operator}")
             }
             "(${emitExpression(expression.left)} $operator ${emitExpression(expression.right)})"
         }
         is IrExpression.Operate -> {
             val operator = when (val normalized = OperatorNormalization.normalize(expression.operator)) {
-                is NormalizedOperator.Arithmetic -> normalized.value.symbol
+                is NormalizedOperator.Arithmetic -> normalized.canonicalSymbol
                 else -> unsupportedExpression("operate:${expression.operator}")
             }
             "(${emitExpression(expression.a)} $operator ${emitExpression(expression.b)})"

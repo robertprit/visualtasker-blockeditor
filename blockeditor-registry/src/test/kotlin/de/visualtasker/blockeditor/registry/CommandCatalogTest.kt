@@ -1,18 +1,40 @@
 package de.visualtasker.blockeditor.registry
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CommandCatalogTest {
     @Test
+    fun `synthetic non Void command projects to typed reporter without name special case`() {
+        val entry = CommandCatalogEntry(
+            id = "test.queryString",
+            canonicalName = "test.queryString",
+            kind = CommandCatalogKind.STATEMENT,
+            category = BlockCategories.SYSTEM,
+            returnType = "String",
+            sideEffect = CommandSideEffect.NONE,
+            capabilities = setOf(CommandCapability.CORE),
+            block = CommandBlockBinding(BlockTypes.EMSCRIPT_COMMAND_PREFIX + "test.queryString"),
+        )
+
+        val definition = entry.toGeneratedBlockDefinition()
+
+        assertTrue(entry.canBeUsedAsExpression())
+        assertEquals("String", definition.outputType)
+        assertTrue(definition.isReporter)
+        assertFalse(definition.hasPrevious)
+        assertFalse(definition.hasNext)
+    }
+    @Test
     fun catalogCoversExistingBuiltinBlockDefinitions() {
         val catalogBlockTypes = VisualTaskerCommandCatalog.blockTypes()
         val visibleBuiltinBlockTypes = DefaultBlockRegistry.allDefinitions()
             .filter { it.paletteVisible }
             .map { it.id }
-            .filterNot { it == BlockTypes.VARIABLE_REPORTER }
+            .filterNot { it == BlockTypes.VARIABLE_REPORTER || it == BlockTypes.LITERAL_REGION }
             .toSet()
 
         assertEquals(visibleBuiltinBlockTypes, catalogBlockTypes)
@@ -47,6 +69,70 @@ class CommandCatalogTest {
     }
 
     @Test
+    fun waitCatalogEntryIsTheNativeV1CompatibilityProjection() {
+        val wait = VisualTaskerCommandCatalog.findById("action.wait")!!
+
+        assertEquals(WaitCommandCompatibility.legacyEntry, wait)
+        assertTrue(WaitCommandCompatibility.parityIssues(wait).isEmpty())
+    }
+
+    @Test
+    fun beepCatalogEntryIsTheNativeV1CompatibilityProjection() {
+        val beep = VisualTaskerCommandCatalog.findById("feedback.beep")!!
+
+        assertEquals(BeepCommandCompatibility.legacyEntry, beep)
+        assertTrue(BeepCommandCompatibility.parityIssues(beep).isEmpty())
+    }
+
+    @Test
+    fun vibrateUsesOneRequiredVariadicNumberParameterWithoutLanguageDefault() {
+        val vibrate = VisualTaskerCommandCatalog.findById("feedback.vibrate")!!
+        val pattern = vibrate.arguments.single()
+
+        assertEquals("patternMs", pattern.name)
+        assertEquals(CommandArgumentType.NUMBER, pattern.type)
+        assertTrue(pattern.required)
+        assertTrue(pattern.variadic)
+        assertEquals(null, pattern.defaultValue)
+        assertEquals(setOf("Number"), pattern.acceptedTypes)
+        assertEquals(1, vibrate.minimumArgumentCount())
+        assertEquals(null, vibrate.maximumArgumentCount())
+        assertEquals("patternMs", vibrate.workspaceInputNameAt(0))
+        assertEquals("patternMs_2", vibrate.workspaceInputNameAt(1))
+        assertEquals("patternMs_4", vibrate.workspaceInputNameAt(3))
+    }
+
+    @Test
+    fun namingNormalizationsKeepStableIdsAndExplicitV1AliasLifecycle() {
+        EmscriptV1NamingNormalizations.ALL.forEach { normalization ->
+            val entry = VisualTaskerCommandCatalog.findById(normalization.stableId)!!
+
+            assertEquals(normalization.stableId, entry.id)
+            assertEquals(normalization.canonicalName, entry.canonicalName)
+            assertEquals(normalization.legacyAliases, entry.acceptedAliases)
+            assertTrue(normalization.legacySpellings.all { it.readableThrough == "V1.x" })
+            assertTrue(normalization.legacySpellings.all { it.earliestRemoval == "V2" })
+            assertEquals(entry, VisualTaskerCommandCatalog.findByAcceptedName(normalization.canonicalName))
+            normalization.legacyAliases.forEach { alias ->
+                assertEquals(entry, VisualTaskerCommandCatalog.findByAcceptedName(alias))
+            }
+        }
+    }
+
+    @Test
+    fun eventStartCatalogEntryIsTheNativeV1CompatibilityProjection() {
+        val eventStart = VisualTaskerCommandCatalog.findById("event.start")!!
+
+        assertEquals(NativeCommandLegacyDefinitions.requireEntry("event.start"), eventStart)
+        assertTrue(
+            NativeCommandLegacyDefinitions.parityIssues(
+                eventStart,
+                de.visualtasker.emscript.contract.EmscriptV1Commands.EVENT_START,
+            ).isEmpty(),
+        )
+    }
+
+    @Test
     fun variablesControlFlowAndOperatorsAreCataloguedForIrMigration() {
         val set = VisualTaskerCommandCatalog.findByBlockType(BlockTypes.VARIABLE_SET)!!
         assertEquals("set", set.canonicalName)
@@ -75,6 +161,17 @@ class CommandCatalogTest {
             VisualTaskerCommandCatalog.findByCanonicalName("click")?.block?.blockType,
         )
         assertNotNull(VisualTaskerCommandCatalog.findById("logic.compare"))
+    }
+
+    @Test
+    fun expressionProjectionsRemainCataloguedButAreNotLanguageCommands() {
+        assertEquals(CommandCatalogRole.LEGACY_EXPRESSION_ALIAS, VisualTaskerCommandCatalog.findById("variable.get")?.role)
+        assertEquals(CommandCatalogRole.LEGACY_EXPRESSION_ALIAS, VisualTaskerCommandCatalog.findById("logic.boolean")?.role)
+        assertEquals(CommandCatalogRole.CANONICAL_EXPRESSION_PROJECTION, VisualTaskerCommandCatalog.findById("literal.boolean")?.role)
+        assertEquals(null, VisualTaskerCommandCatalog.findLanguageCommandByAcceptedName("get"))
+        assertEquals(null, VisualTaskerCommandCatalog.findLanguageCommandByAcceptedName("boolean"))
+        assertEquals("action.wait", VisualTaskerCommandCatalog.findLanguageCommandByAcceptedName("wait")?.id)
+        assertEquals(127, VisualTaskerCommandCatalog.allEntries().size)
     }
 
     @Test
@@ -123,6 +220,17 @@ class CommandCatalogTest {
         val sceneSave = DefaultBlockRegistry.getDefinition("${BlockTypes.EMSCRIPT_COMMAND_PREFIX}scene.save")!!
         assertEquals(BlockCategories.SCENE, sceneSave.category)
         assertEquals("sceneSave", sceneSave.metadata[VisualTaskerCommandCatalog.METADATA_CANONICAL_NAME])
+    }
+
+    @Test
+    fun datastorePutUsesTwoRequiredStringExpressionInputs() {
+        val entry = VisualTaskerCommandCatalog.findByCanonicalName("datastorePut")!!
+        val definition = DefaultBlockRegistry.getDefinition(entry.block!!.blockType)!!
+
+        assertEquals(listOf(CommandArgumentType.TEXT, CommandArgumentType.TEXT), entry.arguments.map { it.type })
+        assertEquals(listOf("key", "value"), definition.valueInputs.map { it.name })
+        assertTrue(definition.valueInputs.all { it.required && it.accepts == setOf("Text") })
+        assertEquals("\"key\", \"value\"", definition.fields.single { it.key == "args" }.defaultValue)
     }
 
     @Test

@@ -221,6 +221,24 @@ class BlockVisualPathProviderTest {
     }
 
     @Test
+    fun `material expressive visual bounds remain congruent with visible path`() {
+        val geometry = MaterialExpressiveBlockShapeBuilder.geometry(
+            request = BlockShapeRequest(
+                blockType = "test.statement",
+                size = Size(288f, 84f),
+                family = BlockShapeFamily.Statement,
+            ),
+            tokens = BlockShapeTokens().toPx(Density(1f)),
+        )
+
+        val pathBounds = geometry.path.getBounds()
+        assertTrue(pathBounds.left >= geometry.visualBounds.left - 0.5f)
+        assertTrue(pathBounds.top >= geometry.visualBounds.top - 0.5f)
+        assertTrue(pathBounds.right <= geometry.visualBounds.right + 0.5f)
+        assertTrue(pathBounds.bottom <= geometry.visualBounds.bottom + 0.5f)
+    }
+
+    @Test
     fun `material expressive stack docks share a stable x axis`() {
         val geometry = MaterialExpressiveBlockShapeBuilder.geometry(
             request = BlockShapeRequest(

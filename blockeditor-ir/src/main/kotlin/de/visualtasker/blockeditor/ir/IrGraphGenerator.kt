@@ -6,6 +6,8 @@ import de.visualtasker.blockeditor.domain.ConnectionKind
 import de.visualtasker.blockeditor.domain.FieldValue
 import de.visualtasker.blockeditor.domain.NormalizedOperator
 import de.visualtasker.blockeditor.domain.OperatorNormalization
+import de.visualtasker.blockeditor.domain.canonicalSymbol
+import de.visualtasker.blockeditor.domain.operatorId
 import de.visualtasker.blockeditor.domain.WorkspaceDocument
 import de.visualtasker.blockeditor.domain.WorkspaceGraph
 import de.visualtasker.blockeditor.domain.asString
@@ -271,7 +273,7 @@ class IrGraphGenerator(
         return IrGraphNode(
             id = block.id.irNodeId(),
             kind = nodeKind(block),
-            label = nodeLabel(block),
+            label = nodeLabel(block, document),
             scopePath = scopePath,
             source = sourceRef(document, block.id),
             properties = buildMap {
@@ -309,7 +311,9 @@ class IrGraphGenerator(
         put("branchCount", block.ifBranchCount().toString())
         variableId(block, document)?.let { put("variableId", it) }
         block.fieldTextOrNull("variableLabel", "variableName", "label", "variable")?.let { put("variableLabel", it) }
-        block.fieldTextOrNull("operator", "compare", "op", "operation", "COMPARE_OP")?.let { put("operator", it) }
+        block.fieldTextOrNull("operator", "compare", "op", "operation", "COMPARE_OP")?.let { raw ->
+            put("operator", OperatorNormalization.normalize(raw)?.operatorId?.value ?: raw)
+        }
         block.fieldNumberOrNull("value")?.let { put("literalNumber", it.toString()) }
         block.fieldTextOrNull("value")?.let { put("literalString", it) }
         block.fieldBoolOrNull("value")?.let { put("literalBoolean", it.toString()) }
@@ -407,11 +411,14 @@ class IrGraphGenerator(
         }
     }
 
-    private fun nodeLabel(block: BlockNode): String = when (block.type) {
+    private fun nodeLabel(block: BlockNode, document: WorkspaceDocument): String = when (block.type) {
         BlockTypes.EVENT_START -> "START"
         BlockTypes.ACTION_CLICK_TEXT -> "CLICK \"${block.fieldText("text")}\""
         BlockTypes.ACTION_WAIT -> "WAIT ${block.fieldNumber("ms").toLong()}ms"
-        BlockTypes.DEBUG_LOG -> "LOG \"${block.fieldText("message")}\""
+        BlockTypes.DEBUG_LOG -> block.fieldText("message")
+            .takeIf(String::isNotBlank)
+            ?.let { "LOG \"$it\"" }
+            ?: "LOG ${expressionInputLabel(document, block, "value") ?: "value"}"
         BlockTypes.FEEDBACK_BEEP -> {
             val frequency = block.fieldNumber("frequency").toLong()
             val duration = block.fieldNumber("durationMs").toLong()
@@ -441,6 +448,30 @@ class IrGraphGenerator(
             else -> block.type
         }
     }
+
+    private fun expressionInputLabel(
+        document: WorkspaceDocument,
+        block: BlockNode,
+        inputName: String,
+    ): String? {
+        val connected = block.valueInputs.firstOrNull { it.name == inputName }?.connection?.connectedTo ?: return null
+        val childId = WorkspaceGraph.findConnection(document, connected)?.first ?: return null
+        val child = document.blocks[childId] ?: return null
+        return when (child.type) {
+            BlockTypes.LITERAL_STRING -> "\"${child.fieldText("value")}\""
+            BlockTypes.LITERAL_NUMBER -> child.fieldNumber("value").let(::stableNumber)
+            BlockTypes.LITERAL_BOOLEAN,
+            BlockTypes.LOGIC_BOOLEAN -> child.fieldBool("value").toString()
+            else -> if (child.type.startsWith(BlockTypes.VARIABLE_REPORTER_PREFIX)) {
+                child.fieldText("variableLabel").ifBlank { variableId(child, document).orEmpty() }
+            } else {
+                nodeLabel(child, document)
+            }
+        }
+    }
+
+    private fun stableNumber(value: Double): String =
+        if (value.isFinite() && value % 1.0 == 0.0) value.toLong().toString() else value.toString()
 
     private fun putEdge(
         edges: MutableMap<IrGraphEdgeId, IrGraphEdge>,
@@ -829,15 +860,15 @@ class IrGraphGenerator(
 
     private fun operatorSymbol(block: BlockNode): String =
         when (val normalized = OperatorNormalization.normalize(block.fieldText("operator"))) {
-            is NormalizedOperator.Compare -> normalized.value.symbol
-            is NormalizedOperator.Arithmetic -> normalized.value.symbol
+            is NormalizedOperator.Compare -> normalized.canonicalSymbol
+            is NormalizedOperator.Arithmetic -> normalized.canonicalSymbol
             null -> "?"
         }
 
     private fun operatorLabel(block: BlockNode): String =
         when (val normalized = OperatorNormalization.normalize(block.fieldText("operator"))) {
-            is NormalizedOperator.Arithmetic -> normalized.value.name
-            is NormalizedOperator.Compare -> "COMPARE ${normalized.value.symbol}"
+            is NormalizedOperator.Arithmetic -> normalized.canonicalSymbol
+            is NormalizedOperator.Compare -> "COMPARE ${normalized.canonicalSymbol}"
             null -> "OPERATE ?"
         }
 

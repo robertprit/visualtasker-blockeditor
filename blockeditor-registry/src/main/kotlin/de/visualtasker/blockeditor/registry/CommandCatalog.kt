@@ -13,6 +13,13 @@ enum class CommandCatalogKind {
 }
 
 @Serializable
+enum class CommandCatalogRole {
+    LANGUAGE_COMMAND,
+    CANONICAL_EXPRESSION_PROJECTION,
+    LEGACY_EXPRESSION_ALIAS,
+}
+
+@Serializable
 enum class CommandCapability {
     CORE,
     TIMING,
@@ -63,7 +70,33 @@ data class CommandArgument(
     val required: Boolean = true,
     val defaultValue: String? = null,
     val acceptedTypes: Set<String> = emptySet(),
+    val variadic: Boolean = false,
 )
+
+fun CommandCatalogEntry.minimumArgumentCount(): Int =
+    arguments
+        .filter { it.type != CommandArgumentType.STATEMENT_BODY }
+        .count { it.required }
+
+fun CommandCatalogEntry.maximumArgumentCount(): Int? =
+    arguments
+        .filter { it.type != CommandArgumentType.STATEMENT_BODY }
+        .takeUnless { specs -> specs.lastOrNull()?.variadic == true }
+        ?.size
+
+fun CommandCatalogEntry.argumentAt(index: Int): CommandArgument? {
+    val specs = arguments.filter { it.type != CommandArgumentType.STATEMENT_BODY }
+    return specs.getOrNull(index) ?: specs.lastOrNull()?.takeIf { it.variadic }
+}
+
+fun CommandCatalogEntry.workspaceInputNameAt(index: Int): String? {
+    val specs = arguments.filter { it.type != CommandArgumentType.STATEMENT_BODY }
+    val argument = argumentAt(index) ?: return null
+    if (!argument.variadic) return argument.name
+    val variadicIndex = specs.indexOfLast { it.variadic }
+    val occurrence = index - variadicIndex
+    return if (occurrence == 0) argument.name else "${argument.name}_${occurrence + 1}"
+}
 
 @Serializable
 data class CommandBlockBinding(
@@ -90,6 +123,7 @@ data class CommandCatalogEntry(
     val canonicalName: String,
     val acceptedAliases: List<String> = emptyList(),
     val kind: CommandCatalogKind,
+    val role: CommandCatalogRole = CommandCatalogRole.LANGUAGE_COMMAND,
     val category: String,
     val arguments: List<CommandArgument> = emptyList(),
     val returnType: String? = null,
@@ -127,6 +161,7 @@ enum class CommandCatalogDiagnosticCode {
     BLANK_CANONICAL_NAME,
     DUPLICATE_BLOCK_BINDING,
     DUPLICATE_ARGUMENT,
+    VARIADIC_ARGUMENT_NOT_LAST,
     UNKNOWN_CATEGORY,
     RUNTIME_CAPABILITY_NOT_DECLARED,
     EXECUTABLE_COMMAND_WITHOUT_RUNTIME,
@@ -158,14 +193,34 @@ object VisualTaskerCommandCatalog : CommandCatalog {
     const val METADATA_RUNTIME_STATUS = "emscript.command.runtimeStatus"
 
     private val plannedAdapterCommands: List<CommandCatalogEntry> = listOf(
-        catalogCommand("chromeTab.isSupported", "ChromeTab.isSupported", category = BlockCategories.CHROME_TAB, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.CUSTOM_TAB, pluginOwner = "visualtasker.customtabs"),
+        catalogCommand(
+            id = "chromeTab.isSupported",
+            canonicalName = "chromeTab.isSupported",
+            aliases = listOf("ChromeTab.isSupported"),
+            category = BlockCategories.CHROME_TAB,
+            sideEffect = CommandSideEffect.SCREEN_READ,
+            capability = CommandCapability.CUSTOM_TAB,
+            pluginOwner = "visualtasker.customtabs",
+            returnType = "Bool",
+            kind = CommandCatalogKind.REPORTER,
+        ),
         catalogCommand("chromeTab.bind", "ChromeTab.bind", category = BlockCategories.CHROME_TAB, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.CUSTOM_TAB, pluginOwner = "visualtasker.customtabs", args = listOf(textArg("packageName", required = false))),
         catalogCommand("chromeTab.create", "ChromeTab.create", category = BlockCategories.CHROME_TAB, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.CUSTOM_TAB, pluginOwner = "visualtasker.customtabs", args = listOf(textArg("url", "https://"), anyArg("options", required = false))),
         catalogCommand("chromeTab.mayLaunchUrl", "ChromeTab.mayLaunchUrl", category = BlockCategories.CHROME_TAB, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.CUSTOM_TAB, pluginOwner = "visualtasker.customtabs", args = listOf(textArg("url", "https://"))),
         catalogCommand("chromeTab.requestPostMessageChannel", "ChromeTab.requestPostMessageChannel", category = BlockCategories.CHROME_TAB, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.CUSTOM_TAB, pluginOwner = "visualtasker.customtabs", args = listOf(textArg("origin", "https://"))),
         catalogCommand("chromeTab.postMessage", "ChromeTab.postMessage", category = BlockCategories.CHROME_TAB, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.CUSTOM_TAB, pluginOwner = "visualtasker.customtabs", args = listOf(textArg("message"))),
         catalogCommand("chromeTab.validateRelationship", "ChromeTab.validateRelationship", category = BlockCategories.CHROME_TAB, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.CUSTOM_TAB, pluginOwner = "visualtasker.customtabs", args = listOf(textArg("origin", "https://"), textArg("relation", "delegate_permission/common.handle_all_urls"))),
-        catalogCommand("tasker.isInstalled", "Tasker.isInstalled", category = BlockCategories.TASKER, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.TASKER, pluginOwner = "visualtasker.tasker"),
+        catalogCommand(
+            id = "tasker.isInstalled",
+            canonicalName = "tasker.isInstalled",
+            aliases = listOf("Tasker.isInstalled"),
+            category = BlockCategories.TASKER,
+            sideEffect = CommandSideEffect.SCREEN_READ,
+            capability = CommandCapability.TASKER,
+            pluginOwner = "visualtasker.tasker",
+            returnType = "Bool",
+            kind = CommandCatalogKind.REPORTER,
+        ),
         catalogCommand("tasker.isEnabled", "Tasker.isEnabled", category = BlockCategories.TASKER, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.TASKER, pluginOwner = "visualtasker.tasker"),
         catalogCommand("tasker.cancel", "Tasker.cancel", category = BlockCategories.TASKER, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.TASKER, pluginOwner = "visualtasker.tasker", args = listOf(textArg("name", required = false))),
         catalogCommand("tasker.getVariable", "Tasker.getVariable", category = BlockCategories.TASKER, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.TASKER, pluginOwner = "visualtasker.tasker", args = listOf(variableArg("name", "%var"))),
@@ -179,8 +234,28 @@ object VisualTaskerCommandCatalog : CommandCatalog {
         catalogCommand("tasker.profileDisable", "Tasker.profileDisable", category = BlockCategories.TASKER, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.TASKER, pluginOwner = "visualtasker.tasker", args = listOf(textArg("profile"))),
         catalogCommand("tasker.profileToggle", "Tasker.profileToggle", category = BlockCategories.TASKER, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.TASKER, pluginOwner = "visualtasker.tasker", args = listOf(textArg("profile"))),
         catalogCommand("tasker.profileState", "Tasker.profileState", category = BlockCategories.TASKER, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.TASKER, pluginOwner = "visualtasker.tasker", args = listOf(textArg("profile"))),
-        catalogCommand("shizuku.isInstalled", "Shizuku.isInstalled", category = BlockCategories.SHIZUKU, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.SHIZUKU, pluginOwner = "visualtasker.shizuku"),
-        catalogCommand("shizuku.isAvailable", "Shizuku.isAvailable", category = BlockCategories.SHIZUKU, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.SHIZUKU, pluginOwner = "visualtasker.shizuku"),
+        catalogCommand(
+            id = "shizuku.isInstalled",
+            canonicalName = "shizuku.isInstalled",
+            aliases = listOf("Shizuku.isInstalled"),
+            category = BlockCategories.SHIZUKU,
+            sideEffect = CommandSideEffect.SCREEN_READ,
+            capability = CommandCapability.SHIZUKU,
+            pluginOwner = "visualtasker.shizuku",
+            returnType = "Bool",
+            kind = CommandCatalogKind.REPORTER,
+        ),
+        catalogCommand(
+            id = "shizuku.isAvailable",
+            canonicalName = "shizuku.isAvailable",
+            aliases = listOf("Shizuku.isAvailable"),
+            category = BlockCategories.SHIZUKU,
+            sideEffect = CommandSideEffect.SCREEN_READ,
+            capability = CommandCapability.SHIZUKU,
+            pluginOwner = "visualtasker.shizuku",
+            returnType = "Bool",
+            kind = CommandCatalogKind.REPORTER,
+        ),
         catalogCommand("shizuku.getUid", "Shizuku.getUid", category = BlockCategories.SHIZUKU, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.SHIZUKU, pluginOwner = "visualtasker.shizuku"),
         catalogCommand("shizuku.permissionState", "Shizuku.permissionState", category = BlockCategories.SHIZUKU, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.SHIZUKU, pluginOwner = "visualtasker.shizuku"),
         catalogCommand("shizuku.requestPermission", "Shizuku.requestPermission", category = BlockCategories.SHIZUKU, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.SHIZUKU, pluginOwner = "visualtasker.shizuku"),
@@ -188,7 +263,17 @@ object VisualTaskerCommandCatalog : CommandCatalog {
         catalogCommand("shizuku.unbindUserService", "Shizuku.unbindUserService", category = BlockCategories.SHIZUKU, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.SHIZUKU, pluginOwner = "visualtasker.shizuku", args = listOf(textArg("component"))),
         catalogCommand("shizuku.systemService", "Shizuku.systemService", category = BlockCategories.SHIZUKU, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.SHIZUKU, pluginOwner = "visualtasker.shizuku", args = listOf(textArg("name"))),
         catalogCommand("shizuku.call", "Shizuku.call", category = BlockCategories.SHIZUKU, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.SHIZUKU, pluginOwner = "visualtasker.shizuku", args = listOf(textArg("service"), textArg("method"), anyArg("args", required = false))),
-        catalogCommand("termux.isInstalled", "Termux.isInstalled", category = BlockCategories.TERMUX, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.TERMUX, pluginOwner = "visualtasker.termux"),
+        catalogCommand(
+            id = "termux.isInstalled",
+            canonicalName = "termux.isInstalled",
+            aliases = listOf("Termux.isInstalled"),
+            category = BlockCategories.TERMUX,
+            sideEffect = CommandSideEffect.SCREEN_READ,
+            capability = CommandCapability.TERMUX,
+            pluginOwner = "visualtasker.termux",
+            returnType = "Bool",
+            kind = CommandCatalogKind.REPORTER,
+        ),
         catalogCommand("termux.canRunCommands", "Termux.canRunCommands", category = BlockCategories.TERMUX, sideEffect = CommandSideEffect.SCREEN_READ, capability = CommandCapability.TERMUX, pluginOwner = "visualtasker.termux"),
         catalogCommand("termux.writeStdin", "Termux.writeStdin", category = BlockCategories.TERMUX, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.TERMUX, pluginOwner = "visualtasker.termux", args = listOf(textArg("sessionId"), textArg("text"))),
         catalogCommand("termux.cancel", "Termux.cancel", category = BlockCategories.TERMUX, sideEffect = CommandSideEffect.UI_INPUT, capability = CommandCapability.TERMUX, pluginOwner = "visualtasker.termux", args = listOf(textArg("sessionId"))),
@@ -219,22 +304,8 @@ object VisualTaskerCommandCatalog : CommandCatalog {
     )
 
     private val entries: List<CommandCatalogEntry> = listOf(
-        event(
-            id = "event.start",
-            canonicalName = "onStart",
-            aliases = listOf("EVENT.ON_START", "em_on_start"),
-            blockType = BlockTypes.EVENT_START,
-        ),
-        statement(
-            id = "action.wait",
-            canonicalName = "wait",
-            aliases = listOf("WAIT"),
-            category = BlockCategories.ACTION,
-            blockType = BlockTypes.ACTION_WAIT,
-            sideEffect = CommandSideEffect.TIMING,
-            capability = CommandCapability.TIMING,
-            args = listOf(CommandArgument("ms", CommandArgumentType.DURATION_MS, defaultValue = "500")),
-        ),
+        NativeCommandLegacyDefinitions.requireEntry(BlockTypes.EVENT_START),
+        WaitCommandCompatibility.legacyEntry,
         statement(
             id = "action.clickText",
             canonicalName = "click",
@@ -399,6 +470,8 @@ object VisualTaskerCommandCatalog : CommandCatalog {
                 CommandArgument("region", CommandArgumentType.REGION, defaultValue = ""),
                 CommandArgument("processing", CommandArgumentType.TEXT, required = false, defaultValue = "grayscale"),
             ),
+            returnType = "Number",
+            kind = CommandCatalogKind.REPORTER,
         ),
         catalogCommand(
             id = "scene.save",
@@ -422,8 +495,18 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             sideEffect = CommandSideEffect.VARIABLE_WRITE,
             capability = CommandCapability.CORE,
             args = listOf(
-                CommandArgument("key", CommandArgumentType.TEXT, defaultValue = "key"),
-                CommandArgument("value", CommandArgumentType.ANY, defaultValue = "\"value\""),
+                CommandArgument(
+                    "key",
+                    CommandArgumentType.TEXT,
+                    defaultValue = "key",
+                    acceptedTypes = setOf("Text"),
+                ),
+                CommandArgument(
+                    "value",
+                    CommandArgumentType.TEXT,
+                    defaultValue = "value",
+                    acceptedTypes = setOf("Text"),
+                ),
             ),
         ),
         catalogCommand(
@@ -434,21 +517,10 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             sideEffect = CommandSideEffect.SCREEN_READ,
             capability = CommandCapability.CORE,
             args = listOf(CommandArgument("key", CommandArgumentType.TEXT, defaultValue = "key")),
+            returnType = "String?",
+            kind = CommandCatalogKind.REPORTER,
         ),
-        statement(
-            id = "feedback.beep",
-            canonicalName = "beep",
-            aliases = listOf("BEEP"),
-            category = BlockCategories.FEEDBACK,
-            blockType = BlockTypes.FEEDBACK_BEEP,
-            sideEffect = CommandSideEffect.FEEDBACK,
-            capability = CommandCapability.FEEDBACK,
-            args = listOf(
-                CommandArgument("frequency", CommandArgumentType.FREQUENCY_HZ, defaultValue = "1000"),
-                CommandArgument("durationMs", CommandArgumentType.DURATION_MS, defaultValue = "200"),
-                CommandArgument("volume", CommandArgumentType.PERCENT, defaultValue = "100"),
-            ),
-        ),
+        BeepCommandCompatibility.legacyEntry,
         statement(
             id = "feedback.vibrate",
             canonicalName = "vibrate",
@@ -457,7 +529,15 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             blockType = BlockTypes.FEEDBACK_VIBRATE,
             sideEffect = CommandSideEffect.FEEDBACK,
             capability = CommandCapability.FEEDBACK,
-            args = listOf(CommandArgument("pattern", CommandArgumentType.DURATION_MS, defaultValue = "80")),
+            args = listOf(
+                CommandArgument(
+                    name = "patternMs",
+                    type = CommandArgumentType.NUMBER,
+                    required = true,
+                    acceptedTypes = setOf("Number"),
+                    variadic = true,
+                ),
+            ),
         ),
         statement(
             id = "debug.log",
@@ -467,7 +547,14 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             blockType = BlockTypes.DEBUG_LOG,
             sideEffect = CommandSideEffect.LOGGING,
             capability = CommandCapability.DEBUG,
-            args = listOf(CommandArgument("message", CommandArgumentType.TEXT, defaultValue = "debug")),
+            args = listOf(
+                CommandArgument(
+                    name = "value",
+                    type = CommandArgumentType.ANY,
+                    defaultValue = "\"debug\"",
+                    acceptedTypes = setOf("Any", "Number", "Boolean", "Text"),
+                ),
+            ),
         ),
         catalogCommand(
             id = "file.readText",
@@ -476,10 +563,13 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             sideEffect = CommandSideEffect.SCREEN_READ,
             capability = CommandCapability.CORE,
             args = listOf(CommandArgument("path", CommandArgumentType.TEXT, defaultValue = "")),
+            returnType = "String?",
+            kind = CommandCatalogKind.REPORTER,
         ),
         catalogCommand(
-            id = "file.writeText",
-            canonicalName = "File.writeText",
+            id = EmscriptV1NamingNormalizations.FILE_WRITE_TEXT.stableId,
+            canonicalName = EmscriptV1NamingNormalizations.FILE_WRITE_TEXT.canonicalName,
+            aliases = EmscriptV1NamingNormalizations.FILE_WRITE_TEXT.legacyAliases,
             category = BlockCategories.FILE,
             sideEffect = CommandSideEffect.VARIABLE_WRITE,
             capability = CommandCapability.CORE,
@@ -494,18 +584,22 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             category = BlockCategories.SYSTEM,
             sideEffect = CommandSideEffect.SCREEN_READ,
             capability = CommandCapability.CORE,
+            returnType = "String",
+            kind = CommandCatalogKind.REPORTER,
         ),
         catalogCommand(
-            id = "clipboard.set",
-            canonicalName = "Clipboard.set",
+            id = EmscriptV1NamingNormalizations.CLIPBOARD_SET.stableId,
+            canonicalName = EmscriptV1NamingNormalizations.CLIPBOARD_SET.canonicalName,
+            aliases = EmscriptV1NamingNormalizations.CLIPBOARD_SET.legacyAliases,
             category = BlockCategories.SYSTEM,
             sideEffect = CommandSideEffect.VARIABLE_WRITE,
             capability = CommandCapability.CORE,
             args = listOf(CommandArgument("text", CommandArgumentType.TEXT, defaultValue = "")),
         ),
         catalogCommand(
-            id = "cache.clear",
-            canonicalName = "Cache.clear",
+            id = EmscriptV1NamingNormalizations.CACHE_CLEAR.stableId,
+            canonicalName = EmscriptV1NamingNormalizations.CACHE_CLEAR.canonicalName,
+            aliases = EmscriptV1NamingNormalizations.CACHE_CLEAR.legacyAliases,
             category = BlockCategories.SYSTEM,
             sideEffect = CommandSideEffect.VARIABLE_WRITE,
             capability = CommandCapability.CORE,
@@ -516,6 +610,8 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             category = BlockCategories.SYSTEM,
             sideEffect = CommandSideEffect.SCREEN_READ,
             capability = CommandCapability.CORE,
+            returnType = "String",
+            kind = CommandCatalogKind.REPORTER,
         ),
         catalogCommand(
             id = "system.env",
@@ -524,6 +620,8 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             sideEffect = CommandSideEffect.SCREEN_READ,
             capability = CommandCapability.CORE,
             args = listOf(CommandArgument("name", CommandArgumentType.TEXT, defaultValue = "")),
+            returnType = "String",
+            kind = CommandCatalogKind.REPORTER,
         ),
         catalogCommand(
             id = "chromeTab.open",
@@ -712,7 +810,7 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             sideEffect = CommandSideEffect.NONE,
             returnType = "Any",
             args = listOf(CommandArgument("variable", CommandArgumentType.VARIABLE_REF)),
-        ),
+        ).copy(role = CommandCatalogRole.LEGACY_EXPRESSION_ALIAS),
         control(
             id = "control.repeat",
             canonicalName = "repeat",
@@ -785,7 +883,7 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             blockType = BlockTypes.LOGIC_BOOLEAN,
             returnType = "Boolean",
             args = listOf(CommandArgument("value", CommandArgumentType.BOOLEAN, defaultValue = "true")),
-        ),
+        ).copy(role = CommandCatalogRole.LEGACY_EXPRESSION_ALIAS),
         operator(
             id = "logic.and",
             canonicalName = "and",
@@ -841,7 +939,7 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             blockType = BlockTypes.LITERAL_BOOLEAN,
             returnType = "Boolean",
             args = listOf(CommandArgument("value", CommandArgumentType.BOOLEAN, defaultValue = "false")),
-        ),
+        ).copy(role = CommandCatalogRole.CANONICAL_EXPRESSION_PROJECTION),
     ) + remFlowNodeCommands + plannedAdapterCommands
 
     private val remFlowNodeCommands: List<CommandCatalogEntry>
@@ -938,19 +1036,22 @@ object VisualTaskerCommandCatalog : CommandCatalog {
 
     override fun findByBlockType(blockType: String): CommandCatalogEntry? = byBlockType[blockType]
 
+    fun findLanguageCommandByAcceptedName(name: String): CommandCatalogEntry? =
+        byAcceptedName[name.lowercase()]?.firstOrNull { it.role == CommandCatalogRole.LANGUAGE_COMMAND }
+
     fun blockTypes(): Set<String> = byBlockType.keys
 
     fun acceptedNamesForKinds(vararg kinds: CommandCatalogKind): Set<String> {
         val acceptedKinds = kinds.toSet()
         return entries
-            .filter { it.kind in acceptedKinds }
+            .filter { it.kind in acceptedKinds && it.role == CommandCatalogRole.LANGUAGE_COMMAND }
             .flatMap { entry -> entry.acceptedAliases + entry.canonicalName }
             .toSet()
     }
 
     fun acceptedNamesForRuntime(): Set<String> =
         entries
-            .filter { it.runtime != null }
+            .filter { it.runtime != null && it.role == CommandCatalogRole.LANGUAGE_COMMAND }
             .flatMap { entry -> entry.acceptedAliases + entry.canonicalName }
             .toSet()
 
@@ -961,7 +1062,7 @@ object VisualTaskerCommandCatalog : CommandCatalog {
         capabilityDescriptors().filter { it.requiredAdapter != null }
 
     fun capabilityDescriptorForAcceptedName(name: String): CommandCapabilityDescriptor? =
-        findByAcceptedName(name)?.toCapabilityDescriptor()
+        findLanguageCommandByAcceptedName(name)?.toCapabilityDescriptor()
 
     fun metadataForBlockType(blockType: String): Map<String, String> {
         val entry = findByBlockType(blockType) ?: return emptyMap()
@@ -1029,6 +1130,17 @@ fun validateCommandCatalog(entries: List<CommandCatalogEntry>): List<CommandCata
             .forEach { (name, _) ->
                 add(CommandCatalogDiagnostic(CommandCatalogDiagnosticCode.DUPLICATE_ARGUMENT, entry.id, "Duplicate argument $name in ${entry.id}"))
             }
+        entry.arguments.forEachIndexed { index, argument ->
+            if (argument.variadic && index != entry.arguments.lastIndex) {
+                add(
+                    CommandCatalogDiagnostic(
+                        CommandCatalogDiagnosticCode.VARIADIC_ARGUMENT_NOT_LAST,
+                        entry.id,
+                        "Variadic argument ${argument.name} must be last in ${entry.id}",
+                    ),
+                )
+            }
+        }
         entry.runtime?.let { runtime ->
             if (runtime.liveCapabilityGate !in entry.capabilities) {
                 add(CommandCatalogDiagnostic(CommandCatalogDiagnosticCode.RUNTIME_CAPABILITY_NOT_DECLARED, entry.id, "Runtime capability ${runtime.liveCapabilityGate} is not declared by ${entry.id}"))
@@ -1084,24 +1196,6 @@ internal fun CommandCatalogEntry.shortDisplayName(): String =
         else -> canonicalName.substringAfterLast('.')
     }
 
-private fun event(
-    id: String,
-    canonicalName: String,
-    aliases: List<String>,
-    blockType: String,
-): CommandCatalogEntry = CommandCatalogEntry(
-    id = id,
-    canonicalName = canonicalName,
-    acceptedAliases = aliases,
-    kind = CommandCatalogKind.EVENT,
-    category = BlockCategories.EVENT,
-    sideEffect = CommandSideEffect.CONTROL_FLOW,
-    capabilities = setOf(CommandCapability.CORE),
-    block = CommandBlockBinding(blockType),
-    flowchart = CommandFlowchartBinding("event"),
-    runtime = CommandRuntimeBinding("entrypoint", CommandCapability.CORE),
-)
-
 private fun statement(
     id: String,
     canonicalName: String,
@@ -1134,13 +1228,16 @@ private fun catalogCommand(
     capability: CommandCapability,
     pluginOwner: String = "visualtasker.core",
     args: List<CommandArgument> = emptyList(),
+    returnType: String? = null,
+    kind: CommandCatalogKind = CommandCatalogKind.STATEMENT,
 ): CommandCatalogEntry = CommandCatalogEntry(
     id = id,
     canonicalName = canonicalName,
     acceptedAliases = aliases,
-    kind = CommandCatalogKind.STATEMENT,
+    kind = kind,
     category = category,
     arguments = args,
+    returnType = returnType,
     sideEffect = sideEffect,
     capabilities = setOf(CommandCapability.CORE, capability),
     pluginOwner = pluginOwner,
@@ -1157,6 +1254,9 @@ private fun catalogCommand(
         liveImplemented = canonicalName != "touch",
     ),
 )
+
+fun CommandCatalogEntry.canBeUsedAsExpression(): Boolean =
+    returnType != null && !returnType.equals("Void", ignoreCase = true)
 
 private fun remFlowNode(
     id: String,

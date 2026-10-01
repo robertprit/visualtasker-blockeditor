@@ -7,10 +7,13 @@ import de.visualtasker.blockeditor.domain.Offset2
 import de.visualtasker.blockeditor.domain.WorkspaceGraph
 import de.visualtasker.blockeditor.layout.ConnectionAnchor
 import de.visualtasker.blockeditor.layout.FlatLayoutIndex
+import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
+import de.visualtasker.blockeditor.registry.WorkspaceValueTypeSystem
 import kotlin.math.hypot
 
 class SnapEngine(
     private val config: SnapConfig = SnapConfig(),
+    private val registry: de.visualtasker.blockeditor.registry.BlockRegistry = DefaultBlockRegistry,
 ) {
     fun findSnapCandidate(
         layout: FlatLayoutIndex,
@@ -274,23 +277,37 @@ class SnapEngine(
         val output = WorkspaceGraph.findConnection(document, outputAnchor.connectionId)?.second
         val input = WorkspaceGraph.findConnection(document, inputAnchor.connectionId)?.second
         return if (output != null && input != null) {
-            connectionTypesCompatible(output, input)
+            connectionTypesCompatible(document, output, input)
         } else {
             anchorTypesCompatible(outputAnchor, inputAnchor)
         }
     }
 
-    private fun connectionTypesCompatible(output: Connection, input: Connection): Boolean {
-        val outputType = output.provides ?: output.accepts.firstOrNull() ?: return true
-        if (input.accepts.isEmpty()) return true
-        if (outputType == "Any" || "Any" in input.accepts) return true
-        return outputType in input.accepts
+    private fun connectionTypesCompatible(
+        document: de.visualtasker.blockeditor.domain.WorkspaceDocument,
+        output: Connection,
+        input: Connection,
+    ): Boolean {
+        val inputBlock = document.blocks[input.owner] ?: return true
+        val outputType = WorkspaceValueTypeSystem.expressionType(document, output.owner, registry)
+        val expectedTypes = WorkspaceValueTypeSystem.expectedInputTypes(
+            document = document,
+            block = inputBlock,
+            inputName = input.slotName.orEmpty(),
+            declaredAccepts = input.accepts,
+        )
+        if (outputType != null) {
+            return WorkspaceValueTypeSystem.isCompatible(outputType, expectedTypes)
+        }
+        val declaredOutputType = output.provides ?: output.accepts.firstOrNull()
+        val declaredExpectedTypes = expectedTypes.mapNotNullTo(linkedSetOf(), WorkspaceValueTypeSystem::workspaceName)
+        return WorkspaceValueTypeSystem.isCompatible(declaredOutputType, declaredExpectedTypes)
     }
 
     private fun anchorTypesCompatible(output: ConnectionAnchor, input: ConnectionAnchor): Boolean {
         val outputType = output.type ?: return true
         val inputType = input.type ?: return true
-        return outputType == "Any" || inputType == "Any" || outputType == inputType
+        return WorkspaceValueTypeSystem.isCompatible(outputType, setOf(inputType))
     }
 
     private fun ConnectionAnchor.withVirtualOffset(offset: Offset2): ConnectionAnchor =

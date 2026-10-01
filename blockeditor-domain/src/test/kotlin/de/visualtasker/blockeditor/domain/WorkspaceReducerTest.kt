@@ -201,7 +201,7 @@ class WorkspaceReducerTest {
 
         assertEquals(document, reduce(document, WorkspaceAction.CreateVariable(score.copy(name = "points"))))
         assertEquals(document, reduce(document, WorkspaceAction.CreateVariable(VariableDefinition("new_id", "not valid", "String", VariableScope.Global))))
-        assertEquals(document, reduce(document, WorkspaceAction.CreateVariable(VariableDefinition("new_id", "points", "Object", VariableScope.Global))))
+        assertEquals(document, reduce(document, WorkspaceAction.CreateVariable(VariableDefinition("new_id", "points", "Void", VariableScope.Global))))
         assertEquals(document, reduce(document, WorkspaceAction.CreateVariable(VariableDefinition("new_id", "score", "String", VariableScope.Global))))
 
         val created = reduce(document, WorkspaceAction.CreateVariable(VariableDefinition("points_id", "points", "String", VariableScope.Global)))

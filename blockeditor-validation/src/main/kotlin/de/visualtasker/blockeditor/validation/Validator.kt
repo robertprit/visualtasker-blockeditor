@@ -7,6 +7,13 @@ import de.visualtasker.blockeditor.domain.WorkspaceGraph
 import de.visualtasker.blockeditor.domain.allConnections
 import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
+import de.visualtasker.blockeditor.registry.BlockTypes
+import de.visualtasker.blockeditor.registry.ValueInputDefinition
+import de.visualtasker.blockeditor.registry.VisualTaskerCommandCatalog
+import de.visualtasker.blockeditor.registry.WorkspaceValueTypeSystem
+import de.visualtasker.blockeditor.registry.argumentAt
+import de.visualtasker.blockeditor.registry.workspaceInputNameAt
+import de.visualtasker.emscript.contract.LanguageTypeRef
 
 object Validator {
     fun validate(
@@ -22,7 +29,23 @@ object Validator {
                 return@forEach
             }
 
-            definition.valueInputs.forEach { inputDef ->
+            val catalogEntry = VisualTaskerCommandCatalog.findByBlockType(block.type)
+            val commandInputs = catalogEntry?.let { entry ->
+                (0 until block.valueInputs.size).mapNotNull { index ->
+                    val name = entry.workspaceInputNameAt(index) ?: return@mapNotNull null
+                    if (block.valueInputs.none { it.name == name }) return@mapNotNull null
+                    val argument = entry.argumentAt(index) ?: return@mapNotNull null
+                    ValueInputDefinition(
+                        name = name,
+                        label = argument.name,
+                        accepts = argument.acceptedTypes,
+                        required = false,
+                    )
+                }
+            }.orEmpty()
+            (definition.valueInputs + commandInputs)
+                .distinctBy(ValueInputDefinition::name)
+                .forEach { inputDef ->
                 val input = block.valueInputs.find { it.name == inputDef.name }
                 if (input == null) {
                     if (inputDef.required) {
@@ -36,15 +59,51 @@ object Validator {
                         errors += MissingRequiredInput(blockId, inputDef.name)
                     }
                 } else {
-                    val (valueBlockId, outputConn) = WorkspaceGraph.findConnection(document, connected)
+                    val (valueBlockId, _) = WorkspaceGraph.findConnection(document, connected)
                         ?: run {
                             errors += DisconnectedChain(blockId)
                             return@forEach
                         }
-                    val valueBlock = document.blocks[valueBlockId]
-                    val outputType = outputConn.provides ?: valueBlock?.let { registry.getDefinition(it.type)?.outputType }
-                    if (!isTypeCompatible(outputType, inputDef.accepts)) {
-                        errors += TypeMismatch(blockId, inputDef.name, inputDef.accepts, outputType)
+                    val actualType = WorkspaceValueTypeSystem.expressionType(document, valueBlockId, registry)
+                    val expectedTypes = WorkspaceValueTypeSystem.expectedInputTypes(
+                        document = document,
+                        block = block,
+                        inputName = inputDef.name,
+                        declaredAccepts = inputDef.accepts,
+                    )
+                    if (!WorkspaceValueTypeSystem.isCompatible(actualType, expectedTypes)) {
+                        val nullableToNonNull = actualType is LanguageTypeRef.Nullable &&
+                            expectedTypes.none { it is LanguageTypeRef.Nullable }
+                        if (block.type == BlockTypes.VARIABLE_SET) {
+                            val variableId = WorkspaceValueTypeSystem.variableId(block).orEmpty()
+                            errors += AssignmentTypeMismatch(
+                                blockId = blockId,
+                                variableId = variableId,
+                                expectedType = expectedTypes.singleOrNull()
+                                    ?.let(WorkspaceValueTypeSystem::workspaceName)
+                                    ?: expectedTypes.joinToString { WorkspaceValueTypeSystem.workspaceName(it).orEmpty() },
+                                actualType = WorkspaceValueTypeSystem.workspaceName(actualType),
+                                code = if (nullableToNonNull) {
+                                    "NULLABLE_TO_NONNULL_ASSIGNMENT"
+                                } else {
+                                    "EMSCRIPT_ASSIGNMENT_TYPE_MISMATCH"
+                                },
+                            )
+                        } else {
+                            val nullableCode = when {
+                                !nullableToNonNull -> "EMSCRIPT_ARGUMENT_TYPE_MISMATCH"
+                                block.type.startsWith("control.") -> "NULLABLE_VALUE_IN_NONNULL_CONTEXT"
+                                else -> "NULLABLE_ARGUMENT_TO_NONNULL_PARAMETER"
+                            }
+                            errors += TypeMismatch(
+                                blockId = blockId,
+                                inputName = inputDef.name,
+                                expected = expectedTypes.mapNotNullTo(linkedSetOf(), WorkspaceValueTypeSystem::workspaceName),
+                                actual = WorkspaceValueTypeSystem.workspaceName(actualType),
+                                commandId = definition.metadata[VisualTaskerCommandCatalog.METADATA_COMMAND_ID] ?: block.type,
+                                code = nullableCode,
+                            )
+                        }
                     }
                 }
             }
@@ -156,9 +215,4 @@ object Validator {
         return dfs(startId)
     }
 
-    private fun isTypeCompatible(outputType: String?, acceptedTypes: Set<String>): Boolean {
-        if (outputType == null || acceptedTypes.isEmpty()) return true
-        if (outputType == "Any" || "Any" in acceptedTypes) return true
-        return outputType in acceptedTypes
-    }
 }

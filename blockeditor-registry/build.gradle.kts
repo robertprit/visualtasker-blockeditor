@@ -9,6 +9,7 @@ kotlin {
 
 dependencies {
     implementation(project(":blockeditor-domain"))
+    implementation(project(":emscript-language-core"))
     implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.junit)
 }
