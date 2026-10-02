@@ -13,8 +13,8 @@ class QueryReturnContractAuditTest {
     fun `every current D query return entry is classified exactly once`() {
         QueryReturnContractAudit.validateAgainst(bridgeAudit)
 
-        assertEquals(12, QueryReturnContractAudit.ALL.size)
-        assertEquals(12, QueryReturnContractAudit.ALL.map { it.stableId }.distinct().size)
+        assertEquals(6, QueryReturnContractAudit.ALL.size)
+        assertEquals(6, QueryReturnContractAudit.ALL.map { it.stableId }.distinct().size)
         assertEquals(
             QueryReturnContractAudit.currentDQueryIds(bridgeAudit),
             QueryReturnContractAudit.ALL.mapTo(linkedSetOf()) { it.stableId },
@@ -32,9 +32,9 @@ class QueryReturnContractAuditTest {
         assertEquals(0, counts[QueryReturnClass.A_NULLABLE_SCALAR_READY] ?: 0)
         assertEquals(0, counts[QueryReturnClass.B_NONNULL_SCALAR_READY] ?: 0)
         assertEquals(2, counts[QueryReturnClass.C_STRUCTURED_RESULT_TYPE])
-        assertEquals(5, counts[QueryReturnClass.D_RUNTIME_RESULT_GAP])
+        assertEquals(4, counts[QueryReturnClass.D_RUNTIME_RESULT_GAP])
         assertEquals(0, counts[QueryReturnClass.E_PROVIDER_CONTRACT_GAP] ?: 0)
-        assertEquals(5, counts[QueryReturnClass.F_SENTINEL_OR_ERROR_COLLISION])
+        assertEquals(0, counts[QueryReturnClass.F_SENTINEL_OR_ERROR_COLLISION] ?: 0)
         assertEquals(0, counts[QueryReturnClass.G_LANGUAGE_SEMANTICS_GAP] ?: 0)
         assertEquals(0, counts[QueryReturnClass.H_AMBIGUOUS] ?: 0)
         assertTrue(QueryReturnContractAudit.ALL.all { it.evidence.isNotBlank() })
@@ -44,7 +44,7 @@ class QueryReturnContractAuditTest {
         assertTrue(QueryReturnContractAudit.ALL.all { it.producer.isNotBlank() && it.consumer.isNotBlank() })
         assertTrue(QueryReturnContractAudit.ALL.none { it.commandCallReady || it.workspaceReady || it.irReady })
         assertTrue(QueryReturnContractAudit.ALL.all { it.sideEffectClass == QueryEffectClass.READ_ONLY_EXTERNAL })
-        assertEquals(7, QueryReturnContractAudit.ALL.count { it.runtimeValueExists })
+        assertEquals(2, QueryReturnContractAudit.ALL.count { it.runtimeValueExists })
         assertTrue(QueryReturnContractAudit.ALL.none { it.migrationRisk == QueryMigrationRisk.LOW })
         assertTrue(QueryReturnContractAudit.ALL.none { it.primaryClass == QueryReturnClass.B_NONNULL_SCALAR_READY })
     }
@@ -136,6 +136,26 @@ class QueryReturnContractAuditTest {
         assertFalse(shizukuAvailableBlock.hasNext)
         assertFalse(chromeTabBlock.hasPrevious)
         assertFalse(chromeTabBlock.hasNext)
+        assertEquals(
+            setOf(
+                "tasker.isEnabled",
+                "tasker.getVariable",
+                "shizuku.getUid",
+                "termux.get",
+                "scrcpy.isRunning",
+                "scrcpy.get",
+            ),
+            QueryReturnContractAudit.MIGRATED_M1B_3W,
+        )
+        QueryReturnContractAudit.MIGRATED_M1B_3W.forEach { id ->
+            val entry = VisualTaskerCommandCatalog.findById(id)!!
+            val block = DefaultBlockRegistry.getDefinition(entry.block!!.blockType)!!
+            assertEquals(CommandCatalogKind.REPORTER, entry.kind)
+            assertEquals(entry.returnType, block.outputType)
+            assertTrue(block.isReporter)
+            assertFalse(block.hasPrevious)
+            assertFalse(block.hasNext)
+        }
     }
 
     @Test
@@ -162,12 +182,12 @@ class QueryReturnContractAuditTest {
         val nullable = QueryReturnContractAudit.ALL.filter { it.nullable == QueryNullability.YES }
 
         assertEquals(
-            setOf("action.findTemplate", "vision.markerLoad", "shizuku.getUid", "termux.get"),
+            setOf("action.findTemplate", "vision.findText", "vision.markerLoad", "chart.get"),
             nullable.mapTo(linkedSetOf()) { it.stableId },
         )
         assertTrue(nullable.none { it.consumptionReady })
         assertEquals(
-            setOf("shizuku.getUid", "termux.get"),
+            emptySet<String>(),
             nullable.filter { it.transportReady }.mapTo(linkedSetOf()) { it.stableId },
         )
     }
@@ -228,11 +248,17 @@ class QueryReturnContractAuditTest {
     @Test
     fun `sentinel and structured evidence are explicit`() {
         assertEquals(
-            setOf("shizuku.getUid", "termux.get"),
+            emptySet<String>(),
             QueryReturnContractAudit.ALL.filter { it.sentinelUsed }.mapTo(linkedSetOf()) { it.stableId },
         )
         assertEquals(
-            mapOf("action.findTemplate" to "ImageMatch", "vision.markerLoad" to "Region"),
+            mapOf(
+                "action.findTemplate" to "ImageMatch",
+                "vision.findText" to "TextMatch",
+                "vision.markerLoad" to "Marker",
+                "tasker.getVariables" to "List<TaskerVariable>",
+                "chart.get" to "ChartSnapshot",
+            ),
             QueryReturnContractAudit.ALL.filter { it.structuredTypeNeeded }
                 .associate { it.stableId to it.proposedStructuredType },
         )

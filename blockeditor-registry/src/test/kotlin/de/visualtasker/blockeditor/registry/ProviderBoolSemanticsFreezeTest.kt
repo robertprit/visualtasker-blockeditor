@@ -12,7 +12,7 @@ class ProviderBoolSemanticsFreezeTest {
         ProviderBoolSemanticsFreeze.validate()
 
         assertEquals(4, ProviderBoolSemanticsFreeze.decisions.size)
-        assertEquals(12, QueryReturnContractAudit.ALL.size)
+        assertEquals(6, QueryReturnContractAudit.ALL.size)
         assertTrue(QueryReturnContractAudit.MIGRATED_M1B_3R.contains("chromeTab.isSupported"))
         assertEquals(
             setOf("tasker.isInstalled", "shizuku.isInstalled", "termux.isInstalled"),
@@ -63,12 +63,16 @@ class ProviderBoolSemanticsFreezeTest {
     }
 
     @Test
-    fun `excluded collision commands remain unchanged`() {
-        listOf("tasker.isEnabled", "shizuku.getUid").forEach { id ->
+    fun `3W collision commands are migrated without touching input touch`() {
+        mapOf(
+            "tasker.isEnabled" to "Bool",
+            "shizuku.getUid" to "Number?",
+        ).forEach { (id, returnType) ->
             val entry = VisualTaskerCommandCatalog.findById(id)!!
-            assertEquals(CommandCatalogKind.STATEMENT, entry.kind)
-            assertNull(entry.returnType)
-            assertTrue(QueryReturnContractAudit.ALL.any { it.stableId == id })
+            assertEquals(CommandCatalogKind.REPORTER, entry.kind)
+            assertEquals(returnType, entry.returnType)
+            assertTrue(id in QueryReturnContractAudit.MIGRATED_M1B_3W)
+            assertFalse(QueryReturnContractAudit.ALL.any { it.stableId == id })
         }
 
         val touch = VisualTaskerCommandCatalog.findById("input.touch")!!

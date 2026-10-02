@@ -79,9 +79,9 @@ object CommandBridgeReportRenderer {
         val aliases = entries.sumOf { it.acceptedAliases.size }
         appendLine("# EMScript v1 Command Bridge Report")
         appendLine()
-        appendLine("Stand: 2026-10-01  ")
-        appendLine("Phase: M1B-3U Shizuku Availability Convergence  ")
-        appendLine("Status: eleven queries migrated; shizuku.isAvailable converged; 12 D_QUERY_RETURN entries remain")
+        appendLine("Stand: 2026-10-01")
+        appendLine("Phase: M1B-3W Scalar Provider Query Convergence")
+        appendLine("Status: seventeen queries migrated; six query return conflicts remain")
         appendLine()
         appendLine("## Inventory")
         appendLine()
@@ -477,7 +477,11 @@ object CommandBridgeReportRenderer {
         QueryReturnContractAudit.validateAgainst(audit)
         appendLine("## M1B-3U Shizuku Availability Convergence")
         appendLine()
-        appendLine("The current `D_QUERY_RETURN` inventory contains ${QueryReturnContractAudit.ALL.size} language commands. Those remaining entries are statement-shaped; `shizuku.isAvailable` has joined the previously converged typed reporters.")
+        appendLine("M1B-3U migrated `shizuku.isAvailable` as non-null Bool through the generic `RuntimeAdapterResult.value` payload. Normal unavailable states remain successful false; installation, permission and Binder inspection failures retain distinct structured diagnostics.")
+        appendLine()
+        appendLine("## M1B-3W Scalar Provider Query Convergence")
+        appendLine()
+        appendLine("The current `D_QUERY_RETURN` inventory contains ${QueryReturnContractAudit.ALL.size} language commands. M1B-3W adds typed reporter contracts for `tasker.isEnabled`, `tasker.getVariable`, `shizuku.getUid`, `termux.get`, `scrcpy.isRunning` and `scrcpy.get`; the remaining entries stay statement-shaped.")
         appendLine()
         appendLine("| Class | Count |")
         appendLine("| --- | ---: |")
@@ -495,7 +499,7 @@ object CommandBridgeReportRenderer {
             )
         }
         appendLine()
-        appendLine("M1B-3U migrates `shizuku.isAvailable` as non-null Bool through the generic `RuntimeAdapterResult.value` payload. Normal unavailable states remain successful false; installation, permission and Binder inspection failures retain distinct structured diagnostics.")
+        appendLine("Provider-local inspections now preserve VALUE, ABSENT, legitimate false/empty/zero results and technical FAILURE as separate outcomes. No collection, perception or chart query is migrated by M1B-3W.")
         appendLine()
     }
 

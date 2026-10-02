@@ -71,6 +71,14 @@ object QueryReturnContractAudit {
     val MIGRATED_M1B_3R = linkedSetOf("chromeTab.isSupported")
     val MIGRATED_M1B_3T = linkedSetOf("tasker.isInstalled", "shizuku.isInstalled", "termux.isInstalled")
     val MIGRATED_M1B_3U = linkedSetOf("shizuku.isAvailable")
+    val MIGRATED_M1B_3W = linkedSetOf(
+        "tasker.isEnabled",
+        "tasker.getVariable",
+        "shizuku.getUid",
+        "termux.get",
+        "scrcpy.isRunning",
+        "scrcpy.get",
+    )
 
     val ALL: List<QueryReturnDecision> = listOf(
         decision(
@@ -88,90 +96,67 @@ object QueryReturnContractAudit {
             fields = "name:String; region:RuntimeAutomationRegion; score:Float",
         ),
         decision(
-            "vision.findText", "findText", "no runtime query result", "UNRESOLVED",
-            QueryNullability.UNKNOWN, QueryReturnClass.D_RUNTIME_RESULT_GAP,
-            flags(QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.BLOCKED),
-            false, false, false, false, "visualtasker.vision", false, false,
+            "vision.findText", "findText", "no runtime query result", "TextMatch?",
+            QueryNullability.YES, QueryReturnClass.D_RUNTIME_RESULT_GAP,
+            flags(QueryReturnFlag.NULLABLE, QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.STRUCTURED, QueryReturnFlag.NEEDS_NEW_TYPE, QueryReturnFlag.BLOCKED),
+            false, false, true, true, "visualtasker.vision", false, false,
             "No WorkspaceBasicRuntime environment function or value-returning vision provider dispatch exists.",
             QueryMigrationRisk.BLOCKED,
-            "Specify cardinality and provider result before selecting scalar, list or structured return type.",
+            "M1B-3Y: add a best-match TextMatch? provider result with no-match distinct from capture/OCR failure.",
             "none", "statement-only catalog/runtime trace",
-            "Catalog parameters establish text and timeout only; no authoritative OCR result, match collection or not-found/failure contract exists.",
+            "M1B-3V freezes singular findText as the best TextMatch?; no authoritative OCR producer is connected yet.",
+            structured = true, structuredType = "TextMatch", internalType = "none",
+            fields = "text:String; region:Region; confidence:Number; source:String",
         ),
         decision(
-            "vision.markerLoad", "markerLoad", "RuntimeAutomationRegion?", "Region?",
+            "vision.markerLoad", "markerLoad", "RuntimeAutomationRegion?", "Marker?",
             QueryNullability.YES, QueryReturnClass.C_STRUCTURED_RESULT_TYPE,
             flags(QueryReturnFlag.NULLABLE, QueryReturnFlag.STRUCTURED, QueryReturnFlag.RUNTIME_VALUE_EXISTS, QueryReturnFlag.NEEDS_NEW_TYPE, QueryReturnFlag.FAILURE_COLLISION),
             true, true, true, false, "visualtasker.vision", false, false,
             "WorkspaceBasicRuntime converts RuntimeAutomationRegion? to text; EmscriptValue has no RegionValue.",
             QueryMigrationRisk.HIGH,
-            "Define Region as a first-class language/runtime value and split lookup absence from load failure.",
+            "M1B-3Y: return an immutable Marker? that retains stable identity and split lookup absence from load failure.",
             "WorkspaceScreen saved-marker lookup", "WorkspaceBasicRuntime LiveExecutionOutcome",
-            "Saved markers yield exact bounds or null; Region exists as parameter syntax but not as a TypeDefinition-backed runtime result.",
-            structured = true, structuredType = "Region", internalType = "RuntimeAutomationRegion",
-            fields = "x:Int; y:Int; width:Int; height:Int",
+            "Saved markers currently yield only bounds or null; M1B-3V requires stable marker ID, geometry and metadata to survive.",
+            structured = true, structuredType = "Marker", internalType = "ScreenshotCanvasSavedMarker",
+            fields = "markerId:String; label:String; region:Region; path:Path?; mode:String; assetId:String?; threshold:Number",
         ),
         decision(
-            "tasker.isEnabled", "Tasker.isEnabled", "TaskerRegistrationStatus.available Boolean", "Bool",
-            QueryNullability.NO, QueryReturnClass.F_SENTINEL_OR_ERROR_COLLISION,
-            flags(QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.RUNTIME_VALUE_EXISTS, QueryReturnFlag.FAILURE_COLLISION),
-            true, true, true, false, "visualtasker.tasker", true, true,
-            "WorkspaceScreen maps isEnabled to composite status.available and then to RuntimeAdapterResult.",
-            QueryMigrationRisk.HIGH,
-            "Define whether isEnabled means the enabled preference or full provider availability.",
-            "TaskerRegistration.inspect", "WorkspaceScreen taskerCommand adapter",
-            "status.available combines installation, permission, enabled preference, external access and receiver availability; false is not one stable fact.",
-        ),
-        runtimeGap("tasker.getVariable", "Tasker.getVariable", "visualtasker.tasker", "Runner/Receiver contract is explicitly not connected; no variable value is returned.", "Connect a typed variable result and distinguish missing variable from provider failure."),
-        runtimeGap("tasker.getVariables", "Tasker.getVariables", "visualtasker.tasker", "No collection result exists; command name and pattern do not prove List, Map or opaque payload semantics.", "Connect the result contract and establish collection cardinality."),
-        decision(
-            "shizuku.getUid", "Shizuku.getUid", "Int? rendered as -1", "Number?",
-            QueryNullability.YES, QueryReturnClass.F_SENTINEL_OR_ERROR_COLLISION,
-            flags(QueryReturnFlag.NULLABLE, QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.RUNTIME_VALUE_EXISTS, QueryReturnFlag.SENTINEL, QueryReturnFlag.FAILURE_COLLISION),
-            true, true, false, false, "visualtasker.shizuku", true, false,
-            "inspect collapses unavailable/permission/binder/getUid failure to uid=null; adapter renders null as -1.",
-            QueryMigrationRisk.HIGH,
-            "Replace -1 with a typed UID/absence/failure provider result before Number? migration.",
-            "ShizukuRegistration.inspect / Shizuku.getUid", "WorkspaceScreen shizukuCommand adapter",
-            "uid is read only with live binder and permission; exceptions become null, so not installed, unavailable binder, missing permission and call failure are indistinguishable.",
-            sentinel = true,
+            "tasker.getVariables", "Tasker.getVariables", "no runtime query result", "List<TaskerVariable>",
+            QueryNullability.NO, QueryReturnClass.D_RUNTIME_RESULT_GAP,
+            flags(QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.STRUCTURED, QueryReturnFlag.NEEDS_NEW_TYPE, QueryReturnFlag.BLOCKED),
+            false, false, true, true, "visualtasker.tasker", false, false,
+            "No collection-returning Tasker receiver/session contract or runtime ListValue exists.", QueryMigrationRisk.BLOCKED,
+            "M1B-3X: add ListValue<TaskerVariableValue>; an empty list is a successful no-match result.",
+            "none", "statement-only adapter/trace",
+            "M1B-3V freezes a deterministic list of name/value pairs rather than Map, opaque payload or nullable collection.",
+            structured = true, structuredType = "List<TaskerVariable>", internalType = "none",
+            fields = "TaskerVariable.name:String; TaskerVariable.value:String",
         ),
         decision(
-            "termux.get", "Termux.get", "String selected by key; unknown key becomes empty String", "String?",
-            QueryNullability.YES, QueryReturnClass.F_SENTINEL_OR_ERROR_COLLISION,
-            flags(QueryReturnFlag.NULLABLE, QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.RUNTIME_VALUE_EXISTS, QueryReturnFlag.SENTINEL, QueryReturnFlag.FAILURE_COLLISION),
-            true, true, false, false, "visualtasker.termux", true, false,
-            "WorkspaceScreen maps unknown keys to empty String and embeds values in RuntimeAdapterResult.message.",
-            QueryMigrationRisk.HIGH,
-            "Define supported keys and separate empty value, unknown key, unavailable provider and failure.",
-            "TermuxRegistration.inspect / WorkspaceScreen key selector", "WorkspaceScreen termuxCommand adapter",
-            "Known keys produce Boolean/status strings; unknown key uses an empty-string sentinel and no typed payload exists.",
-            sentinel = true,
-        ),
-        decision(
-            "scrcpy.isRunning", "Scrcpy.isRunning", "Vt2VtUsbAdbBridgeStatus.bridgeReady Boolean", "Bool",
-            QueryNullability.NO, QueryReturnClass.F_SENTINEL_OR_ERROR_COLLISION,
-            flags(QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.RUNTIME_VALUE_EXISTS, QueryReturnFlag.FAILURE_COLLISION),
-            true, true, true, false, "visualtasker.scrcpy", true, true,
-            "WorkspaceScreen substitutes bridgeReady for process/session running state.",
-            QueryMigrationRisk.HIGH,
-            "Define actual scrcpy session-running state independently from USB/ADB readiness.",
-            "Vt2VtUsbAdbBridge.detect", "WorkspaceScreen scrcpyCommand adapter",
-            "bridgeReady means USB connected and ADB enabled; it does not establish a running scrcpy process or session.",
-        ),
-        decision(
-            "scrcpy.get", "Scrcpy.get", "status summary String independent of requested key", "UNRESOLVED",
-            QueryNullability.UNKNOWN, QueryReturnClass.F_SENTINEL_OR_ERROR_COLLISION,
-            flags(QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.RUNTIME_VALUE_EXISTS, QueryReturnFlag.FAILURE_COLLISION, QueryReturnFlag.BLOCKED),
-            true, true, false, false, "visualtasker.scrcpy", false, false,
-            "WorkspaceScreen ignores key semantics and always returns bridge status summary text.",
+            "chart.exists", "Chart.exists", "no runtime query result", "Bool",
+            QueryNullability.NO, QueryReturnClass.D_RUNTIME_RESULT_GAP,
+            flags(QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.BLOCKED),
+            false, false, true, true, "visualtasker.charts", false, false,
+            "No provider-independent chart repository adapter is connected to WorkspaceBasicRuntime.",
             QueryMigrationRisk.BLOCKED,
-            "Define supported keys and typed status/session results.",
-            "Vt2VtUsbAdbBridge.detect", "WorkspaceScreen scrcpyCommand adapter",
-            "A summary exists, but key is ignored and no absence/failure contract exists.",
+            "M1B-3Z: return false only after a successful repository lookup and preserve lookup failure as a diagnostic.",
+            "none", "statement-only catalog/runtime trace",
+            "M1B-3V freezes chart.exists as non-null Bool; a missing persistent chart ID is false, not ABSENT.",
         ),
-        runtimeGap("chart.exists", "Chart.exists", "visualtasker.charts", "Catalog/plugin metadata exists, but WorkspaceBasicRuntime has no chart dispatch or existence result.", "Add a provider-independent chart lookup result contract before Bool semantics."),
-        runtimeGap("chart.get", "Chart.get", "visualtasker.charts", "No value-returning chart path exists; id and optional key do not establish scalar, collection or structured semantics.", "Define query keys and result model before selecting a return type."),
+        decision(
+            "chart.get", "Chart.get", "no runtime query result", "ChartSnapshot?",
+            QueryNullability.YES, QueryReturnClass.D_RUNTIME_RESULT_GAP,
+            flags(QueryReturnFlag.NULLABLE, QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.STRUCTURED, QueryReturnFlag.NEEDS_NEW_TYPE, QueryReturnFlag.BLOCKED),
+            false, false, true, true, "visualtasker.charts", false, false,
+            "No chart repository adapter or EMScript ChartSnapshotValue exists.",
+            QueryMigrationRisk.BLOCKED,
+            "M1B-3Z: return an immutable ChartSnapshot? and keep runtime UI handles outside EMScript.",
+            "none", "statement-only catalog/runtime trace",
+            "M1B-3V freezes missing ID as ABSENT and an empty chart as VALUE; the optional legacy key is not canonical V1.",
+            structured = true, structuredType = "ChartSnapshot", internalType = "ChartDocument",
+            fields = "id:String; title:String; kind:String; immutable data/options",
+        ),
     )
 
     fun currentDQueryIds(audit: LegacyCommandBridgeAudit): Set<String> = audit.results
@@ -188,10 +173,11 @@ object QueryReturnContractAudit {
         require(MIGRATED_M1B_3R.none { it in currentIds }) { "M1B-3R query returned to D_QUERY_RETURN" }
         require(MIGRATED_M1B_3T.none { it in currentIds }) { "M1B-3T query returned to D_QUERY_RETURN" }
         require(MIGRATED_M1B_3U.none { it in currentIds }) { "M1B-3U query returned to D_QUERY_RETURN" }
+        require(MIGRATED_M1B_3W.none { it in currentIds }) { "M1B-3W query returned to D_QUERY_RETURN" }
         require(
             ALL.size + MIGRATED_M1B_3J.size + MIGRATED_M1B_3M.size +
                 MIGRATED_M1B_3P.size + MIGRATED_M1B_3R.size + MIGRATED_M1B_3T.size +
-                MIGRATED_M1B_3U.size == 23,
+                MIGRATED_M1B_3U.size + MIGRATED_M1B_3W.size == 23,
         ) { "Query inventory accounting drift" }
         val catalogById = audit.results.associateBy { it.sourceEntry.id }
         ALL.forEach { decision ->
@@ -242,13 +228,13 @@ object QueryReturnContractAudit {
         return buildString {
             appendLine("# EMScript v1 Remaining Query Return Reclassification")
             appendLine()
-            appendLine("Stand: 2026-10-01  ")
-            appendLine("Phase: M1B-3U Shizuku availability convergence  ")
-            appendLine("Status: shizuku.isAvailable converged as a typed Bool reporter")
+            appendLine("Stand: 2026-10-01")
+            appendLine("Phase: M1B-3W Scalar Provider Query Convergence")
+            appendLine("Status: six scalar provider queries migrated; six query contracts remain")
             appendLine()
             appendLine("## Invariants")
             appendLine()
-            appendLine("The bridge derives exactly ${ALL.size} D_QUERY_RETURN entries. Each has one primary class. The eleven approved query migrations through M1B-3U remain outside this inventory.")
+            appendLine("The bridge derives exactly ${ALL.size} D_QUERY_RETURN entries. Each has one primary class. The seventeen approved query migrations through M1B-3W remain outside this inventory.")
             appendLine()
             appendLine("## Classification Summary")
             appendLine()
@@ -286,7 +272,7 @@ object QueryReturnContractAudit {
             appendLine()
             appendLine("## Recommended Next Slice")
             appendLine()
-            appendLine("M1B-3U converges shizuku.isAvailable through provider-local installation, permission and Binder provenance plus the generic RuntimeAdapterResult value payload. The next slice must be selected from the remaining twelve contracts rather than inferred here.")
+            appendLine("M1B-3W converges the six scalar provider queries. M1B-3X through M1B-3Z retain the six collection, perception and chart contracts. See EMSCRIPT_V1_REMAINING_QUERY_RETURN_CLASSIFICATION.md for the historical 3V decisions and VALUE/ABSENT/NEGATIVE/FAILURE semantics.")
         }
     }
 
@@ -298,14 +284,6 @@ object QueryReturnContractAudit {
         "WorkspaceScreen flattens the Boolean into RuntimeAdapterResult success/message without typed payload.",
         QueryMigrationRisk.MEDIUM, "Introduce a provider-independent typed Bool result with a separate diagnostic channel.",
         "$provider registration inspection", "WorkspaceScreen provider adapter / WorkspaceBasicRuntime", evidence,
-    )
-
-    private fun runtimeGap(id: String, name: String, provider: String, evidence: String, next: String) = decision(
-        id, name, "no authoritative runtime result", "UNRESOLVED", QueryNullability.UNKNOWN,
-        QueryReturnClass.D_RUNTIME_RESULT_GAP, flags(QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.BLOCKED),
-        false, false, false, false, provider, false, false,
-        "No value-returning runtime/provider contract exists for this command.", QueryMigrationRisk.BLOCKED, next,
-        "none", "statement-only adapter/trace", evidence,
     )
 
     private fun decision(

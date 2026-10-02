@@ -377,6 +377,7 @@ class LegacyCommandDefinitionBridgeTest {
         assertTrue(markdown.contains("## M1B-3E datastorePut String Contract"))
         assertTrue(markdown.contains("## M1B-3H-A Legacy input.touch Structural Classification"))
         assertTrue(markdown.contains("## M1B-3U Shizuku Availability Convergence"))
+        assertTrue(markdown.contains("## M1B-3W Scalar Provider Query Convergence"))
         assertTrue(markdown.contains("CONTRACT_DECIDED"))
         assertTrue(markdown.contains("RESOLVED_WITH_LEGACY_ALIAS"))
         assertTrue(csv.lineSequence().first().contains("naming_status"))
@@ -401,16 +402,22 @@ class LegacyCommandDefinitionBridgeTest {
         val csv = CommandBridgeReportRenderer.renderCsv(audit)
         val queryCsv = QueryReturnContractAudit.renderCsv(audit)
         val queryMarkdown = QueryReturnContractAudit.renderMarkdown(audit)
+        val remainingQueryCsv = RemainingQueryReturnClassification.renderCsv(audit)
+        val remainingQueryMarkdown = RemainingQueryReturnClassification.renderMarkdown(audit)
 
         File(reportDirectory, "EMSCRIPT_V1_COMMAND_BRIDGE_REPORT.md").writeText(markdown)
         File(reportDirectory, "EMSCRIPT_V1_COMMAND_BRIDGE.csv").writeText(csv)
         File(reportDirectory, "EMSCRIPT_V1_QUERY_RETURN_DECISIONS.csv").writeText(queryCsv)
         File(reportDirectory, "EMSCRIPT_V1_QUERY_RETURN_AUDIT.md").writeText(queryMarkdown)
+        File(reportDirectory, "EMSCRIPT_V1_REMAINING_QUERY_RETURN_CLASSIFICATION.csv").writeText(remainingQueryCsv)
+        File(reportDirectory, "EMSCRIPT_V1_REMAINING_QUERY_RETURN_CLASSIFICATION.md").writeText(remainingQueryMarkdown)
 
         assertNotNull(markdown)
         assertNotNull(csv)
         assertNotNull(queryCsv)
         assertNotNull(queryMarkdown)
+        assertNotNull(remainingQueryCsv)
+        assertNotNull(remainingQueryMarkdown)
     }
 
     private fun LegacyCommandBridgeAudit.result(id: String): CommandBridgeResult =
