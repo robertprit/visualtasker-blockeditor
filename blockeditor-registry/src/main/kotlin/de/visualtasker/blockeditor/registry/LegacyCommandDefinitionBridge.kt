@@ -13,6 +13,7 @@ import de.visualtasker.emscript.contract.ContractValue
 import de.visualtasker.emscript.contract.CoreTypes
 import de.visualtasker.emscript.contract.DefinitionLifecycle
 import de.visualtasker.emscript.contract.EmscriptV1Commands
+import de.visualtasker.emscript.contract.LanguageTypeCompatibility
 import de.visualtasker.emscript.contract.LanguageTypeRef
 import de.visualtasker.emscript.contract.LanguageVersion
 import de.visualtasker.emscript.contract.ParameterDefinition
@@ -575,6 +576,11 @@ class LegacyCommandDefinitionBridge(
 
     private fun returnType(entry: CommandCatalogEntry, semanticClass: SemanticClass): LanguageTypeRef {
         val rawType = entry.returnType
+        if (rawType?.startsWith("List<", ignoreCase = true) == true) {
+            return requireNotNull(LanguageTypeCompatibility.fromWorkspaceName(rawType)) {
+                "Unsupported generic return type '$rawType'"
+            }
+        }
         if (rawType?.endsWith('?') == true) {
             return LanguageTypeRef.Nullable(
                 returnType(entry.copy(returnType = rawType.dropLast(1)), semanticClass),
@@ -888,6 +894,9 @@ class LegacyCommandDefinitionBridge(
 
     private fun queryEvidence(entry: CommandCatalogEntry): String =
         queryEvidenceById[entry.id]
+            ?: entry.returnType?.let { returnType ->
+                "Catalog declares the concrete typed reporter return $returnType."
+            }
             ?: "Name and SCREEN_READ side effect indicate value semantics; concrete result type is not declared."
 
     private fun parserInterpretation(argument: CommandArgument): String = when (argument.type) {

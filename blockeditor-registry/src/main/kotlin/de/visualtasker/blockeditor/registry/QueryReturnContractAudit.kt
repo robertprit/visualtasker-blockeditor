@@ -79,6 +79,7 @@ object QueryReturnContractAudit {
         "scrcpy.isRunning",
         "scrcpy.get",
     )
+    val MIGRATED_M1B_3X = linkedSetOf("tasker.getVariables")
 
     val ALL: List<QueryReturnDecision> = listOf(
         decision(
@@ -122,18 +123,6 @@ object QueryReturnContractAudit {
             fields = "markerId:String; label:String; region:Region; path:Path?; mode:String; assetId:String?; threshold:Number",
         ),
         decision(
-            "tasker.getVariables", "Tasker.getVariables", "no runtime query result", "List<TaskerVariable>",
-            QueryNullability.NO, QueryReturnClass.D_RUNTIME_RESULT_GAP,
-            flags(QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.STRUCTURED, QueryReturnFlag.NEEDS_NEW_TYPE, QueryReturnFlag.BLOCKED),
-            false, false, true, true, "visualtasker.tasker", false, false,
-            "No collection-returning Tasker receiver/session contract or runtime ListValue exists.", QueryMigrationRisk.BLOCKED,
-            "M1B-3X: add ListValue<TaskerVariableValue>; an empty list is a successful no-match result.",
-            "none", "statement-only adapter/trace",
-            "M1B-3V freezes a deterministic list of name/value pairs rather than Map, opaque payload or nullable collection.",
-            structured = true, structuredType = "List<TaskerVariable>", internalType = "none",
-            fields = "TaskerVariable.name:String; TaskerVariable.value:String",
-        ),
-        decision(
             "chart.exists", "Chart.exists", "no runtime query result", "Bool",
             QueryNullability.NO, QueryReturnClass.D_RUNTIME_RESULT_GAP,
             flags(QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.BLOCKED),
@@ -174,10 +163,11 @@ object QueryReturnContractAudit {
         require(MIGRATED_M1B_3T.none { it in currentIds }) { "M1B-3T query returned to D_QUERY_RETURN" }
         require(MIGRATED_M1B_3U.none { it in currentIds }) { "M1B-3U query returned to D_QUERY_RETURN" }
         require(MIGRATED_M1B_3W.none { it in currentIds }) { "M1B-3W query returned to D_QUERY_RETURN" }
+        require(MIGRATED_M1B_3X.none { it in currentIds }) { "M1B-3X query returned to D_QUERY_RETURN" }
         require(
             ALL.size + MIGRATED_M1B_3J.size + MIGRATED_M1B_3M.size +
                 MIGRATED_M1B_3P.size + MIGRATED_M1B_3R.size + MIGRATED_M1B_3T.size +
-                MIGRATED_M1B_3U.size + MIGRATED_M1B_3W.size == 23,
+                MIGRATED_M1B_3U.size + MIGRATED_M1B_3W.size + MIGRATED_M1B_3X.size == 23,
         ) { "Query inventory accounting drift" }
         val catalogById = audit.results.associateBy { it.sourceEntry.id }
         ALL.forEach { decision ->
@@ -228,13 +218,13 @@ object QueryReturnContractAudit {
         return buildString {
             appendLine("# EMScript v1 Remaining Query Return Reclassification")
             appendLine()
-            appendLine("Stand: 2026-10-01")
-            appendLine("Phase: M1B-3W Scalar Provider Query Convergence")
-            appendLine("Status: six scalar provider queries migrated; six query contracts remain")
+            appendLine("Stand: 2026-10-02")
+            appendLine("Phase: M1B-3X Tasker Collection Query Convergence")
+            appendLine("Status: Tasker collection query migrated; five query contracts remain")
             appendLine()
             appendLine("## Invariants")
             appendLine()
-            appendLine("The bridge derives exactly ${ALL.size} D_QUERY_RETURN entries. Each has one primary class. The seventeen approved query migrations through M1B-3W remain outside this inventory.")
+            appendLine("The bridge derives exactly ${ALL.size} D_QUERY_RETURN entries. Each has one primary class. The eighteen approved query migrations through M1B-3X remain outside this inventory.")
             appendLine()
             appendLine("## Classification Summary")
             appendLine()
@@ -272,7 +262,7 @@ object QueryReturnContractAudit {
             appendLine()
             appendLine("## Recommended Next Slice")
             appendLine()
-            appendLine("M1B-3W converges the six scalar provider queries. M1B-3X through M1B-3Z retain the six collection, perception and chart contracts. See EMSCRIPT_V1_REMAINING_QUERY_RETURN_CLASSIFICATION.md for the historical 3V decisions and VALUE/ABSENT/NEGATIVE/FAILURE semantics.")
+            appendLine("M1B-3X converges `tasker.getVariables` on a non-null `List<TaskerVariable>`. M1B-3Y and M1B-3Z retain the five perception and chart contracts. See EMSCRIPT_V1_REMAINING_QUERY_RETURN_CLASSIFICATION.md for the historical 3V decisions and VALUE/ABSENT/NEGATIVE/FAILURE semantics.")
         }
     }
 

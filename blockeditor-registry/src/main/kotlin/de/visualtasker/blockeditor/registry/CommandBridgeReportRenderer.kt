@@ -79,9 +79,9 @@ object CommandBridgeReportRenderer {
         val aliases = entries.sumOf { it.acceptedAliases.size }
         appendLine("# EMScript v1 Command Bridge Report")
         appendLine()
-        appendLine("Stand: 2026-10-01")
-        appendLine("Phase: M1B-3W Scalar Provider Query Convergence")
-        appendLine("Status: seventeen queries migrated; six query return conflicts remain")
+        appendLine("Stand: 2026-10-02")
+        appendLine("Phase: M1B-3X Tasker Collection Query Convergence")
+        appendLine("Status: eighteen queries migrated; five query return conflicts remain")
         appendLine()
         appendLine("## Inventory")
         appendLine()
@@ -500,6 +500,10 @@ object CommandBridgeReportRenderer {
         }
         appendLine()
         appendLine("Provider-local inspections now preserve VALUE, ABSENT, legitimate false/empty/zero results and technical FAILURE as separate outcomes. No collection, perception or chart query is migrated by M1B-3W.")
+        appendLine()
+        appendLine("## M1B-3X Tasker Collection Query Convergence")
+        appendLine()
+        appendLine("`tasker.getVariables(pattern?): List<TaskerVariable>` now uses the existing Tasker receiver snapshot and generic reporter/CommandCall projection. A successful query always returns an ordered list; no matches is an empty list, while provider and snapshot failures remain diagnostics.")
         appendLine()
     }
 

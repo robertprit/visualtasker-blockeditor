@@ -69,4 +69,19 @@ class LanguageTypeCompatibilityTest {
             assertEquals(parsed, LanguageTypeCompatibility.fromWorkspaceName(LanguageTypeCompatibility.workspaceName(parsed)))
         }
     }
+
+    @Test
+    fun providerListsKeepTheirElementTypeAndCanonicalName() {
+        val taskerVariable = ProviderTypes.TASKER_VARIABLE.ref
+        val taskerVariables = CoreTypes.listOf(taskerVariable)
+
+        assertEquals(taskerVariables, LanguageTypeCompatibility.fromWorkspaceName("List<TaskerVariable>"))
+        assertEquals("List<TaskerVariable>", LanguageTypeCompatibility.sourceName(taskerVariables))
+        assertEquals("List<TaskerVariable>", LanguageTypeCompatibility.workspaceName(taskerVariables))
+        assertTrue(LanguageTypeCompatibility.isAssignable(taskerVariables, taskerVariables))
+        assertTrue(LanguageTypeCompatibility.isAssignable(taskerVariables, CoreTypes.ANY.ref))
+        assertFalse(LanguageTypeCompatibility.isAssignable(taskerVariables, CoreTypes.STRING.ref))
+        assertFalse(LanguageTypeCompatibility.isAssignable(taskerVariables, CoreTypes.NUMBER.ref))
+        assertFalse(LanguageTypeCompatibility.isAssignable(taskerVariables, CoreTypes.BOOL.ref))
+    }
 }

@@ -13,8 +13,8 @@ class QueryReturnContractAuditTest {
     fun `every current D query return entry is classified exactly once`() {
         QueryReturnContractAudit.validateAgainst(bridgeAudit)
 
-        assertEquals(6, QueryReturnContractAudit.ALL.size)
-        assertEquals(6, QueryReturnContractAudit.ALL.map { it.stableId }.distinct().size)
+        assertEquals(5, QueryReturnContractAudit.ALL.size)
+        assertEquals(5, QueryReturnContractAudit.ALL.map { it.stableId }.distinct().size)
         assertEquals(
             QueryReturnContractAudit.currentDQueryIds(bridgeAudit),
             QueryReturnContractAudit.ALL.mapTo(linkedSetOf()) { it.stableId },
@@ -32,7 +32,7 @@ class QueryReturnContractAuditTest {
         assertEquals(0, counts[QueryReturnClass.A_NULLABLE_SCALAR_READY] ?: 0)
         assertEquals(0, counts[QueryReturnClass.B_NONNULL_SCALAR_READY] ?: 0)
         assertEquals(2, counts[QueryReturnClass.C_STRUCTURED_RESULT_TYPE])
-        assertEquals(4, counts[QueryReturnClass.D_RUNTIME_RESULT_GAP])
+        assertEquals(3, counts[QueryReturnClass.D_RUNTIME_RESULT_GAP])
         assertEquals(0, counts[QueryReturnClass.E_PROVIDER_CONTRACT_GAP] ?: 0)
         assertEquals(0, counts[QueryReturnClass.F_SENTINEL_OR_ERROR_COLLISION] ?: 0)
         assertEquals(0, counts[QueryReturnClass.G_LANGUAGE_SEMANTICS_GAP] ?: 0)
@@ -156,6 +156,17 @@ class QueryReturnContractAuditTest {
             assertFalse(block.hasPrevious)
             assertFalse(block.hasNext)
         }
+        assertEquals(setOf("tasker.getVariables"), QueryReturnContractAudit.MIGRATED_M1B_3X)
+        val taskerVariables = VisualTaskerCommandCatalog.findById("tasker.getVariables")!!
+        val taskerVariablesBlock = DefaultBlockRegistry.getDefinition(taskerVariables.block!!.blockType)!!
+        assertEquals("tasker.getVariables", taskerVariables.canonicalName)
+        assertEquals(listOf("Tasker.getVariables"), taskerVariables.acceptedAliases)
+        assertEquals(CommandCatalogKind.REPORTER, taskerVariables.kind)
+        assertEquals("List<TaskerVariable>", taskerVariables.returnType)
+        assertEquals("List<TaskerVariable>", taskerVariablesBlock.outputType)
+        assertTrue(taskerVariablesBlock.isReporter)
+        assertFalse(taskerVariablesBlock.hasPrevious)
+        assertFalse(taskerVariablesBlock.hasNext)
     }
 
     @Test
@@ -256,7 +267,6 @@ class QueryReturnContractAuditTest {
                 "action.findTemplate" to "ImageMatch",
                 "vision.findText" to "TextMatch",
                 "vision.markerLoad" to "Marker",
-                "tasker.getVariables" to "List<TaskerVariable>",
                 "chart.get" to "ChartSnapshot",
             ),
             QueryReturnContractAudit.ALL.filter { it.structuredTypeNeeded }

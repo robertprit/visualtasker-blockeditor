@@ -10,23 +10,26 @@ class RemainingQueryReturnClassificationTest {
     private val audit = LegacyCommandDefinitionBridge().analyze()
 
     @Test
-    fun `3V classification remains exhaustive after 3W migration`() {
+    fun `3V classification remains exhaustive after 3X migration`() {
         RemainingQueryReturnClassification.validate(audit)
 
         val decisions = RemainingQueryReturnClassification.decisions
         assertEquals(12, decisions.size)
         assertEquals(
-            QueryReturnContractAudit.currentDQueryIds(audit) + QueryReturnContractAudit.MIGRATED_M1B_3W,
+            QueryReturnContractAudit.currentDQueryIds(audit) +
+                QueryReturnContractAudit.MIGRATED_M1B_3W +
+                QueryReturnContractAudit.MIGRATED_M1B_3X,
             decisions.mapTo(linkedSetOf()) { it.commandId },
         )
         assertEquals(12, RemainingQueryReturnClassification.groups.sumOf { it.expectedReduction })
         assertTrue(decisions.all { it.genericCommandCallSufficient && it.genericReporterSufficient })
-        decisions.filterNot { it.commandId in QueryReturnContractAudit.MIGRATED_M1B_3W }.forEach { decision ->
+        val migrated = QueryReturnContractAudit.MIGRATED_M1B_3W + QueryReturnContractAudit.MIGRATED_M1B_3X
+        decisions.filterNot { it.commandId in migrated }.forEach { decision ->
             val entry = VisualTaskerCommandCatalog.findById(decision.commandId)!!
             assertEquals(CommandCatalogKind.STATEMENT, entry.kind)
             assertEquals(null, entry.returnType)
         }
-        decisions.filter { it.commandId in QueryReturnContractAudit.MIGRATED_M1B_3W }.forEach { decision ->
+        decisions.filter { it.commandId in migrated }.forEach { decision ->
             val entry = VisualTaskerCommandCatalog.findById(decision.commandId)!!
             assertEquals(CommandCatalogKind.REPORTER, entry.kind)
             assertEquals(decision.proposedV1ReturnType, entry.returnType)

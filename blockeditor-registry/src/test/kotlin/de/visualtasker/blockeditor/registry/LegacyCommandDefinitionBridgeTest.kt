@@ -378,6 +378,7 @@ class LegacyCommandDefinitionBridgeTest {
         assertTrue(markdown.contains("## M1B-3H-A Legacy input.touch Structural Classification"))
         assertTrue(markdown.contains("## M1B-3U Shizuku Availability Convergence"))
         assertTrue(markdown.contains("## M1B-3W Scalar Provider Query Convergence"))
+        assertTrue(markdown.contains("## M1B-3X Tasker Collection Query Convergence"))
         assertTrue(markdown.contains("CONTRACT_DECIDED"))
         assertTrue(markdown.contains("RESOLVED_WITH_LEGACY_ALIAS"))
         assertTrue(csv.lineSequence().first().contains("naming_status"))

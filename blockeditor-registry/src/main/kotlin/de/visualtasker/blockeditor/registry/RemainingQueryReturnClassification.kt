@@ -295,9 +295,10 @@ object RemainingQueryReturnClassification {
 
     fun validate(audit: LegacyCommandBridgeAudit) {
         val repositoryIds = QueryReturnContractAudit.currentDQueryIds(audit)
-        val historicalIds = repositoryIds + QueryReturnContractAudit.MIGRATED_M1B_3W
+        val migratedIds = QueryReturnContractAudit.MIGRATED_M1B_3W + QueryReturnContractAudit.MIGRATED_M1B_3X
+        val historicalIds = repositoryIds + migratedIds
         require(decisions.map { it.commandId }.toSet() == historicalIds) {
-            "M1B-3V historical decisions differ from current D_QUERY_RETURN plus M1B-3W"
+            "M1B-3V historical decisions differ from current D_QUERY_RETURN plus completed migrations"
         }
         require(decisions.map { it.commandId }.distinct().size == decisions.size)
         require(groups.flatMap { it.commandIds }.toSet() == historicalIds)
@@ -310,7 +311,7 @@ object RemainingQueryReturnClassification {
             require(item.genericCommandCallSufficient && item.genericReporterSufficient)
             require(item.requiredNewValueType.isNotBlank())
             if (!item.nullable) require(!item.proposedV1ReturnType.endsWith("?"))
-            if (item.commandId in QueryReturnContractAudit.MIGRATED_M1B_3W) {
+            if (item.commandId in migratedIds) {
                 require(entry.kind == CommandCatalogKind.REPORTER)
                 require(entry.returnType == item.proposedV1ReturnType)
             } else {
@@ -344,11 +345,11 @@ object RemainingQueryReturnClassification {
             appendLine("# EMScript v1 M1B-3V Remaining Query Return Classification")
             appendLine()
             appendLine("Stand: 2026-10-01")
-            appendLine("Status: historical 3V audit; six scalar queries migrated by M1B-3W")
+            appendLine("Status: historical 3V audit; scalar and Tasker collection queries migrated through M1B-3X")
             appendLine()
             appendLine("## Repository Truth")
             appendLine()
-            appendLine("M1B-3V derived exactly ${decisions.size} D_QUERY_RETURN conflicts. Post-3W, six scalar provider queries are typed reporters and six conflicts remain. Command Catalog remains 127 and NATIVE_V1 remains 3.")
+            appendLine("M1B-3V derived exactly ${decisions.size} D_QUERY_RETURN conflicts. Post-3X, seven provider queries are typed reporters and five conflicts remain. Command Catalog remains 127 and NATIVE_V1 remains 3.")
             appendLine()
             appendLine("## Decision Summary")
             appendLine()
@@ -404,7 +405,7 @@ object RemainingQueryReturnClassification {
             appendLine()
             appendLine("## Infrastructure Gap Summary")
             appendLine()
-            appendLine("RuntimeAdapterResult, scalar EmscriptValue variants, NullValue, nullable type compatibility, generic CommandCall and generic reporter projection are sufficient for M1B-3W. The remaining minimal additions are runtime ListValue, TaskerVariableValue, ImageMatchValue, TextMatchValue, MarkerValue and ChartSnapshotValue plus provider result contracts. No special expression class is required.")
+            appendLine("RuntimeAdapterResult, scalar EmscriptValue variants, NullValue, ListValue, TaskerVariableValue, nullable/list type compatibility, generic CommandCall and generic reporter projection are sufficient through M1B-3X. The remaining minimal additions are ImageMatchValue, TextMatchValue, MarkerValue and ChartSnapshotValue plus provider result contracts. No special expression class is required.")
         }
     }
 

@@ -72,6 +72,21 @@ object CoreTypes {
         LanguageTypeRef.Nullable(baseType)
 }
 
+object ProviderTypeIds {
+    val TASKER_VARIABLE = TypeId("provider.tasker.variable")
+}
+
+object ProviderTypes {
+    val TASKER_VARIABLE = TypeDefinition(
+        id = ProviderTypeIds.TASKER_VARIABLE,
+        canonicalName = "TaskerVariable",
+        kind = TypeDefinitionKind.PROVIDER,
+        documentation = "Immutable name/value entry from the Tasker variable snapshot.",
+    )
+
+    val ALL: List<TypeDefinition> = listOf(TASKER_VARIABLE)
+}
+
 object LanguageTypeCompatibility {
     fun isAssignable(actual: LanguageTypeRef, expected: LanguageTypeRef): Boolean = when {
         expected is LanguageTypeRef.Nullable -> {
@@ -91,12 +106,18 @@ object LanguageTypeCompatibility {
             val base = fromWorkspaceName(normalized.dropLast(1)) ?: return null
             return LanguageTypeRef.Nullable(base)
         }
+        if (normalized.startsWith("List<", ignoreCase = true) && normalized.endsWith('>')) {
+            val elementName = normalized.substringAfter('<').dropLast(1).trim()
+            val elementType = fromWorkspaceName(elementName) ?: return null
+            return LanguageTypeRef.ListOf(elementType)
+        }
         return when (normalized.lowercase()) {
         "string", "text" -> CoreTypes.STRING.ref
         "number" -> CoreTypes.NUMBER.ref
         "bool", "boolean" -> CoreTypes.BOOL.ref
         "any" -> CoreTypes.ANY.ref
         "void" -> CoreTypes.VOID.ref
+        ProviderTypes.TASKER_VARIABLE.canonicalName.lowercase() -> ProviderTypes.TASKER_VARIABLE.ref
         else -> LanguageTypeRef.Named(TypeId("workspace.${normalized.lowercase()}"))
         }
     }
@@ -107,7 +128,7 @@ object LanguageTypeCompatibility {
         CoreTypes.BOOL.ref -> "Boolean"
         CoreTypes.ANY.ref -> "Any"
         CoreTypes.VOID.ref -> "Void"
-        is LanguageTypeRef.Named -> type.id.value.removePrefix("workspace.")
+        is LanguageTypeRef.Named -> canonicalNamedType(type) ?: type.id.value.removePrefix("workspace.")
         is LanguageTypeRef.ListOf -> "List<${workspaceName(type.elementType)}>"
         is LanguageTypeRef.Nullable -> "${workspaceName(type.baseType)}?"
         null -> null
@@ -119,10 +140,13 @@ object LanguageTypeCompatibility {
         CoreTypes.BOOL.ref -> "Bool"
         CoreTypes.ANY.ref -> "Any"
         CoreTypes.VOID.ref -> "Void"
-        is LanguageTypeRef.Named -> type.id.value.removePrefix("workspace.")
+        is LanguageTypeRef.Named -> canonicalNamedType(type) ?: type.id.value.removePrefix("workspace.")
         is LanguageTypeRef.ListOf -> "List<${sourceName(type.elementType)}>"
         is LanguageTypeRef.Nullable -> "${sourceName(type.baseType)}?"
     }
+
+    private fun canonicalNamedType(type: LanguageTypeRef.Named): String? =
+        ProviderTypes.ALL.firstOrNull { it.id == type.id }?.canonicalName
 }
 
 @Serializable
