@@ -45,7 +45,7 @@ class NullableQuerySemanticsAuditTest {
             assertEquals("String?", block.outputType)
             assertTrue(block.isReporter)
         }
-        assertEquals(2, QueryReturnContractAudit.currentDQueryIds(bridgeAudit).size)
+        assertEquals(0, QueryReturnContractAudit.currentDQueryIds(bridgeAudit).size)
         assertEquals(127, bridgeAudit.results.size)
         assertEquals(3, bridgeAudit.results.count { it.migrationClass == CommandMigrationClass.NATIVE_V1 })
     }

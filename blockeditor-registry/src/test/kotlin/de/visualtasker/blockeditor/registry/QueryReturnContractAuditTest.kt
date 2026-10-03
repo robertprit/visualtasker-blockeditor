@@ -13,8 +13,8 @@ class QueryReturnContractAuditTest {
     fun `every current D query return entry is classified exactly once`() {
         QueryReturnContractAudit.validateAgainst(bridgeAudit)
 
-        assertEquals(2, QueryReturnContractAudit.ALL.size)
-        assertEquals(2, QueryReturnContractAudit.ALL.map { it.stableId }.distinct().size)
+        assertEquals(0, QueryReturnContractAudit.ALL.size)
+        assertEquals(0, QueryReturnContractAudit.ALL.map { it.stableId }.distinct().size)
         assertEquals(
             QueryReturnContractAudit.currentDQueryIds(bridgeAudit),
             QueryReturnContractAudit.ALL.mapTo(linkedSetOf()) { it.stableId },
@@ -32,7 +32,7 @@ class QueryReturnContractAuditTest {
         assertEquals(0, counts[QueryReturnClass.A_NULLABLE_SCALAR_READY] ?: 0)
         assertEquals(0, counts[QueryReturnClass.B_NONNULL_SCALAR_READY] ?: 0)
         assertEquals(0, counts[QueryReturnClass.C_STRUCTURED_RESULT_TYPE] ?: 0)
-        assertEquals(2, counts[QueryReturnClass.D_RUNTIME_RESULT_GAP])
+        assertEquals(0, counts[QueryReturnClass.D_RUNTIME_RESULT_GAP] ?: 0)
         assertEquals(0, counts[QueryReturnClass.E_PROVIDER_CONTRACT_GAP] ?: 0)
         assertEquals(0, counts[QueryReturnClass.F_SENTINEL_OR_ERROR_COLLISION] ?: 0)
         assertEquals(0, counts[QueryReturnClass.G_LANGUAGE_SEMANTICS_GAP] ?: 0)
@@ -50,18 +50,9 @@ class QueryReturnContractAuditTest {
     }
 
     @Test
-    fun `remaining D query blocks remain statement shaped without output`() {
-        QueryReturnContractAudit.ALL.forEach { decision ->
-            val entry = VisualTaskerCommandCatalog.findById(decision.stableId)!!
-            val block = DefaultBlockRegistry.getDefinition(entry.block!!.blockType)!!
-
-            assertEquals(CommandCatalogKind.STATEMENT, entry.kind)
-            assertNull(entry.returnType)
-            assertTrue(block.hasPrevious)
-            assertTrue(block.hasNext)
-            assertNull(block.outputType)
-            assertFalse(block.isReporter)
-        }
+    fun `no D query blocks remain`() {
+        assertTrue(QueryReturnContractAudit.ALL.isEmpty())
+        assertTrue(QueryReturnContractAudit.currentDQueryIds(bridgeAudit).isEmpty())
     }
 
     @Test
@@ -180,6 +171,16 @@ class QueryReturnContractAuditTest {
             assertFalse(block.hasPrevious)
             assertFalse(block.hasNext)
         }
+        assertEquals(setOf("chart.exists", "chart.get"), QueryReturnContractAudit.MIGRATED_M1B_3Z)
+        QueryReturnContractAudit.MIGRATED_M1B_3Z.forEach { id ->
+            val entry = VisualTaskerCommandCatalog.findById(id)!!
+            val block = DefaultBlockRegistry.getDefinition(entry.block!!.blockType)!!
+            assertEquals(CommandCatalogKind.REPORTER, entry.kind)
+            assertEquals(entry.returnType, block.outputType)
+            assertTrue(block.isReporter)
+            assertFalse(block.hasPrevious)
+            assertFalse(block.hasNext)
+        }
     }
 
     @Test
@@ -205,10 +206,7 @@ class QueryReturnContractAuditTest {
     fun `nullable transport and consumption readiness remain distinct`() {
         val nullable = QueryReturnContractAudit.ALL.filter { it.nullable == QueryNullability.YES }
 
-        assertEquals(
-            setOf("chart.get"),
-            nullable.mapTo(linkedSetOf()) { it.stableId },
-        )
+        assertEquals(emptySet<String>(), nullable.mapTo(linkedSetOf()) { it.stableId })
         assertTrue(nullable.none { it.consumptionReady })
         assertEquals(
             emptySet<String>(),
@@ -276,7 +274,7 @@ class QueryReturnContractAuditTest {
             QueryReturnContractAudit.ALL.filter { it.sentinelUsed }.mapTo(linkedSetOf()) { it.stableId },
         )
         assertEquals(
-            mapOf("chart.get" to "ChartSnapshot"),
+            emptyMap<String, String>(),
             QueryReturnContractAudit.ALL.filter { it.structuredTypeNeeded }
                 .associate { it.stableId to it.proposedStructuredType },
         )

@@ -481,7 +481,7 @@ object CommandBridgeReportRenderer {
         appendLine()
         appendLine("## M1B-3W Scalar Provider Query Convergence")
         appendLine()
-        appendLine("The current `D_QUERY_RETURN` inventory contains ${QueryReturnContractAudit.ALL.size} language commands. M1B-3W added typed scalar reporter contracts, M1B-3X added the Tasker collection reporter and M1B-3Y added the three perception domain reporters. Only the two chart entries remain statement-shaped.")
+        appendLine("The current `D_QUERY_RETURN` inventory contains ${QueryReturnContractAudit.ALL.size} language commands. M1B-3W added typed scalar reporters, M1B-3X the Tasker collection reporter, M1B-3Y the perception domain reporters, and M1B-3Z the two chart reporters.")
         appendLine()
         appendLine("| Class | Count |")
         appendLine("| --- | ---: |")
@@ -499,7 +499,7 @@ object CommandBridgeReportRenderer {
             )
         }
         appendLine()
-        appendLine("Provider-local inspections now preserve VALUE, ABSENT, legitimate false/empty/zero results and technical FAILURE as separate outcomes. No collection, perception or chart query is migrated by M1B-3W.")
+        appendLine("Provider-local inspections preserve VALUE, ABSENT, legitimate false/empty/zero results and technical FAILURE as separate outcomes.")
         appendLine()
         appendLine("## M1B-3X Tasker Collection Query Convergence")
         appendLine()
@@ -508,6 +508,10 @@ object CommandBridgeReportRenderer {
         appendLine("## M1B-3Y Perception Domain Value Convergence")
         appendLine()
         appendLine("`action.findTemplate(...): ImageMatch?`, `vision.findText(...): TextMatch?` and `vision.markerLoad(...): Marker?` now use immutable EMScript domain values and generic reporter/CommandCall projection. Completed no-match/no-resource queries return `NullValue`; capture, engine, repository and decode failures remain diagnostics. Only `chart.exists` and `chart.get` remain in `D_QUERY_RETURN`.")
+        appendLine()
+        appendLine("## M1B-3Z Chart Domain Value Convergence")
+        appendLine()
+        appendLine("`chart.exists(...): Bool` and `chart.get(...): ChartSnapshot?` now share one repository lookup contract. Missing resources map to false/`NullValue`; repository and decode failures remain diagnostics. `ChartSnapshotValue` is immutable and no runtime/UI handle crosses the EMScript boundary. `D_QUERY_RETURN` is zero.")
         appendLine()
     }
 

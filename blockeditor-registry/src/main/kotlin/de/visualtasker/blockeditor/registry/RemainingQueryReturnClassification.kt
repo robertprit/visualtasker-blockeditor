@@ -297,7 +297,8 @@ object RemainingQueryReturnClassification {
         val repositoryIds = QueryReturnContractAudit.currentDQueryIds(audit)
         val migratedIds = QueryReturnContractAudit.MIGRATED_M1B_3W +
             QueryReturnContractAudit.MIGRATED_M1B_3X +
-            QueryReturnContractAudit.MIGRATED_M1B_3Y
+            QueryReturnContractAudit.MIGRATED_M1B_3Y +
+            QueryReturnContractAudit.MIGRATED_M1B_3Z
         val historicalIds = repositoryIds + migratedIds
         require(decisions.map { it.commandId }.toSet() == historicalIds) {
             "M1B-3V historical decisions differ from current D_QUERY_RETURN plus completed migrations"

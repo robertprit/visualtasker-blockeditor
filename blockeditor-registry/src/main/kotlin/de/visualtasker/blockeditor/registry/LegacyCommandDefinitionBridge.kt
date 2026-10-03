@@ -981,6 +981,8 @@ class LegacyCommandDefinitionBridge(
             "vision.findText" to "WorkspaceBasicRuntime transports the best TextMatchValue or NullValue through the generic command reporter.",
             "vision.templateCompare" to "WorkspaceBasicRuntime obtains a non-null numeric score from templateCompare; failures use diagnostics.",
             "vision.markerLoad" to "WorkspaceBasicRuntime transports MarkerValue with stable identity or NullValue through the generic command reporter.",
+            "chart.exists" to "WorkspaceBasicRuntime maps one chart repository lookup to a typed Bool; lookup failures remain diagnostics.",
+            "chart.get" to "WorkspaceBasicRuntime transports an immutable ChartSnapshotValue or NullValue through the generic command reporter.",
             "system.datastoreGet" to "WorkspaceBasicRuntime obtains a nullable datastore value.",
             "file.readText" to "WorkspaceBasicRuntime obtains nullable file text.",
             "clipboard.get" to "WorkspaceBasicRuntime obtains clipboard text.",
@@ -1035,6 +1037,8 @@ object LegacyCommandDispatchEvidence {
         "vision.templateCompare",
         "system.datastorePut",
         "system.datastoreGet",
+        "chart.exists",
+        "chart.get",
     )
 
     private val providerOwners = setOf(
@@ -1061,6 +1065,7 @@ object LegacyCommandDispatchEvidence {
                     CommandCapability.A11Y,
                     CommandCapability.SCREEN_CAPTURE,
                     CommandCapability.VISION,
+                    CommandCapability.CHARTS,
                 )
             ) CommandLiveStatus.LIVE_PROVIDER_DEPENDENT else CommandLiveStatus.LIVE_CONFIRMED,
             routes = listOf("WorkspaceDryRunRuntime -> WorkspaceBasicRuntime -> environment"),
@@ -1104,6 +1109,8 @@ object LegacyCommandDispatchEvidence {
         "action.findTemplate" -> "ImageMatchValue or NullValue"
         "vision.findText" -> "TextMatchValue or NullValue"
         "vision.markerLoad" -> "MarkerValue or NullValue"
+        "chart.exists" -> "BooleanValue"
+        "chart.get" -> "ChartSnapshotValue or NullValue"
         "vision.templateCompare" -> "numeric score"
         else -> entry.returnType ?: "execution outcome"
     }

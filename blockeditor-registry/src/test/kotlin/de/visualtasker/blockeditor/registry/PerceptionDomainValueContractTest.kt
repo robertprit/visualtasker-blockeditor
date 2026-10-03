@@ -62,13 +62,13 @@ class PerceptionDomainValueContractTest {
     }
 
     @Test
-    fun `perception migration leaves only chart query return conflicts`() {
+    fun `perception migration remains stable after query return closure`() {
         val audit = LegacyCommandDefinitionBridge().analyze()
 
         assertEquals(127, audit.results.size)
         assertEquals(3, audit.results.count { it.migrationClass == CommandMigrationClass.NATIVE_V1 })
         assertEquals(0, audit.results.count { it.definition == null })
-        assertEquals(setOf("chart.exists", "chart.get"), QueryReturnContractAudit.currentDQueryIds(audit))
+        assertTrue(QueryReturnContractAudit.currentDQueryIds(audit).isEmpty())
         contracts.keys.forEach { id ->
             val result = audit.results.single { it.sourceEntry.id == id }
             assertFalse(result.issues.any { it.type == CommandBridgeIssueType.QUERY_RETURNS_VOID })

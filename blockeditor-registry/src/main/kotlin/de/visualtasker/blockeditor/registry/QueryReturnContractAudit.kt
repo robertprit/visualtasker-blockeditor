@@ -81,33 +81,9 @@ object QueryReturnContractAudit {
     )
     val MIGRATED_M1B_3X = linkedSetOf("tasker.getVariables")
     val MIGRATED_M1B_3Y = linkedSetOf("action.findTemplate", "vision.findText", "vision.markerLoad")
+    val MIGRATED_M1B_3Z = linkedSetOf("chart.exists", "chart.get")
 
-    val ALL: List<QueryReturnDecision> = listOf(
-        decision(
-            "chart.exists", "Chart.exists", "no runtime query result", "Bool",
-            QueryNullability.NO, QueryReturnClass.D_RUNTIME_RESULT_GAP,
-            flags(QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.BLOCKED),
-            false, false, true, true, "visualtasker.charts", false, false,
-            "No provider-independent chart repository adapter is connected to WorkspaceBasicRuntime.",
-            QueryMigrationRisk.BLOCKED,
-            "M1B-3Z: return false only after a successful repository lookup and preserve lookup failure as a diagnostic.",
-            "none", "statement-only catalog/runtime trace",
-            "M1B-3V freezes chart.exists as non-null Bool; a missing persistent chart ID is false, not ABSENT.",
-        ),
-        decision(
-            "chart.get", "Chart.get", "no runtime query result", "ChartSnapshot?",
-            QueryNullability.YES, QueryReturnClass.D_RUNTIME_RESULT_GAP,
-            flags(QueryReturnFlag.NULLABLE, QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.STRUCTURED, QueryReturnFlag.NEEDS_NEW_TYPE, QueryReturnFlag.BLOCKED),
-            false, false, true, true, "visualtasker.charts", false, false,
-            "No chart repository adapter or EMScript ChartSnapshotValue exists.",
-            QueryMigrationRisk.BLOCKED,
-            "M1B-3Z: return an immutable ChartSnapshot? and keep runtime UI handles outside EMScript.",
-            "none", "statement-only catalog/runtime trace",
-            "M1B-3V freezes missing ID as ABSENT and an empty chart as VALUE; the optional legacy key is not canonical V1.",
-            structured = true, structuredType = "ChartSnapshot", internalType = "ChartDocument",
-            fields = "id:String; title:String; kind:String; immutable data/options",
-        ),
-    )
+    val ALL: List<QueryReturnDecision> = emptyList()
 
     fun currentDQueryIds(audit: LegacyCommandBridgeAudit): Set<String> = audit.results
         .filter { result -> result.issues.any { it.type == CommandBridgeIssueType.QUERY_RETURNS_VOID || it.type == CommandBridgeIssueType.MISSING_RETURN_TYPE } }
@@ -126,11 +102,12 @@ object QueryReturnContractAudit {
         require(MIGRATED_M1B_3W.none { it in currentIds }) { "M1B-3W query returned to D_QUERY_RETURN" }
         require(MIGRATED_M1B_3X.none { it in currentIds }) { "M1B-3X query returned to D_QUERY_RETURN" }
         require(MIGRATED_M1B_3Y.none { it in currentIds }) { "M1B-3Y query returned to D_QUERY_RETURN" }
+        require(MIGRATED_M1B_3Z.none { it in currentIds }) { "M1B-3Z query returned to D_QUERY_RETURN" }
         require(
             ALL.size + MIGRATED_M1B_3J.size + MIGRATED_M1B_3M.size +
                 MIGRATED_M1B_3P.size + MIGRATED_M1B_3R.size + MIGRATED_M1B_3T.size +
                 MIGRATED_M1B_3U.size + MIGRATED_M1B_3W.size + MIGRATED_M1B_3X.size +
-                MIGRATED_M1B_3Y.size == 23,
+                MIGRATED_M1B_3Y.size + MIGRATED_M1B_3Z.size == 23,
         ) { "Query inventory accounting drift" }
         val catalogById = audit.results.associateBy { it.sourceEntry.id }
         ALL.forEach { decision ->
@@ -182,12 +159,12 @@ object QueryReturnContractAudit {
             appendLine("# EMScript v1 Remaining Query Return Reclassification")
             appendLine()
             appendLine("Stand: 2026-10-03")
-            appendLine("Phase: M1B-3Y Perception Domain Value Convergence")
-            appendLine("Status: Perception domain queries migrated; two chart query contracts remain")
+            appendLine("Phase: M1B-3Z Chart Domain Value Convergence")
+            appendLine("Status: COMPLETE; no D_QUERY_RETURN conflicts remain")
             appendLine()
             appendLine("## Invariants")
             appendLine()
-            appendLine("The bridge derives exactly ${ALL.size} D_QUERY_RETURN entries. Each has one primary class. The twenty-one approved query migrations through M1B-3Y remain outside this inventory.")
+            appendLine("The bridge derives exactly ${ALL.size} D_QUERY_RETURN entries. All twenty-three approved query migrations through M1B-3Z remain outside this inventory.")
             appendLine()
             appendLine("## Classification Summary")
             appendLine()
@@ -225,7 +202,7 @@ object QueryReturnContractAudit {
             appendLine()
             appendLine("## Recommended Next Slice")
             appendLine()
-            appendLine("M1B-3Y converges the three nullable perception/resource queries on `ImageMatch?`, `TextMatch?`, and `Marker?`. M1B-3Z retains only `chart.exists` and `chart.get`. See EMSCRIPT_V1_REMAINING_QUERY_RETURN_CLASSIFICATION.md for the historical 3V decisions and VALUE/ABSENT/NEGATIVE/FAILURE semantics.")
+            appendLine("M1B-3Z converges `chart.exists(...): Bool` and `chart.get(...): ChartSnapshot?`. No D_QUERY_RETURN conflicts remain. See EMSCRIPT_V1_REMAINING_QUERY_RETURN_CLASSIFICATION.md for the historical 3V decision record.")
         }
     }
 

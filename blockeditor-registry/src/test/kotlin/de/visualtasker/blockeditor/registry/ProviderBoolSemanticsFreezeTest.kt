@@ -12,7 +12,7 @@ class ProviderBoolSemanticsFreezeTest {
         ProviderBoolSemanticsFreeze.validate()
 
         assertEquals(4, ProviderBoolSemanticsFreeze.decisions.size)
-        assertEquals(2, QueryReturnContractAudit.ALL.size)
+        assertEquals(0, QueryReturnContractAudit.ALL.size)
         assertTrue(QueryReturnContractAudit.MIGRATED_M1B_3R.contains("chromeTab.isSupported"))
         assertEquals(
             setOf("tasker.isInstalled", "shizuku.isInstalled", "termux.isInstalled"),

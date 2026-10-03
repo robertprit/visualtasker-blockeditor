@@ -76,6 +76,7 @@ object DomainTypeIds {
     val IMAGE_MATCH = TypeId("domain.perception.image-match")
     val TEXT_MATCH = TypeId("domain.perception.text-match")
     val MARKER = TypeId("domain.resource.marker")
+    val CHART_SNAPSHOT = TypeId("domain.chart.snapshot")
 }
 
 object DomainTypes {
@@ -97,8 +98,14 @@ object DomainTypes {
         kind = TypeDefinitionKind.DOMAIN,
         documentation = "Immutable snapshot of a persisted visual marker resource.",
     )
+    val CHART_SNAPSHOT = TypeDefinition(
+        id = DomainTypeIds.CHART_SNAPSHOT,
+        canonicalName = "ChartSnapshot",
+        kind = TypeDefinitionKind.DOMAIN,
+        documentation = "Immutable snapshot of a persisted chart resource.",
+    )
 
-    val ALL: List<TypeDefinition> = listOf(IMAGE_MATCH, TEXT_MATCH, MARKER)
+    val ALL: List<TypeDefinition> = listOf(IMAGE_MATCH, TEXT_MATCH, MARKER, CHART_SNAPSHOT)
 }
 
 object ProviderTypeIds {
@@ -149,6 +156,7 @@ object LanguageTypeCompatibility {
         DomainTypes.IMAGE_MATCH.canonicalName.lowercase() -> DomainTypes.IMAGE_MATCH.ref
         DomainTypes.TEXT_MATCH.canonicalName.lowercase() -> DomainTypes.TEXT_MATCH.ref
         DomainTypes.MARKER.canonicalName.lowercase() -> DomainTypes.MARKER.ref
+        DomainTypes.CHART_SNAPSHOT.canonicalName.lowercase() -> DomainTypes.CHART_SNAPSHOT.ref
         ProviderTypes.TASKER_VARIABLE.canonicalName.lowercase() -> ProviderTypes.TASKER_VARIABLE.ref
         else -> LanguageTypeRef.Named(TypeId("workspace.${normalized.lowercase()}"))
         }

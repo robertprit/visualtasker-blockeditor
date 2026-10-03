@@ -10,7 +10,7 @@ class RemainingQueryReturnClassificationTest {
     private val audit = LegacyCommandDefinitionBridge().analyze()
 
     @Test
-    fun `3V classification remains exhaustive after 3Y migration`() {
+    fun `3V classification remains exhaustive after 3Z migration`() {
         RemainingQueryReturnClassification.validate(audit)
 
         val decisions = RemainingQueryReturnClassification.decisions
@@ -19,14 +19,16 @@ class RemainingQueryReturnClassificationTest {
                 QueryReturnContractAudit.currentDQueryIds(audit) +
                 QueryReturnContractAudit.MIGRATED_M1B_3W +
                 QueryReturnContractAudit.MIGRATED_M1B_3X +
-                QueryReturnContractAudit.MIGRATED_M1B_3Y,
+                QueryReturnContractAudit.MIGRATED_M1B_3Y +
+                QueryReturnContractAudit.MIGRATED_M1B_3Z,
             decisions.mapTo(linkedSetOf()) { it.commandId },
         )
         assertEquals(12, RemainingQueryReturnClassification.groups.sumOf { it.expectedReduction })
         assertTrue(decisions.all { it.genericCommandCallSufficient && it.genericReporterSufficient })
         val migrated = QueryReturnContractAudit.MIGRATED_M1B_3W +
             QueryReturnContractAudit.MIGRATED_M1B_3X +
-            QueryReturnContractAudit.MIGRATED_M1B_3Y
+            QueryReturnContractAudit.MIGRATED_M1B_3Y +
+            QueryReturnContractAudit.MIGRATED_M1B_3Z
         decisions.filterNot { it.commandId in migrated }.forEach { decision ->
             val entry = VisualTaskerCommandCatalog.findById(decision.commandId)!!
             assertEquals(CommandCatalogKind.STATEMENT, entry.kind)
