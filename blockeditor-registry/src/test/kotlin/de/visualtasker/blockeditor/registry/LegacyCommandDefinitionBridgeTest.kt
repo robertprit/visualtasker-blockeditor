@@ -94,7 +94,7 @@ class LegacyCommandDefinitionBridgeTest {
         val templateFind = audit.result("action.findTemplate")
         assertEquals(CommandNamingStatus.NEEDS_NORMALIZATION, templateFind.namingStatus())
         assertEquals(CommandBridgeStatus.CONFLICT, templateFind.status)
-        assertTrue(templateFind.hasIssue(CommandBridgeIssueType.QUERY_RETURNS_VOID))
+        assertFalse(templateFind.hasIssue(CommandBridgeIssueType.QUERY_RETURNS_VOID))
         assertTrue(templateFind.hasIssue(CommandBridgeIssueType.DEFAULT_SOURCE_CONFLICT))
     }
 

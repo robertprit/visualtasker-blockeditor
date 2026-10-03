@@ -391,14 +391,16 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             capability = CommandCapability.A11Y,
             args = listOf(CommandArgument("text", CommandArgumentType.TEXT, defaultValue = "OK")),
         ),
-        statement(
+        catalogCommand(
             id = "action.findTemplate",
             canonicalName = "findTemplate",
             aliases = listOf("FIND_TEMPLATE"),
             category = BlockCategories.PERCEPTION,
-            blockType = BlockTypes.ACTION_FIND_TEMPLATE,
             sideEffect = CommandSideEffect.SCREEN_READ,
             capability = CommandCapability.VISION,
+            pluginOwner = "visualtasker.vision",
+            returnType = "ImageMatch?",
+            kind = CommandCatalogKind.REPORTER,
             args = listOf(
                 CommandArgument("imagePath", CommandArgumentType.IMAGE_TEMPLATE, defaultValue = ""),
                 CommandArgument("threshold", CommandArgumentType.PERCENT, defaultValue = "0.82"),
@@ -469,6 +471,9 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             category = BlockCategories.VISION,
             sideEffect = CommandSideEffect.SCREEN_READ,
             capability = CommandCapability.VISION,
+            pluginOwner = "visualtasker.vision",
+            returnType = "TextMatch?",
+            kind = CommandCatalogKind.REPORTER,
             args = listOf(
                 CommandArgument("text", CommandArgumentType.TEXT, defaultValue = ""),
                 CommandArgument("timeoutMs", CommandArgumentType.DURATION_MS, required = false, defaultValue = "3000"),
@@ -506,6 +511,8 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             sideEffect = CommandSideEffect.SCREEN_READ,
             capability = CommandCapability.VISION,
             pluginOwner = "visualtasker.vision",
+            returnType = "Marker?",
+            kind = CommandCatalogKind.REPORTER,
             args = listOf(CommandArgument("name", CommandArgumentType.TEXT, defaultValue = "marker")),
         ),
         catalogCommand(
@@ -1109,7 +1116,11 @@ object VisualTaskerCommandCatalog : CommandCatalog {
     override fun findByAcceptedName(name: String): CommandCatalogEntry? =
         byAcceptedName[name.lowercase()]?.firstOrNull()
 
-    override fun findByBlockType(blockType: String): CommandCatalogEntry? = byBlockType[blockType]
+    override fun findByBlockType(blockType: String): CommandCatalogEntry? =
+        byBlockType[blockType] ?: when (blockType) {
+            BlockTypes.ACTION_FIND_TEMPLATE -> byId["action.findTemplate"]
+            else -> null
+        }
 
     fun findLanguageCommandByAcceptedName(name: String): CommandCatalogEntry? =
         byAcceptedName[name.lowercase()]?.firstOrNull { it.role == CommandCatalogRole.LANGUAGE_COMMAND }

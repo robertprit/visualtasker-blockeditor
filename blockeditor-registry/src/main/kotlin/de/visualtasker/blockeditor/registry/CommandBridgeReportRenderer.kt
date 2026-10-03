@@ -79,9 +79,9 @@ object CommandBridgeReportRenderer {
         val aliases = entries.sumOf { it.acceptedAliases.size }
         appendLine("# EMScript v1 Command Bridge Report")
         appendLine()
-        appendLine("Stand: 2026-10-02")
-        appendLine("Phase: M1B-3X Tasker Collection Query Convergence")
-        appendLine("Status: eighteen queries migrated; five query return conflicts remain")
+        appendLine("Stand: 2026-10-03")
+        appendLine("Phase: M1B-3Y Perception Domain Value Convergence")
+        appendLine("Status: twenty-one queries migrated; two chart query return conflicts remain")
         appendLine()
         appendLine("## Inventory")
         appendLine()
@@ -169,7 +169,7 @@ object CommandBridgeReportRenderer {
             appendLine("| `${md(normalization.stableId)}` | ${normalization.legacyAliases.joinToString { "`${md(it)}`" }} | `${md(normalization.canonicalName)}` | $lifecycle | ${result.namingStatus()} | ${result.status} / ${result.migrationClass} |")
         }
         appendLine()
-        appendLine("`action.findTemplate` remains `NEEDS_NORMALIZATION` toward `templateFind`, but is outside the exclusive three-entry group because its independent domain-default and query-return contracts remain unresolved. M1B-3A does not change it.")
+        appendLine("`action.findTemplate` remains `NEEDS_NORMALIZATION` toward `templateFind` for naming/default-source reasons. Its query-return contract was independently resolved by M1B-3Y; M1B-3A itself does not change runtime semantics.")
         appendLine()
     }
 
@@ -481,7 +481,7 @@ object CommandBridgeReportRenderer {
         appendLine()
         appendLine("## M1B-3W Scalar Provider Query Convergence")
         appendLine()
-        appendLine("The current `D_QUERY_RETURN` inventory contains ${QueryReturnContractAudit.ALL.size} language commands. M1B-3W adds typed reporter contracts for `tasker.isEnabled`, `tasker.getVariable`, `shizuku.getUid`, `termux.get`, `scrcpy.isRunning` and `scrcpy.get`; the remaining entries stay statement-shaped.")
+        appendLine("The current `D_QUERY_RETURN` inventory contains ${QueryReturnContractAudit.ALL.size} language commands. M1B-3W added typed scalar reporter contracts, M1B-3X added the Tasker collection reporter and M1B-3Y added the three perception domain reporters. Only the two chart entries remain statement-shaped.")
         appendLine()
         appendLine("| Class | Count |")
         appendLine("| --- | ---: |")
@@ -504,6 +504,10 @@ object CommandBridgeReportRenderer {
         appendLine("## M1B-3X Tasker Collection Query Convergence")
         appendLine()
         appendLine("`tasker.getVariables(pattern?): List<TaskerVariable>` now uses the existing Tasker receiver snapshot and generic reporter/CommandCall projection. A successful query always returns an ordered list; no matches is an empty list, while provider and snapshot failures remain diagnostics.")
+        appendLine()
+        appendLine("## M1B-3Y Perception Domain Value Convergence")
+        appendLine()
+        appendLine("`action.findTemplate(...): ImageMatch?`, `vision.findText(...): TextMatch?` and `vision.markerLoad(...): Marker?` now use immutable EMScript domain values and generic reporter/CommandCall projection. Completed no-match/no-resource queries return `NullValue`; capture, engine, repository and decode failures remain diagnostics. Only `chart.exists` and `chart.get` remain in `D_QUERY_RETURN`.")
         appendLine()
     }
 

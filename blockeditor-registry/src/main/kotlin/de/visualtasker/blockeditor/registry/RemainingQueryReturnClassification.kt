@@ -295,7 +295,9 @@ object RemainingQueryReturnClassification {
 
     fun validate(audit: LegacyCommandBridgeAudit) {
         val repositoryIds = QueryReturnContractAudit.currentDQueryIds(audit)
-        val migratedIds = QueryReturnContractAudit.MIGRATED_M1B_3W + QueryReturnContractAudit.MIGRATED_M1B_3X
+        val migratedIds = QueryReturnContractAudit.MIGRATED_M1B_3W +
+            QueryReturnContractAudit.MIGRATED_M1B_3X +
+            QueryReturnContractAudit.MIGRATED_M1B_3Y
         val historicalIds = repositoryIds + migratedIds
         require(decisions.map { it.commandId }.toSet() == historicalIds) {
             "M1B-3V historical decisions differ from current D_QUERY_RETURN plus completed migrations"
@@ -345,11 +347,11 @@ object RemainingQueryReturnClassification {
             appendLine("# EMScript v1 M1B-3V Remaining Query Return Classification")
             appendLine()
             appendLine("Stand: 2026-10-01")
-            appendLine("Status: historical 3V audit; scalar and Tasker collection queries migrated through M1B-3X")
+            appendLine("Status: historical 3V audit; scalar, Tasker collection and perception queries migrated through M1B-3Y")
             appendLine()
             appendLine("## Repository Truth")
             appendLine()
-            appendLine("M1B-3V derived exactly ${decisions.size} D_QUERY_RETURN conflicts. Post-3X, seven provider queries are typed reporters and five conflicts remain. Command Catalog remains 127 and NATIVE_V1 remains 3.")
+            appendLine("M1B-3V derived exactly ${decisions.size} D_QUERY_RETURN conflicts. Post-3Y, ten provider queries are typed reporters and two chart conflicts remain. Command Catalog remains 127 and NATIVE_V1 remains 3.")
             appendLine()
             appendLine("## Decision Summary")
             appendLine()
@@ -405,7 +407,7 @@ object RemainingQueryReturnClassification {
             appendLine()
             appendLine("## Infrastructure Gap Summary")
             appendLine()
-            appendLine("RuntimeAdapterResult, scalar EmscriptValue variants, NullValue, ListValue, TaskerVariableValue, nullable/list type compatibility, generic CommandCall and generic reporter projection are sufficient through M1B-3X. The remaining minimal additions are ImageMatchValue, TextMatchValue, MarkerValue and ChartSnapshotValue plus provider result contracts. No special expression class is required.")
+            appendLine("RuntimeAdapterResult, scalar EmscriptValue variants, NullValue, ListValue, TaskerVariableValue, ImageMatchValue, TextMatchValue, MarkerValue, nullable/list/domain type compatibility, generic CommandCall and generic reporter projection are sufficient through M1B-3Y. The only remaining structured addition is ChartSnapshotValue plus its repository contract. No special expression class is required.")
         }
     }
 

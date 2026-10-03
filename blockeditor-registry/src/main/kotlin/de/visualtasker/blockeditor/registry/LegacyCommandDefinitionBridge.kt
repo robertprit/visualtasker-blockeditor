@@ -977,9 +977,10 @@ class LegacyCommandDefinitionBridge(
         private val lowerCamelSegment = Regex("[a-z][A-Za-z0-9]*")
 
         private val queryEvidenceById: Map<String, String> = mapOf(
-            "action.findTemplate" to "Runtime returns a template match with score; block is currently statement-shaped.",
+            "action.findTemplate" to "WorkspaceBasicRuntime transports ImageMatchValue or NullValue through the generic command reporter.",
+            "vision.findText" to "WorkspaceBasicRuntime transports the best TextMatchValue or NullValue through the generic command reporter.",
             "vision.templateCompare" to "WorkspaceBasicRuntime obtains a non-null numeric score from templateCompare; failures use diagnostics.",
-            "vision.markerLoad" to "WorkspaceBasicRuntime obtains a nullable saved marker/region.",
+            "vision.markerLoad" to "WorkspaceBasicRuntime transports MarkerValue with stable identity or NullValue through the generic command reporter.",
             "system.datastoreGet" to "WorkspaceBasicRuntime obtains a nullable datastore value.",
             "file.readText" to "WorkspaceBasicRuntime obtains nullable file text.",
             "clipboard.get" to "WorkspaceBasicRuntime obtains clipboard text.",
@@ -1026,6 +1027,7 @@ object LegacyCommandDispatchEvidence {
         "system.env",
         "vision.screenshot",
         "action.findTemplate",
+        "vision.findText",
         "vision.markerSave",
         "vision.markerLoad",
         "vision.markerDelete",
@@ -1099,8 +1101,9 @@ object LegacyCommandDispatchEvidence {
 
     private fun observedResult(entry: CommandCatalogEntry): String = when (entry.id) {
         "file.readText", "clipboard.get", "system.info", "environment.get", "system.datastoreGet" -> "text/value"
-        "action.findTemplate" -> "template match with score"
-        "vision.markerLoad" -> "saved marker/region"
+        "action.findTemplate" -> "ImageMatchValue or NullValue"
+        "vision.findText" -> "TextMatchValue or NullValue"
+        "vision.markerLoad" -> "MarkerValue or NullValue"
         "vision.templateCompare" -> "numeric score"
         else -> entry.returnType ?: "execution outcome"
     }

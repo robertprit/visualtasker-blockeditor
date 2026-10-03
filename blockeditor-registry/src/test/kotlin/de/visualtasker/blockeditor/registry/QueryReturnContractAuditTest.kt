@@ -13,8 +13,8 @@ class QueryReturnContractAuditTest {
     fun `every current D query return entry is classified exactly once`() {
         QueryReturnContractAudit.validateAgainst(bridgeAudit)
 
-        assertEquals(5, QueryReturnContractAudit.ALL.size)
-        assertEquals(5, QueryReturnContractAudit.ALL.map { it.stableId }.distinct().size)
+        assertEquals(2, QueryReturnContractAudit.ALL.size)
+        assertEquals(2, QueryReturnContractAudit.ALL.map { it.stableId }.distinct().size)
         assertEquals(
             QueryReturnContractAudit.currentDQueryIds(bridgeAudit),
             QueryReturnContractAudit.ALL.mapTo(linkedSetOf()) { it.stableId },
@@ -31,8 +31,8 @@ class QueryReturnContractAuditTest {
 
         assertEquals(0, counts[QueryReturnClass.A_NULLABLE_SCALAR_READY] ?: 0)
         assertEquals(0, counts[QueryReturnClass.B_NONNULL_SCALAR_READY] ?: 0)
-        assertEquals(2, counts[QueryReturnClass.C_STRUCTURED_RESULT_TYPE])
-        assertEquals(3, counts[QueryReturnClass.D_RUNTIME_RESULT_GAP])
+        assertEquals(0, counts[QueryReturnClass.C_STRUCTURED_RESULT_TYPE] ?: 0)
+        assertEquals(2, counts[QueryReturnClass.D_RUNTIME_RESULT_GAP])
         assertEquals(0, counts[QueryReturnClass.E_PROVIDER_CONTRACT_GAP] ?: 0)
         assertEquals(0, counts[QueryReturnClass.F_SENTINEL_OR_ERROR_COLLISION] ?: 0)
         assertEquals(0, counts[QueryReturnClass.G_LANGUAGE_SEMANTICS_GAP] ?: 0)
@@ -44,7 +44,7 @@ class QueryReturnContractAuditTest {
         assertTrue(QueryReturnContractAudit.ALL.all { it.producer.isNotBlank() && it.consumer.isNotBlank() })
         assertTrue(QueryReturnContractAudit.ALL.none { it.commandCallReady || it.workspaceReady || it.irReady })
         assertTrue(QueryReturnContractAudit.ALL.all { it.sideEffectClass == QueryEffectClass.READ_ONLY_EXTERNAL })
-        assertEquals(2, QueryReturnContractAudit.ALL.count { it.runtimeValueExists })
+        assertEquals(0, QueryReturnContractAudit.ALL.count { it.runtimeValueExists })
         assertTrue(QueryReturnContractAudit.ALL.none { it.migrationRisk == QueryMigrationRisk.LOW })
         assertTrue(QueryReturnContractAudit.ALL.none { it.primaryClass == QueryReturnClass.B_NONNULL_SCALAR_READY })
     }
@@ -167,6 +167,19 @@ class QueryReturnContractAuditTest {
         assertTrue(taskerVariablesBlock.isReporter)
         assertFalse(taskerVariablesBlock.hasPrevious)
         assertFalse(taskerVariablesBlock.hasNext)
+        assertEquals(
+            setOf("action.findTemplate", "vision.findText", "vision.markerLoad"),
+            QueryReturnContractAudit.MIGRATED_M1B_3Y,
+        )
+        QueryReturnContractAudit.MIGRATED_M1B_3Y.forEach { id ->
+            val entry = VisualTaskerCommandCatalog.findById(id)!!
+            val block = DefaultBlockRegistry.getDefinition(entry.block!!.blockType)!!
+            assertEquals(CommandCatalogKind.REPORTER, entry.kind)
+            assertEquals(entry.returnType, block.outputType)
+            assertTrue(block.isReporter)
+            assertFalse(block.hasPrevious)
+            assertFalse(block.hasNext)
+        }
     }
 
     @Test
@@ -193,7 +206,7 @@ class QueryReturnContractAuditTest {
         val nullable = QueryReturnContractAudit.ALL.filter { it.nullable == QueryNullability.YES }
 
         assertEquals(
-            setOf("action.findTemplate", "vision.findText", "vision.markerLoad", "chart.get"),
+            setOf("chart.get"),
             nullable.mapTo(linkedSetOf()) { it.stableId },
         )
         assertTrue(nullable.none { it.consumptionReady })
@@ -263,12 +276,7 @@ class QueryReturnContractAuditTest {
             QueryReturnContractAudit.ALL.filter { it.sentinelUsed }.mapTo(linkedSetOf()) { it.stableId },
         )
         assertEquals(
-            mapOf(
-                "action.findTemplate" to "ImageMatch",
-                "vision.findText" to "TextMatch",
-                "vision.markerLoad" to "Marker",
-                "chart.get" to "ChartSnapshot",
-            ),
+            mapOf("chart.get" to "ChartSnapshot"),
             QueryReturnContractAudit.ALL.filter { it.structuredTypeNeeded }
                 .associate { it.stableId to it.proposedStructuredType },
         )

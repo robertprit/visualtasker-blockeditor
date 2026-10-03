@@ -97,6 +97,8 @@ object DefaultBlockRegistry : BlockRegistry {
             category = BlockCategories.PERCEPTION,
             hasPrevious = true,
             hasNext = true,
+            paletteVisible = false,
+            deprecated = true,
             fields = listOf(
                 FieldDefinition(
                     key = "imagePath",

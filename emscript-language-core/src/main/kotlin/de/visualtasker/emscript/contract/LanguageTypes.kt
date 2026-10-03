@@ -72,6 +72,35 @@ object CoreTypes {
         LanguageTypeRef.Nullable(baseType)
 }
 
+object DomainTypeIds {
+    val IMAGE_MATCH = TypeId("domain.perception.image-match")
+    val TEXT_MATCH = TypeId("domain.perception.text-match")
+    val MARKER = TypeId("domain.resource.marker")
+}
+
+object DomainTypes {
+    val IMAGE_MATCH = TypeDefinition(
+        id = DomainTypeIds.IMAGE_MATCH,
+        canonicalName = "ImageMatch",
+        kind = TypeDefinitionKind.DOMAIN,
+        documentation = "Immutable result of a successful image-template match.",
+    )
+    val TEXT_MATCH = TypeDefinition(
+        id = DomainTypeIds.TEXT_MATCH,
+        canonicalName = "TextMatch",
+        kind = TypeDefinitionKind.DOMAIN,
+        documentation = "Immutable best-match result from textual perception evidence.",
+    )
+    val MARKER = TypeDefinition(
+        id = DomainTypeIds.MARKER,
+        canonicalName = "Marker",
+        kind = TypeDefinitionKind.DOMAIN,
+        documentation = "Immutable snapshot of a persisted visual marker resource.",
+    )
+
+    val ALL: List<TypeDefinition> = listOf(IMAGE_MATCH, TEXT_MATCH, MARKER)
+}
+
 object ProviderTypeIds {
     val TASKER_VARIABLE = TypeId("provider.tasker.variable")
 }
@@ -117,6 +146,9 @@ object LanguageTypeCompatibility {
         "bool", "boolean" -> CoreTypes.BOOL.ref
         "any" -> CoreTypes.ANY.ref
         "void" -> CoreTypes.VOID.ref
+        DomainTypes.IMAGE_MATCH.canonicalName.lowercase() -> DomainTypes.IMAGE_MATCH.ref
+        DomainTypes.TEXT_MATCH.canonicalName.lowercase() -> DomainTypes.TEXT_MATCH.ref
+        DomainTypes.MARKER.canonicalName.lowercase() -> DomainTypes.MARKER.ref
         ProviderTypes.TASKER_VARIABLE.canonicalName.lowercase() -> ProviderTypes.TASKER_VARIABLE.ref
         else -> LanguageTypeRef.Named(TypeId("workspace.${normalized.lowercase()}"))
         }
@@ -146,7 +178,7 @@ object LanguageTypeCompatibility {
     }
 
     private fun canonicalNamedType(type: LanguageTypeRef.Named): String? =
-        ProviderTypes.ALL.firstOrNull { it.id == type.id }?.canonicalName
+        (DomainTypes.ALL + ProviderTypes.ALL).firstOrNull { it.id == type.id }?.canonicalName
 }
 
 @Serializable

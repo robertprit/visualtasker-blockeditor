@@ -80,48 +80,9 @@ object QueryReturnContractAudit {
         "scrcpy.get",
     )
     val MIGRATED_M1B_3X = linkedSetOf("tasker.getVariables")
+    val MIGRATED_M1B_3Y = linkedSetOf("action.findTemplate", "vision.findText", "vision.markerLoad")
 
     val ALL: List<QueryReturnDecision> = listOf(
-        decision(
-            "action.findTemplate", "findTemplate", "RuntimeTemplateMatch?", "ImageMatch?",
-            QueryNullability.YES, QueryReturnClass.C_STRUCTURED_RESULT_TYPE,
-            flags(QueryReturnFlag.NULLABLE, QueryReturnFlag.STRUCTURED, QueryReturnFlag.RUNTIME_VALUE_EXISTS, QueryReturnFlag.NEEDS_NEW_TYPE, QueryReturnFlag.FAILURE_COLLISION),
-            true, true, true, false, "workspace vision adapter", false, false,
-            "WorkspaceBasicRuntime converts RuntimeTemplateMatch? to LiveExecutionOutcome text.",
-            QueryMigrationRisk.HIGH,
-            "Define ImageMatch and split not-found from vision/runtime failure before expression migration.",
-            "WorkspaceBasicRuntimeEnvironment.findTemplate / WorkspaceScreen vision adapter",
-            "WorkspaceBasicRuntime LiveExecutionOutcome",
-            "A threshold-qualified match exists; null covers no qualifying match and unavailable comparison evidence, while score and region are discarded into display text.",
-            structured = true, structuredType = "ImageMatch", internalType = "RuntimeTemplateMatch",
-            fields = "name:String; region:RuntimeAutomationRegion; score:Float",
-        ),
-        decision(
-            "vision.findText", "findText", "no runtime query result", "TextMatch?",
-            QueryNullability.YES, QueryReturnClass.D_RUNTIME_RESULT_GAP,
-            flags(QueryReturnFlag.NULLABLE, QueryReturnFlag.PROVIDER_BACKED, QueryReturnFlag.STRUCTURED, QueryReturnFlag.NEEDS_NEW_TYPE, QueryReturnFlag.BLOCKED),
-            false, false, true, true, "visualtasker.vision", false, false,
-            "No WorkspaceBasicRuntime environment function or value-returning vision provider dispatch exists.",
-            QueryMigrationRisk.BLOCKED,
-            "M1B-3Y: add a best-match TextMatch? provider result with no-match distinct from capture/OCR failure.",
-            "none", "statement-only catalog/runtime trace",
-            "M1B-3V freezes singular findText as the best TextMatch?; no authoritative OCR producer is connected yet.",
-            structured = true, structuredType = "TextMatch", internalType = "none",
-            fields = "text:String; region:Region; confidence:Number; source:String",
-        ),
-        decision(
-            "vision.markerLoad", "markerLoad", "RuntimeAutomationRegion?", "Marker?",
-            QueryNullability.YES, QueryReturnClass.C_STRUCTURED_RESULT_TYPE,
-            flags(QueryReturnFlag.NULLABLE, QueryReturnFlag.STRUCTURED, QueryReturnFlag.RUNTIME_VALUE_EXISTS, QueryReturnFlag.NEEDS_NEW_TYPE, QueryReturnFlag.FAILURE_COLLISION),
-            true, true, true, false, "visualtasker.vision", false, false,
-            "WorkspaceBasicRuntime converts RuntimeAutomationRegion? to text; EmscriptValue has no RegionValue.",
-            QueryMigrationRisk.HIGH,
-            "M1B-3Y: return an immutable Marker? that retains stable identity and split lookup absence from load failure.",
-            "WorkspaceScreen saved-marker lookup", "WorkspaceBasicRuntime LiveExecutionOutcome",
-            "Saved markers currently yield only bounds or null; M1B-3V requires stable marker ID, geometry and metadata to survive.",
-            structured = true, structuredType = "Marker", internalType = "ScreenshotCanvasSavedMarker",
-            fields = "markerId:String; label:String; region:Region; path:Path?; mode:String; assetId:String?; threshold:Number",
-        ),
         decision(
             "chart.exists", "Chart.exists", "no runtime query result", "Bool",
             QueryNullability.NO, QueryReturnClass.D_RUNTIME_RESULT_GAP,
@@ -164,10 +125,12 @@ object QueryReturnContractAudit {
         require(MIGRATED_M1B_3U.none { it in currentIds }) { "M1B-3U query returned to D_QUERY_RETURN" }
         require(MIGRATED_M1B_3W.none { it in currentIds }) { "M1B-3W query returned to D_QUERY_RETURN" }
         require(MIGRATED_M1B_3X.none { it in currentIds }) { "M1B-3X query returned to D_QUERY_RETURN" }
+        require(MIGRATED_M1B_3Y.none { it in currentIds }) { "M1B-3Y query returned to D_QUERY_RETURN" }
         require(
             ALL.size + MIGRATED_M1B_3J.size + MIGRATED_M1B_3M.size +
                 MIGRATED_M1B_3P.size + MIGRATED_M1B_3R.size + MIGRATED_M1B_3T.size +
-                MIGRATED_M1B_3U.size + MIGRATED_M1B_3W.size + MIGRATED_M1B_3X.size == 23,
+                MIGRATED_M1B_3U.size + MIGRATED_M1B_3W.size + MIGRATED_M1B_3X.size +
+                MIGRATED_M1B_3Y.size == 23,
         ) { "Query inventory accounting drift" }
         val catalogById = audit.results.associateBy { it.sourceEntry.id }
         ALL.forEach { decision ->
@@ -218,13 +181,13 @@ object QueryReturnContractAudit {
         return buildString {
             appendLine("# EMScript v1 Remaining Query Return Reclassification")
             appendLine()
-            appendLine("Stand: 2026-10-02")
-            appendLine("Phase: M1B-3X Tasker Collection Query Convergence")
-            appendLine("Status: Tasker collection query migrated; five query contracts remain")
+            appendLine("Stand: 2026-10-03")
+            appendLine("Phase: M1B-3Y Perception Domain Value Convergence")
+            appendLine("Status: Perception domain queries migrated; two chart query contracts remain")
             appendLine()
             appendLine("## Invariants")
             appendLine()
-            appendLine("The bridge derives exactly ${ALL.size} D_QUERY_RETURN entries. Each has one primary class. The eighteen approved query migrations through M1B-3X remain outside this inventory.")
+            appendLine("The bridge derives exactly ${ALL.size} D_QUERY_RETURN entries. Each has one primary class. The twenty-one approved query migrations through M1B-3Y remain outside this inventory.")
             appendLine()
             appendLine("## Classification Summary")
             appendLine()
@@ -262,7 +225,7 @@ object QueryReturnContractAudit {
             appendLine()
             appendLine("## Recommended Next Slice")
             appendLine()
-            appendLine("M1B-3X converges `tasker.getVariables` on a non-null `List<TaskerVariable>`. M1B-3Y and M1B-3Z retain the five perception and chart contracts. See EMSCRIPT_V1_REMAINING_QUERY_RETURN_CLASSIFICATION.md for the historical 3V decisions and VALUE/ABSENT/NEGATIVE/FAILURE semantics.")
+            appendLine("M1B-3Y converges the three nullable perception/resource queries on `ImageMatch?`, `TextMatch?`, and `Marker?`. M1B-3Z retains only `chart.exists` and `chart.get`. See EMSCRIPT_V1_REMAINING_QUERY_RETURN_CLASSIFICATION.md for the historical 3V decisions and VALUE/ABSENT/NEGATIVE/FAILURE semantics.")
         }
     }
 
