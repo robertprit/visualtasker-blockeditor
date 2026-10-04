@@ -1,8 +1,8 @@
 package de.visualtasker.blockeditor.registry
 
-import de.visualtasker.blockeditor.domain.WorkspaceAction
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.WorkspaceReducer
+import de.visualtasker.workflow.core.WorkspaceAction
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspaceReducer
 
 /**
  * Host-facing workspace bootstrap. Does not include demo sample chains.

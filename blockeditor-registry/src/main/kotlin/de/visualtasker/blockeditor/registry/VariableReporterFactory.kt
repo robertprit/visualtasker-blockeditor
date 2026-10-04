@@ -1,6 +1,6 @@
 package de.visualtasker.blockeditor.registry
 
-import de.visualtasker.blockeditor.domain.VariableDefinition
+import de.visualtasker.workflow.core.VariableDefinition
 
 object VariableReporterFactory {
     fun reporterId(variableId: String): String = "${BlockTypes.VARIABLE_REPORTER_PREFIX}$variableId"

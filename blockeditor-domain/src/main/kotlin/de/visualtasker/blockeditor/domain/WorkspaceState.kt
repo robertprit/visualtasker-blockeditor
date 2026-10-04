@@ -1,5 +1,7 @@
 package de.visualtasker.blockeditor.domain
 
+import de.visualtasker.workflow.core.WorkspaceDocument
+
 data class WorkspaceHistory(
     val undoStack: List<WorkspaceDocument> = emptyList(),
     val redoStack: List<WorkspaceDocument> = emptyList(),

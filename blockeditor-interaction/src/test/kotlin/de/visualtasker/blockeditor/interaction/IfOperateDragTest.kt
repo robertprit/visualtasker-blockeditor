@@ -1,8 +1,8 @@
 package de.visualtasker.blockeditor.interaction
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.withRootOffset
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.withRootOffset
 import de.visualtasker.blockeditor.layout.LayoutEngine
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
@@ -56,7 +56,7 @@ class IfOperateDragTest {
             document = document,
             layoutCache = layoutEngine.build(document),
             blockId = ifId,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             viewport = ViewportState(),
             pullMode = DragPullMode.Single,
         )

@@ -1,13 +1,13 @@
 package de.visualtasker.blockeditor.layout
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.BlockNode
-import de.visualtasker.blockeditor.domain.Connection
-import de.visualtasker.blockeditor.domain.ConnectionId
-import de.visualtasker.blockeditor.domain.ConnectionKind
-import de.visualtasker.blockeditor.domain.StatementInput
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.withRootOffset
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.BlockNode
+import de.visualtasker.workflow.core.Connection
+import de.visualtasker.workflow.core.ConnectionId
+import de.visualtasker.workflow.core.ConnectionKind
+import de.visualtasker.workflow.core.StatementInput
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.withRootOffset
 import de.visualtasker.blockeditor.layout.HitKind
 import de.visualtasker.blockeditor.layout.LayoutConstants
 import de.visualtasker.blockeditor.registry.BlockTypes

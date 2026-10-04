@@ -20,7 +20,7 @@ class DragSubtreeTest {
             document = document,
             layoutCache = layoutEngine.build(document),
             blockId = clickId,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
             pullMode = DragPullMode.Single,
         )
@@ -39,7 +39,7 @@ class DragSubtreeTest {
             document = document,
             layoutCache = layoutEngine.build(document),
             blockId = clickBetweenRepeats,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
             pullMode = DragPullMode.Single,
         )
@@ -60,7 +60,7 @@ class DragSubtreeTest {
             document = document,
             layoutCache = layoutEngine.build(document),
             blockId = startId,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
             pullMode = DragPullMode.StackBelow,
         )
@@ -79,7 +79,7 @@ class DragSubtreeTest {
             document = document,
             layoutCache = layoutEngine.build(document),
             blockId = repeatId,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
             pullMode = DragPullMode.StackBelow,
         )
@@ -99,7 +99,7 @@ class DragSubtreeTest {
             document = document,
             layoutCache = layoutEngine.build(document),
             blockId = lowerRepeat,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
             pullMode = DragPullMode.Single,
         )
@@ -116,11 +116,11 @@ class DragSubtreeTest {
         val bounds = de.visualtasker.blockeditor.domain.Rect(100f, 50f, 200f, 44f)
         assertEquals(
             DragPullMode.StackBelow,
-            DragOperations.detectPullMode(bounds, de.visualtasker.blockeditor.domain.Offset2(150f, 70f)),
+            DragOperations.detectPullMode(bounds, de.visualtasker.workflow.core.Offset2(150f, 70f)),
         )
         assertEquals(
             DragPullMode.Single,
-            DragOperations.detectPullMode(bounds, de.visualtasker.blockeditor.domain.Offset2(250f, 70f)),
+            DragOperations.detectPullMode(bounds, de.visualtasker.workflow.core.Offset2(250f, 70f)),
         )
     }
 }

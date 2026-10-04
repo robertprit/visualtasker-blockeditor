@@ -1,4 +1,4 @@
-package de.visualtasker.blockeditor.domain
+package de.visualtasker.workflow.core
 
 sealed interface WorkspaceAction {
     data class InstantiateBlock(val definitionId: String, val x: Float, val y: Float) : WorkspaceAction

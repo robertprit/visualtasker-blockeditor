@@ -44,7 +44,7 @@ import de.visualtasker.blockeditor.compose.model.ReporterVisualMode
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoField
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoSnapshot
 import de.visualtasker.blockeditor.compose.viewmodel.label
-import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.workflow.core.BlockId
 import de.visualtasker.blockeditor.registry.FieldKind
 import de.visualtasker.blockeditor.registry.ParameterSourceKind
 import de.visualtasker.blockeditor.registry.SemanticPropertyCategory

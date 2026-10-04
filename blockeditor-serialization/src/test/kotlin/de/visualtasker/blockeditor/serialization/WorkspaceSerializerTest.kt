@@ -1,19 +1,19 @@
 package de.visualtasker.blockeditor.serialization
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.BlockNode
-import de.visualtasker.blockeditor.domain.FieldValue
-import de.visualtasker.blockeditor.domain.Offset2
-import de.visualtasker.blockeditor.domain.WorkspaceAction
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.WorkspacePoint
-import de.visualtasker.blockeditor.domain.WorkspaceReducer
-import de.visualtasker.blockeditor.domain.VariableDefinition
-import de.visualtasker.blockeditor.domain.VariableRegistry
-import de.visualtasker.blockeditor.domain.VariableScope
-import de.visualtasker.blockeditor.domain.asString
-import de.visualtasker.blockeditor.domain.rootOffset
-import de.visualtasker.blockeditor.domain.withRootOffset
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.BlockNode
+import de.visualtasker.workflow.core.FieldValue
+import de.visualtasker.workflow.core.Offset2
+import de.visualtasker.workflow.core.WorkspaceAction
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspacePoint
+import de.visualtasker.workflow.core.WorkspaceReducer
+import de.visualtasker.workflow.core.VariableDefinition
+import de.visualtasker.workflow.core.VariableRegistry
+import de.visualtasker.workflow.core.VariableScope
+import de.visualtasker.workflow.core.asString
+import de.visualtasker.workflow.core.rootOffset
+import de.visualtasker.workflow.core.withRootOffset
 import de.visualtasker.blockeditor.emscript.EmscriptGenerator
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
@@ -266,7 +266,7 @@ class WorkspaceSerializerTest {
             factory,
         )
 
-        val reversedBlocks = linkedMapOf<BlockId, de.visualtasker.blockeditor.domain.BlockNode>()
+        val reversedBlocks = linkedMapOf<BlockId, de.visualtasker.workflow.core.BlockNode>()
         document.blocks.entries.reversed().forEach { reversedBlocks[it.key] = it.value }
         val reordered = document.copy(blocks = reversedBlocks)
 

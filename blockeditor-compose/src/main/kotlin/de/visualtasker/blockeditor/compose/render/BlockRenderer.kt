@@ -17,9 +17,9 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import de.visualtasker.blockeditor.compose.theme.BlockEditorColors
-import de.visualtasker.blockeditor.domain.BlockNode
-import de.visualtasker.blockeditor.domain.FieldValue
-import de.visualtasker.blockeditor.domain.asString
+import de.visualtasker.workflow.core.BlockNode
+import de.visualtasker.workflow.core.FieldValue
+import de.visualtasker.workflow.core.asString
 import de.visualtasker.blockeditor.compose.icons.drawBlockTypeIcon
 import de.visualtasker.blockeditor.compose.model.ReporterFamily
 import de.visualtasker.blockeditor.compose.model.ReporterVisualMode
@@ -370,7 +370,7 @@ private fun DrawScope.drawDesignerBlockElements(
     val bodyTop = definition.designerHeaderHeight()
     val rowStartX = LayoutConstants.NESTED_INDENT + LayoutConstants.SLOT_PADDING
     data class StatementBranchVisual(
-        val input: de.visualtasker.blockeditor.domain.StatementInput,
+        val input: de.visualtasker.workflow.core.StatementInput,
         val bounds: androidx.compose.ui.geometry.Rect,
     )
 

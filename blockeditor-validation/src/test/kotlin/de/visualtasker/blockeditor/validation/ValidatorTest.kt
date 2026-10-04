@@ -1,9 +1,9 @@
 package de.visualtasker.blockeditor.validation
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.WorkspaceAction
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.WorkspaceReducer
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.WorkspaceAction
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspaceReducer
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.SampleWorkspaceFactory

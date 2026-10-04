@@ -30,7 +30,7 @@ class StaticBlockRegistryTest {
     @Test fun hiddenDefinitionRemainsLoadable() {
         val registry = StaticBlockRegistry(listOf(definition("hidden", visible = false)))
         assertNotNull(registry.getDefinition("hidden"))
-        assertNotNull(registry.getDefinition("hidden")!!.createNode(de.visualtasker.blockeditor.domain.BlockId("block")))
+        assertNotNull(registry.getDefinition("hidden")!!.createNode(de.visualtasker.workflow.core.BlockId("block")))
     }
 
     @Test fun emscriptCategoryIsVisibleBetweenActionAndControl() {

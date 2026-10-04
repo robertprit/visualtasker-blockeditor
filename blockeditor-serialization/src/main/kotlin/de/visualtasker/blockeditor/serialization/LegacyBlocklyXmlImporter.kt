@@ -1,15 +1,15 @@
 package de.visualtasker.blockeditor.serialization
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.BlockNode
-import de.visualtasker.blockeditor.domain.Connection
-import de.visualtasker.blockeditor.domain.ConnectionId
-import de.visualtasker.blockeditor.domain.ConnectionKind
-import de.visualtasker.blockeditor.domain.FieldValue
-import de.visualtasker.blockeditor.domain.StatementInput
-import de.visualtasker.blockeditor.domain.ValueInput
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.WorkspacePoint
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.BlockNode
+import de.visualtasker.workflow.core.Connection
+import de.visualtasker.workflow.core.ConnectionId
+import de.visualtasker.workflow.core.ConnectionKind
+import de.visualtasker.workflow.core.FieldValue
+import de.visualtasker.workflow.core.StatementInput
+import de.visualtasker.workflow.core.ValueInput
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspacePoint
 import java.io.ByteArrayInputStream
 import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory

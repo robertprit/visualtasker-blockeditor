@@ -19,10 +19,10 @@ import de.visualtasker.blockeditor.compose.layers.EditorCanvasLayer
 import de.visualtasker.blockeditor.compose.layers.EditorChromeLayer
 import de.visualtasker.blockeditor.compose.theme.defaultBlockEditorColors
 import de.visualtasker.blockeditor.compose.viewmodel.DragRenderState
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.Offset2
-import de.visualtasker.blockeditor.domain.WorkspaceAction
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.Offset2
+import de.visualtasker.workflow.core.WorkspaceAction
+import de.visualtasker.workflow.core.WorkspaceDocument
 import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.layout.LayoutCache
 import kotlinx.coroutines.coroutineScope

@@ -1,6 +1,6 @@
 package de.visualtasker.blockeditor.serialization
 
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspaceDocument
 
 object BlockEditorDocumentImporter {
     fun import(

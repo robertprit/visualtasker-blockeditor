@@ -1,8 +1,8 @@
 package de.visualtasker.blockeditor.layout
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.ConnectionId
-import de.visualtasker.blockeditor.domain.ConnectionKind
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.ConnectionId
+import de.visualtasker.workflow.core.ConnectionKind
 import de.visualtasker.blockeditor.domain.Rect
 
 enum class HitKind {

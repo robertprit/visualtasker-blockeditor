@@ -22,7 +22,7 @@ class StartDragTest {
             document = document,
             layoutCache = staticLayout,
             blockId = startId,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
         )
 

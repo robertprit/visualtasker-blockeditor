@@ -1,11 +1,11 @@
 package de.visualtasker.blockeditor.interaction
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.Offset2
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.Offset2
 import de.visualtasker.blockeditor.domain.Rect
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.WorkspaceReducer
-import de.visualtasker.blockeditor.domain.withRootOffset
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspaceReducer
+import de.visualtasker.workflow.core.withRootOffset
 import de.visualtasker.blockeditor.layout.LayoutEngine
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
 import de.visualtasker.blockeditor.registry.asFactory
@@ -38,7 +38,7 @@ class DragOperationsTest {
 
         var document = WorkspaceReducer.reduce(
             WorkspaceDocument(id = "drag-test"),
-            de.visualtasker.blockeditor.domain.WorkspaceAction.InstantiateBlock("event.start", 100f, 100f),
+            de.visualtasker.workflow.core.WorkspaceAction.InstantiateBlock("event.start", 100f, 100f),
             factory,
         )
         document = document.copy(blocks = mapOf(blockId to block))

@@ -1,5 +1,7 @@
 package de.visualtasker.blockeditor.domain
 
+import de.visualtasker.workflow.core.*
+
 import de.visualtasker.blockeditor.registry.SampleWorkspaceFactory
 import org.junit.Assert.assertEquals
 import org.junit.Test

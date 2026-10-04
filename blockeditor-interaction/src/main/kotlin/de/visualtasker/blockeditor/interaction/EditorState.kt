@@ -1,8 +1,8 @@
 package de.visualtasker.blockeditor.interaction
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.ConnectionId
-import de.visualtasker.blockeditor.domain.Offset2
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.ConnectionId
+import de.visualtasker.workflow.core.Offset2
 import de.visualtasker.blockeditor.layout.ConnectionAnchor
 
 data class SnapConfig(

@@ -3,9 +3,9 @@ package de.visualtasker.blockeditor.compose.host
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoField
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoSnapshot
 import de.visualtasker.blockeditor.compose.viewmodel.DragRenderState
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.Offset2
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.Offset2
+import de.visualtasker.workflow.core.WorkspaceDocument
 import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.layout.LayoutCache
 import de.visualtasker.blockeditor.registry.BlockDefinition

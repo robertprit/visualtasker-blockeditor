@@ -1,20 +1,20 @@
 package de.visualtasker.blockeditor.compose.host
 
-import de.visualtasker.blockeditor.domain.Offset2
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.BlockNode
-import de.visualtasker.blockeditor.domain.FieldValue
-import de.visualtasker.blockeditor.domain.VariableDefinition
-import de.visualtasker.blockeditor.domain.VariableRegistry
-import de.visualtasker.blockeditor.domain.VariableScope
-import de.visualtasker.blockeditor.domain.WorkspaceAction
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.WorkspaceGraph
-import de.visualtasker.blockeditor.domain.WorkspacePoint
-import de.visualtasker.blockeditor.domain.WorkspaceReducer
-import de.visualtasker.blockeditor.domain.asString
-import de.visualtasker.blockeditor.domain.rootOffset
-import de.visualtasker.blockeditor.domain.withRootOffset
+import de.visualtasker.workflow.core.Offset2
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.BlockNode
+import de.visualtasker.workflow.core.FieldValue
+import de.visualtasker.workflow.core.VariableDefinition
+import de.visualtasker.workflow.core.VariableRegistry
+import de.visualtasker.workflow.core.VariableScope
+import de.visualtasker.workflow.core.WorkspaceAction
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspaceGraph
+import de.visualtasker.workflow.core.WorkspacePoint
+import de.visualtasker.workflow.core.WorkspaceReducer
+import de.visualtasker.workflow.core.asString
+import de.visualtasker.workflow.core.rootOffset
+import de.visualtasker.workflow.core.withRootOffset
 import de.visualtasker.blockeditor.compose.render.contrastTextColor
 import de.visualtasker.blockeditor.compose.model.REPORTER_VISUAL_MODE_METADATA_KEY
 import de.visualtasker.blockeditor.compose.model.ReporterVisualMode
@@ -847,9 +847,9 @@ class BlockEditorControllerTest {
         controller.onPointerMove(Offset2(center.x + 180f, center.y))
         controller.onPointerUp(Offset2(center.x + 180f, center.y))
 
-        assertEquals(null, de.visualtasker.blockeditor.domain.WorkspaceGraph.nextChain(controller.document, first))
-        assertEquals(null, de.visualtasker.blockeditor.domain.WorkspaceGraph.previousChain(controller.document, second))
-        assertEquals(null, de.visualtasker.blockeditor.domain.WorkspaceGraph.nextChain(controller.document, second))
+        assertEquals(null, de.visualtasker.workflow.core.WorkspaceGraph.nextChain(controller.document, first))
+        assertEquals(null, de.visualtasker.workflow.core.WorkspaceGraph.previousChain(controller.document, second))
+        assertEquals(null, de.visualtasker.workflow.core.WorkspaceGraph.nextChain(controller.document, second))
         assertTrue(second in controller.document.rootBlocks)
 
         controller.close()
@@ -1266,7 +1266,7 @@ class BlockEditorControllerTest {
         controller.onAction(WorkspaceAction.Connect(controller.document.blocks[startId]!!.next!!.id, controller.document.blocks[ifId]!!.previous!!.id))
         controller.onAction(WorkspaceAction.Connect(controller.document.blocks[ifId]!!.statementInputs.single { it.name == BlockTypes.SLOT_THEN }.connection.id, controller.document.blocks[childId]!!.previous!!.id))
         val ifBoundsBefore = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == ifId }.bounds
-        val childSlotBefore = de.visualtasker.blockeditor.domain.WorkspaceGraph.slotContaining(controller.document, childId)
+        val childSlotBefore = de.visualtasker.workflow.core.WorkspaceGraph.slotContaining(controller.document, childId)
         val startBounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == startId }.bounds
         val workspaceRightHandle = Offset2(startBounds.x + startBounds.width * 0.88f, startBounds.y + startBounds.height * 0.5f)
         val rightHandle = Offset2(
@@ -1285,7 +1285,7 @@ class BlockEditorControllerTest {
         assertTrue(ifId in controller.document.rootBlocks)
         assertEquals(ifBoundsBefore.x, controller.document.rootOffset(ifId)!!.x, 0.01f)
         assertEquals(ifBoundsBefore.y, controller.document.rootOffset(ifId)!!.y, 0.01f)
-        assertEquals(childSlotBefore, de.visualtasker.blockeditor.domain.WorkspaceGraph.slotContaining(controller.document, childId))
+        assertEquals(childSlotBefore, de.visualtasker.workflow.core.WorkspaceGraph.slotContaining(controller.document, childId))
 
         controller.close()
     }
@@ -1317,8 +1317,8 @@ class BlockEditorControllerTest {
         controller.onPointerMove(Offset2(screenCenter.x + 180f, screenCenter.y + 20f))
         controller.onPointerUp(Offset2(screenCenter.x + 180f, screenCenter.y + 20f))
 
-        assertEquals(ifId to BlockTypes.SLOT_THEN, de.visualtasker.blockeditor.domain.WorkspaceGraph.slotContaining(controller.document, thenChild))
-        assertEquals(ifId to BlockTypes.SLOT_ELSE, de.visualtasker.blockeditor.domain.WorkspaceGraph.slotContaining(controller.document, elseChild))
+        assertEquals(ifId to BlockTypes.SLOT_THEN, de.visualtasker.workflow.core.WorkspaceGraph.slotContaining(controller.document, thenChild))
+        assertEquals(ifId to BlockTypes.SLOT_ELSE, de.visualtasker.workflow.core.WorkspaceGraph.slotContaining(controller.document, elseChild))
         assertFalse(thenChild in controller.document.rootBlocks)
         assertFalse(elseChild in controller.document.rootBlocks)
 
@@ -1410,8 +1410,8 @@ class BlockEditorControllerTest {
         controller.onPointerMove(Offset2(screenCenter.x + 180f, screenCenter.y + 20f))
         controller.onPointerUp(Offset2(screenCenter.x + 180f, screenCenter.y + 20f))
 
-        assertEquals(ifId to BlockTypes.SLOT_THEN, de.visualtasker.blockeditor.domain.WorkspaceGraph.slotContaining(controller.document, thenChild))
-        assertEquals(ifId to BlockTypes.SLOT_ELSE, de.visualtasker.blockeditor.domain.WorkspaceGraph.slotContaining(controller.document, elseChild))
+        assertEquals(ifId to BlockTypes.SLOT_THEN, de.visualtasker.workflow.core.WorkspaceGraph.slotContaining(controller.document, thenChild))
+        assertEquals(ifId to BlockTypes.SLOT_ELSE, de.visualtasker.workflow.core.WorkspaceGraph.slotContaining(controller.document, elseChild))
         assertFalse(thenChild in controller.document.rootBlocks)
         assertFalse(elseChild in controller.document.rootBlocks)
 
@@ -2215,7 +2215,7 @@ class BlockEditorControllerTest {
     }
 }
 
-private fun BlockEditorController.selectBlockCenter(blockId: de.visualtasker.blockeditor.domain.BlockId) {
+private fun BlockEditorController.selectBlockCenter(blockId: de.visualtasker.workflow.core.BlockId) {
     val bounds = layoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.bounds
     onTap(Offset2(bounds.x + bounds.width * 0.5f, bounds.y + 12f))
 }

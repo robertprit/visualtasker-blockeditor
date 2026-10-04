@@ -1,6 +1,6 @@
 package de.visualtasker.blockeditor.registry
 
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspaceDocument
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull

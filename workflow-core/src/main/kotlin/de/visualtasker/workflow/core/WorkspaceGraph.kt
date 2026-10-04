@@ -1,4 +1,4 @@
-package de.visualtasker.blockeditor.domain
+package de.visualtasker.workflow.core
 
 object WorkspaceGraph {
     fun connectionOwner(document: WorkspaceDocument, connectionId: ConnectionId): BlockId? =

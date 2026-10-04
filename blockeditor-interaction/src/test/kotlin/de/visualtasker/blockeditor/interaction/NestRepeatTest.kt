@@ -1,6 +1,6 @@
 package de.visualtasker.blockeditor.interaction
 
-import de.visualtasker.blockeditor.domain.WorkspaceGraph
+import de.visualtasker.workflow.core.WorkspaceGraph
 import de.visualtasker.blockeditor.layout.LayoutEngine
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
@@ -21,9 +21,9 @@ class NestRepeatTest {
         val chain = SampleWorkspaceFactory.mainChain(document)
         val outerRepeat = chain[2]
 
-        document = de.visualtasker.blockeditor.domain.WorkspaceReducer.reduce(
+        document = de.visualtasker.workflow.core.WorkspaceReducer.reduce(
             document,
-            de.visualtasker.blockeditor.domain.WorkspaceAction.InstantiateBlock(
+            de.visualtasker.workflow.core.WorkspaceAction.InstantiateBlock(
                 BlockTypes.CONTROL_REPEAT,
                 200f,
                 200f,
@@ -33,9 +33,9 @@ class NestRepeatTest {
         val innerRepeat = document.rootBlocks.last { it !in chain }
         val outer = document.blocks[outerRepeat]!!
 
-        document = de.visualtasker.blockeditor.domain.WorkspaceReducer.reduce(
+        document = de.visualtasker.workflow.core.WorkspaceReducer.reduce(
             document,
-            de.visualtasker.blockeditor.domain.WorkspaceAction.Connect(
+            de.visualtasker.workflow.core.WorkspaceAction.Connect(
                 outer.statementInputs.first().connection.id,
                 document.blocks[innerRepeat]!!.previous!!.id,
             ),
@@ -54,9 +54,9 @@ class NestRepeatTest {
         val chain = SampleWorkspaceFactory.mainChain(document)
         val outerRepeat = chain[2]
 
-        document = de.visualtasker.blockeditor.domain.WorkspaceReducer.reduce(
+        document = de.visualtasker.workflow.core.WorkspaceReducer.reduce(
             document,
-            de.visualtasker.blockeditor.domain.WorkspaceAction.InstantiateBlock(
+            de.visualtasker.workflow.core.WorkspaceAction.InstantiateBlock(
                 BlockTypes.CONTROL_REPEAT,
                 200f,
                 200f,
@@ -71,7 +71,7 @@ class NestRepeatTest {
         val stmtAnchor = layout.flatIndex.connectionAnchors.first { it.connectionId == outerStmt }
         val prevAnchor = layout.flatIndex.connectionAnchors.first { it.connectionId == innerPrev }
 
-        val dragOffset = de.visualtasker.blockeditor.domain.Offset2(
+        val dragOffset = de.visualtasker.workflow.core.Offset2(
             x = stmtAnchor.x - prevAnchor.x,
             y = stmtAnchor.y - prevAnchor.y + 6f,
         )
@@ -79,7 +79,7 @@ class NestRepeatTest {
             document = document,
             layoutCache = layout,
             blockId = innerRepeat,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
         )
         val candidate = snapEngine.findSnapCandidate(
@@ -109,7 +109,7 @@ class NestRepeatTest {
         val stmtAnchor = layout.flatIndex.connectionAnchors.first { it.connectionId == outerStmt }
         val prevAnchor = layout.flatIndex.connectionAnchors.first { it.connectionId == innerPrev }
 
-        val dragOffset = de.visualtasker.blockeditor.domain.Offset2(
+        val dragOffset = de.visualtasker.workflow.core.Offset2(
             x = stmtAnchor.x - prevAnchor.x,
             y = stmtAnchor.y - prevAnchor.y + 6f,
         )
@@ -117,7 +117,7 @@ class NestRepeatTest {
             document = document,
             layoutCache = layout,
             blockId = innerRepeat,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
             pullMode = DragPullMode.Single,
         )
@@ -156,7 +156,7 @@ class NestRepeatTest {
         val innerPrev = document.blocks[lowerRepeat]!!.previous!!.id
         val stmtAnchor = layout.flatIndex.connectionAnchors.first { it.connectionId == outerStmt }
         val prevAnchor = layout.flatIndex.connectionAnchors.first { it.connectionId == innerPrev }
-        val dragOffset = de.visualtasker.blockeditor.domain.Offset2(
+        val dragOffset = de.visualtasker.workflow.core.Offset2(
             x = stmtAnchor.x - prevAnchor.x,
             y = stmtAnchor.y - prevAnchor.y + 6f,
         )
@@ -165,7 +165,7 @@ class NestRepeatTest {
             document = document,
             layoutCache = layout,
             blockId = lowerRepeat,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
             pullMode = DragPullMode.Single,
         )
@@ -206,7 +206,7 @@ class NestRepeatTest {
         val stmtAnchor = layout.flatIndex.connectionAnchors.first { it.connectionId == outerStmt }
         val prevAnchor = layout.flatIndex.connectionAnchors.first { it.connectionId == innerPrev }
 
-        val dragOffset = de.visualtasker.blockeditor.domain.Offset2(
+        val dragOffset = de.visualtasker.workflow.core.Offset2(
             x = stmtAnchor.x - prevAnchor.x,
             y = stmtAnchor.y - prevAnchor.y + 6f,
         )
@@ -214,7 +214,7 @@ class NestRepeatTest {
             document = document,
             layoutCache = layout,
             blockId = innerRepeat,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
         )
         val candidate = snapEngine.findSnapCandidate(

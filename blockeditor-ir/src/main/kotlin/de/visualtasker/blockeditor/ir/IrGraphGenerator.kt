@@ -1,16 +1,16 @@
 package de.visualtasker.blockeditor.ir
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.BlockNode
-import de.visualtasker.blockeditor.domain.ConnectionKind
-import de.visualtasker.blockeditor.domain.FieldValue
-import de.visualtasker.blockeditor.domain.NormalizedOperator
-import de.visualtasker.blockeditor.domain.OperatorNormalization
-import de.visualtasker.blockeditor.domain.canonicalSymbol
-import de.visualtasker.blockeditor.domain.operatorId
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.WorkspaceGraph
-import de.visualtasker.blockeditor.domain.asString
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.BlockNode
+import de.visualtasker.workflow.core.ConnectionKind
+import de.visualtasker.workflow.core.FieldValue
+import de.visualtasker.workflow.core.NormalizedOperator
+import de.visualtasker.workflow.core.OperatorNormalization
+import de.visualtasker.workflow.core.canonicalSymbol
+import de.visualtasker.workflow.core.operatorId
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspaceGraph
+import de.visualtasker.workflow.core.asString
 import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.CommandCatalogEntry

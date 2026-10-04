@@ -8,6 +8,7 @@ kotlin {
 }
 
 dependencies {
+    api(project(":workflow-core"))
     api(project(":emscript-language-core"))
     testImplementation(libs.junit)
     testImplementation(kotlin("reflect"))

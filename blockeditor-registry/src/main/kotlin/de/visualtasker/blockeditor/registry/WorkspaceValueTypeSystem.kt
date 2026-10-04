@@ -1,10 +1,10 @@
 package de.visualtasker.blockeditor.registry
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.BlockNode
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.WorkspaceGraph
-import de.visualtasker.blockeditor.domain.asString
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.BlockNode
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspaceGraph
+import de.visualtasker.workflow.core.asString
 import de.visualtasker.emscript.contract.CoreTypes
 import de.visualtasker.emscript.contract.LanguageTypeCompatibility
 import de.visualtasker.emscript.contract.LanguageTypeRef

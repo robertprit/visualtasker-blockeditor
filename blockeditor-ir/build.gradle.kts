@@ -7,7 +7,7 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":blockeditor-domain"))
+    implementation(project(":workflow-core"))
     implementation(project(":blockeditor-registry"))
     implementation(project(":blockeditor-validation"))
     testImplementation(libs.junit)

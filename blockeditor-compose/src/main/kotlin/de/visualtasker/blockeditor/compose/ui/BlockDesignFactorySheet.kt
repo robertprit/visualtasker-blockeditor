@@ -64,7 +64,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import de.visualtasker.blockeditor.compose.render.drawBlock
 import de.visualtasker.blockeditor.compose.theme.darkBlockEditorColors
-import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.workflow.core.BlockId
 import de.visualtasker.blockeditor.registry.BlockCategories
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockDesignBlueprint

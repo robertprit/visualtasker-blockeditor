@@ -1,10 +1,10 @@
 package de.visualtasker.blockeditor.interaction
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.Connection
-import de.visualtasker.blockeditor.domain.ConnectionKind
-import de.visualtasker.blockeditor.domain.Offset2
-import de.visualtasker.blockeditor.domain.WorkspaceGraph
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.Connection
+import de.visualtasker.workflow.core.ConnectionKind
+import de.visualtasker.workflow.core.Offset2
+import de.visualtasker.workflow.core.WorkspaceGraph
 import de.visualtasker.blockeditor.layout.ConnectionAnchor
 import de.visualtasker.blockeditor.layout.FlatLayoutIndex
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
@@ -18,7 +18,7 @@ class SnapEngine(
     fun findSnapCandidate(
         layout: FlatLayoutIndex,
         dragSession: DragSession,
-        document: de.visualtasker.blockeditor.domain.WorkspaceDocument,
+        document: de.visualtasker.workflow.core.WorkspaceDocument,
         currentCandidate: SnapCandidate? = null,
     ): SnapCandidate? {
         val excluded = dragSession.includedBlocks
@@ -100,7 +100,7 @@ class SnapEngine(
     private fun snapPriority(
         source: ConnectionAnchor,
         target: ConnectionAnchor,
-        document: de.visualtasker.blockeditor.domain.WorkspaceDocument,
+        document: de.visualtasker.workflow.core.WorkspaceDocument,
         dragSession: DragSession,
     ): Int {
         val dragged = document.blocks[dragSession.rootBlockId]
@@ -122,7 +122,7 @@ class SnapEngine(
     private fun filterSnapSources(
         layout: FlatLayoutIndex,
         dragSession: DragSession,
-        document: de.visualtasker.blockeditor.domain.WorkspaceDocument,
+        document: de.visualtasker.workflow.core.WorkspaceDocument,
         movedAnchors: List<ConnectionAnchor>,
     ): List<ConnectionAnchor> {
         val block = document.blocks[dragSession.rootBlockId] ?: return movedAnchors
@@ -140,7 +140,7 @@ class SnapEngine(
     private fun shouldSkipParentSlotTarget(
         layout: FlatLayoutIndex,
         dragSession: DragSession,
-        document: de.visualtasker.blockeditor.domain.WorkspaceDocument,
+        document: de.visualtasker.workflow.core.WorkspaceDocument,
         target: ConnectionAnchor,
     ): Boolean {
         if (target.kind != ConnectionKind.StatementInput) return false
@@ -156,7 +156,7 @@ class SnapEngine(
 
     /** Verhindert, dass Slot-Kinder an wait.next oberhalb des Containers andocken. */
     private fun shouldSkipInsertAboveParentContainer(
-        document: de.visualtasker.blockeditor.domain.WorkspaceDocument,
+        document: de.visualtasker.workflow.core.WorkspaceDocument,
         dragSession: DragSession,
         target: ConnectionAnchor,
     ): Boolean {
@@ -173,7 +173,7 @@ class SnapEngine(
      * bleiben ohne expliziten Disconnect/Replace geschlossen.
      */
     private fun shouldSkipOccupiedTarget(
-        document: de.visualtasker.blockeditor.domain.WorkspaceDocument,
+        document: de.visualtasker.workflow.core.WorkspaceDocument,
         dragSession: DragSession,
         target: ConnectionAnchor,
     ): Boolean {
@@ -195,7 +195,7 @@ class SnapEngine(
     }
 
     private fun occupiedPartnerBlockId(
-        document: de.visualtasker.blockeditor.domain.WorkspaceDocument,
+        document: de.visualtasker.workflow.core.WorkspaceDocument,
         target: ConnectionAnchor,
     ): BlockId? {
         val partnerConnId = when (target.kind) {
@@ -214,7 +214,7 @@ class SnapEngine(
     }
 
     private fun areAlreadyConnected(
-        document: de.visualtasker.blockeditor.domain.WorkspaceDocument,
+        document: de.visualtasker.workflow.core.WorkspaceDocument,
         source: ConnectionAnchor,
         target: ConnectionAnchor,
     ): Boolean {
@@ -260,7 +260,7 @@ class SnapEngine(
         }
 
     private fun valueTypesCompatible(
-        document: de.visualtasker.blockeditor.domain.WorkspaceDocument,
+        document: de.visualtasker.workflow.core.WorkspaceDocument,
         source: ConnectionAnchor,
         target: ConnectionAnchor,
     ): Boolean {
@@ -284,7 +284,7 @@ class SnapEngine(
     }
 
     private fun connectionTypesCompatible(
-        document: de.visualtasker.blockeditor.domain.WorkspaceDocument,
+        document: de.visualtasker.workflow.core.WorkspaceDocument,
         output: Connection,
         input: Connection,
     ): Boolean {

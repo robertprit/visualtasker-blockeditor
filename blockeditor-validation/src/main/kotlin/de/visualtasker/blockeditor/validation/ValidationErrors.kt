@@ -1,7 +1,7 @@
 package de.visualtasker.blockeditor.validation
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.ConnectionId
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.ConnectionId
 
 sealed interface ValidationError {
     val code: String

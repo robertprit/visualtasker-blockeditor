@@ -1,7 +1,7 @@
 package de.visualtasker.blockeditor.registry
 
-import de.visualtasker.blockeditor.domain.VariableDefinition
-import de.visualtasker.blockeditor.domain.VariableScope
+import de.visualtasker.workflow.core.VariableDefinition
+import de.visualtasker.workflow.core.VariableScope
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

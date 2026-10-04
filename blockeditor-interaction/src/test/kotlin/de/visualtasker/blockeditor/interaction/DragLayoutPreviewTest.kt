@@ -1,6 +1,6 @@
 package de.visualtasker.blockeditor.interaction
 
-import de.visualtasker.blockeditor.domain.WorkspaceGraph
+import de.visualtasker.workflow.core.WorkspaceGraph
 import de.visualtasker.blockeditor.layout.LayoutEngine
 import de.visualtasker.blockeditor.registry.SampleWorkspaceFactory
 import org.junit.Assert.assertEquals

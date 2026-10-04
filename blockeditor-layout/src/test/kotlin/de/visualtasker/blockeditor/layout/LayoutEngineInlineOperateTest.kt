@@ -1,9 +1,9 @@
 package de.visualtasker.blockeditor.layout
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.ConnectionKind
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.withRootOffset
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.ConnectionKind
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.withRootOffset
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.BlockTypes

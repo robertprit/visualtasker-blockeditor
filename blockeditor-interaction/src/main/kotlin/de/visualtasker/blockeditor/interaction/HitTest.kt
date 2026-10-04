@@ -1,6 +1,6 @@
 package de.visualtasker.blockeditor.interaction
 
-import de.visualtasker.blockeditor.domain.Offset2
+import de.visualtasker.workflow.core.Offset2
 import de.visualtasker.blockeditor.domain.Rect
 import de.visualtasker.blockeditor.layout.FlatLayoutIndex
 import de.visualtasker.blockeditor.layout.HitKind
@@ -13,7 +13,7 @@ object HitTest {
     fun hitTest(
         layout: FlatLayoutIndex,
         workspacePoint: Offset2,
-        excludedBlocks: Set<de.visualtasker.blockeditor.domain.BlockId> = emptySet(),
+        excludedBlocks: Set<de.visualtasker.workflow.core.BlockId> = emptySet(),
     ): HitResult {
         val radius = 2f
         val queryBounds = Rect(

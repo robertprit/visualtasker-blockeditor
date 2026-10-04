@@ -1,7 +1,7 @@
 package de.visualtasker.blockeditor.emscript
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.WorkspaceDocument
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
 import de.visualtasker.blockeditor.registry.SampleWorkspaceFactory
@@ -41,7 +41,7 @@ class EmscriptGeneratorTest {
         val elifBlock = DefaultBlockRegistry.getDefinition(BlockTypes.ACTION_CLICK_TEXT)!!.createNode(elifId)
         val elseBlock = DefaultBlockRegistry.getDefinition(BlockTypes.ACTION_CLICK_TEXT)!!.createNode(elseId)
 
-        fun connectSlot(slotName: String, head: de.visualtasker.blockeditor.domain.BlockNode): de.visualtasker.blockeditor.domain.BlockNode {
+        fun connectSlot(slotName: String, head: de.visualtasker.workflow.core.BlockNode): de.visualtasker.workflow.core.BlockNode {
             val slot = ifBlock.statementInputs.first { it.name == slotName }
             val stmtConn = slot.connection
             val connected = head.copy(previous = head.previous!!.copy(connectedTo = stmtConn.id))

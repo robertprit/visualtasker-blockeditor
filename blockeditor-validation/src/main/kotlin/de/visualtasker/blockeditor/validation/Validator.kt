@@ -1,10 +1,10 @@
 package de.visualtasker.blockeditor.validation
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.ConnectionKind
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.WorkspaceGraph
-import de.visualtasker.blockeditor.domain.allConnections
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.ConnectionKind
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspaceGraph
+import de.visualtasker.workflow.core.allConnections
 import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
 import de.visualtasker.blockeditor.registry.BlockTypes

@@ -1,4 +1,4 @@
-package de.visualtasker.blockeditor.domain
+package de.visualtasker.workflow.core
 
 import de.visualtasker.emscript.contract.EmscriptV1OperatorIds
 import de.visualtasker.emscript.contract.EmscriptV1Operators

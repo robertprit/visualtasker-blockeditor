@@ -1,10 +1,10 @@
 package de.visualtasker.blockeditor.compose.viewmodel
 
-import de.visualtasker.blockeditor.domain.BlockNode
-import de.visualtasker.blockeditor.domain.FieldValue
-import de.visualtasker.blockeditor.domain.asString
+import de.visualtasker.workflow.core.BlockNode
+import de.visualtasker.workflow.core.FieldValue
+import de.visualtasker.workflow.core.asString
 import de.visualtasker.blockeditor.compose.model.reporterVisualModeFor
-import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.workflow.core.BlockId
 import de.visualtasker.blockeditor.registry.BlockNodePresentationContract
 import de.visualtasker.blockeditor.registry.FieldDefinition
 import de.visualtasker.blockeditor.registry.FieldKind

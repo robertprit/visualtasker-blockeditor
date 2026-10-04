@@ -1,4 +1,4 @@
-package de.visualtasker.blockeditor.domain
+package de.visualtasker.workflow.core
 
 import de.visualtasker.emscript.contract.LanguageTypeCompatibility
 import de.visualtasker.emscript.contract.CoreTypes

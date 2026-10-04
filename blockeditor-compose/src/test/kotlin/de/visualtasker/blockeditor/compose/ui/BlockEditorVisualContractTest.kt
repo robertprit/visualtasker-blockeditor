@@ -5,11 +5,11 @@ import androidx.compose.ui.unit.dp
 import de.visualtasker.blockeditor.compose.theme.blockEditorColors
 import de.visualtasker.blockeditor.compose.theme.darkBlockEditorColors
 import de.visualtasker.blockeditor.compose.theme.lightBlockEditorColors
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.Offset2
-import de.visualtasker.blockeditor.domain.WorkspaceAction
-import de.visualtasker.blockeditor.domain.withRootOffset
-import de.visualtasker.blockeditor.domain.rootOffset
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.Offset2
+import de.visualtasker.workflow.core.WorkspaceAction
+import de.visualtasker.workflow.core.withRootOffset
+import de.visualtasker.workflow.core.rootOffset
 import de.visualtasker.blockeditor.compose.host.BlockEditorController
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.BlockCategories
@@ -121,7 +121,7 @@ class BlockEditorVisualContractTest {
 
     @Test
     fun `unsupported legacy block remains visible in layout projection`() {
-        val unknown = de.visualtasker.blockeditor.domain.BlockNode(
+        val unknown = de.visualtasker.workflow.core.BlockNode(
             id = BlockId("legacy"),
             type = "legacy.unsupported",
         )

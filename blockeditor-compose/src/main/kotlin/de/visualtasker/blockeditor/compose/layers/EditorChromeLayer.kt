@@ -27,7 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import de.visualtasker.blockeditor.compose.icons.BlockIcons
 import de.visualtasker.blockeditor.compose.theme.blockEditorColors
-import de.visualtasker.blockeditor.domain.WorkspaceAction
+import de.visualtasker.workflow.core.WorkspaceAction
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry

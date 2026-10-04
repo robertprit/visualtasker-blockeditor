@@ -9,7 +9,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalViewConfiguration
-import de.visualtasker.blockeditor.domain.Offset2
+import de.visualtasker.workflow.core.Offset2
 import kotlin.math.hypot
 
 @Composable

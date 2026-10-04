@@ -1,10 +1,10 @@
 package de.visualtasker.blockeditor.serialization
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.ConnectionKind
-import de.visualtasker.blockeditor.domain.FieldValue
-import de.visualtasker.blockeditor.domain.WorkspacePoint
-import de.visualtasker.blockeditor.domain.asString
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.ConnectionKind
+import de.visualtasker.workflow.core.FieldValue
+import de.visualtasker.workflow.core.WorkspacePoint
+import de.visualtasker.workflow.core.asString
 import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals

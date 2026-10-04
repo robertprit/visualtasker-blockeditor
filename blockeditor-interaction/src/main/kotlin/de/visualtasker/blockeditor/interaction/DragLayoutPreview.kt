@@ -1,9 +1,9 @@
 package de.visualtasker.blockeditor.interaction
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.WorkspaceGraph
-import de.visualtasker.blockeditor.domain.WorkspaceReducer
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspaceGraph
+import de.visualtasker.workflow.core.WorkspaceReducer
 
 /**
  * Layout-Vorschau während Drag.

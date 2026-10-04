@@ -1,6 +1,6 @@
 package de.visualtasker.blockeditor.compose.layers
 
-import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.workflow.core.BlockId
 import de.visualtasker.blockeditor.domain.Rect
 import de.visualtasker.blockeditor.layout.BlockLayout
 import de.visualtasker.blockeditor.layout.InlineReporterLayout

@@ -1,12 +1,12 @@
 package de.visualtasker.blockeditor.layout
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.BlockNode
-import de.visualtasker.blockeditor.domain.ConnectionKind
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.BlockNode
+import de.visualtasker.workflow.core.ConnectionKind
 import de.visualtasker.blockeditor.domain.Rect
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.WorkspaceGraph
-import de.visualtasker.blockeditor.domain.rootOffset
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspaceGraph
+import de.visualtasker.workflow.core.rootOffset
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.BlockTypes
@@ -155,7 +155,7 @@ class LayoutEngine(
 
         WorkspaceGraph.topLevelRoots(document).forEach { rootId ->
             if (document.blocks[rootId] == null) return@forEach
-            val offset = document.rootOffset(rootId) ?: de.visualtasker.blockeditor.domain.Offset2(0f, 0f)
+            val offset = document.rootOffset(rootId) ?: de.visualtasker.workflow.core.Offset2(0f, 0f)
             var currentId = rootId
             var currentY = offset.y
             while (true) {

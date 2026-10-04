@@ -1,7 +1,7 @@
 package de.visualtasker.blockeditor.interaction
 
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.withRootOffset
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.withRootOffset
 import de.visualtasker.blockeditor.layout.LayoutCache
 import kotlin.math.max
 

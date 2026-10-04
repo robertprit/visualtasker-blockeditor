@@ -1,10 +1,10 @@
 package de.visualtasker.blockeditor.interaction
 
-import de.visualtasker.blockeditor.domain.WorkspaceAction
-import de.visualtasker.blockeditor.domain.WorkspaceGraph
-import de.visualtasker.blockeditor.domain.WorkspaceReducer
-import de.visualtasker.blockeditor.domain.rootOffset
-import de.visualtasker.blockeditor.domain.withRootOffset
+import de.visualtasker.workflow.core.WorkspaceAction
+import de.visualtasker.workflow.core.WorkspaceGraph
+import de.visualtasker.workflow.core.WorkspaceReducer
+import de.visualtasker.workflow.core.rootOffset
+import de.visualtasker.workflow.core.withRootOffset
 import de.visualtasker.blockeditor.layout.LayoutEngine
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
@@ -31,11 +31,11 @@ class EndDragTest {
             document,
             layoutCache,
             clickId,
-            de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
         )
         val session = begin.dragSession!!
-        val moved = session.copy(dragOffset = de.visualtasker.blockeditor.domain.Offset2(10f, 5f))
+        val moved = session.copy(dragOffset = de.visualtasker.workflow.core.Offset2(10f, 5f))
         val transient = begin.copy(dragSession = moved)
 
         val (result, _) = DragOperations.endDrag(transient, document)
@@ -62,7 +62,7 @@ class EndDragTest {
             document = document,
             layoutCache = staticLayout,
             blockId = repeatId,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
             pullMode = DragPullMode.Single,
         )
@@ -70,7 +70,7 @@ class EndDragTest {
         val startNext = document.blocks[startId]!!.next!!.id
         val repeatAnchor = staticLayout.flatIndex.connectionAnchors.first { it.connectionId == repeatPrevious }
         val startAnchor = staticLayout.flatIndex.connectionAnchors.first { it.connectionId == startNext }
-        val dragOffset = de.visualtasker.blockeditor.domain.Offset2(
+        val dragOffset = de.visualtasker.workflow.core.Offset2(
             x = startAnchor.x - repeatAnchor.x,
             y = startAnchor.y - repeatAnchor.y + 8f,
         )
@@ -110,7 +110,7 @@ class EndDragTest {
             document = document,
             layoutCache = layout,
             blockId = clickId,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
             pullMode = DragPullMode.Single,
         )
@@ -118,7 +118,7 @@ class EndDragTest {
         val clickPrevious = document.blocks[clickId]!!.previous!!.id
         val startAnchor = layout.flatIndex.connectionAnchors.first { it.connectionId == startNext }
         val clickAnchor = layout.flatIndex.connectionAnchors.first { it.connectionId == clickPrevious }
-        val dragOffset = de.visualtasker.blockeditor.domain.Offset2(
+        val dragOffset = de.visualtasker.workflow.core.Offset2(
             x = startAnchor.x - clickAnchor.x,
             y = startAnchor.y - clickAnchor.y + 8f,
         )
@@ -154,12 +154,12 @@ class EndDragTest {
             document = document,
             layoutCache = layoutCache,
             blockId = click2,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
             pullMode = DragPullMode.Single,
         )
         val detachedSession = detachBegin.dragSession!!.copy(
-            dragOffset = de.visualtasker.blockeditor.domain.Offset2(120f, 180f),
+            dragOffset = de.visualtasker.workflow.core.Offset2(120f, 180f),
         )
         val (detachedDoc, _) = DragOperations.endDrag(
             detachBegin.copy(dragSession = detachedSession),
@@ -187,7 +187,7 @@ class EndDragTest {
             .first { it.connectionId == click1Next }
         val targetAnchor = staticLayout.flatIndex.connectionAnchors
             .first { it.connectionId == click2Prev }
-        val dragOffset = de.visualtasker.blockeditor.domain.Offset2(
+        val dragOffset = de.visualtasker.workflow.core.Offset2(
             x = targetAnchor.x - sourceAnchor.x,
             y = targetAnchor.y - sourceAnchor.y + 8f,
         )
@@ -196,14 +196,14 @@ class EndDragTest {
             document = detachedDoc,
             layoutCache = preLayout,
             blockId = click1,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
             pullMode = DragPullMode.Single,
         )
         val rootLayout = staticLayout.flatIndex.visibleBlocks.first { it.blockId == click1 }
         val connectSession = connectBegin.dragSession!!.copy(
             originalAnchors = staticLayout.flatIndex.connectionAnchors.filter { it.ownerBlockId == click1 },
-            originalLayoutPosition = de.visualtasker.blockeditor.domain.Offset2(
+            originalLayoutPosition = de.visualtasker.workflow.core.Offset2(
                 rootLayout.bounds.x,
                 rootLayout.bounds.y,
             ),
@@ -232,7 +232,7 @@ class EndDragTest {
         assertTrue(click1Y > startY + 40f)
     }
 
-    private fun workspaceWithTwoClicksAtStart(): de.visualtasker.blockeditor.domain.WorkspaceDocument {
+    private fun workspaceWithTwoClicksAtStart(): de.visualtasker.workflow.core.WorkspaceDocument {
         val factory = DefaultBlockRegistry.asFactory()
         var document = SampleWorkspaceFactory.create()
         val startId = document.rootBlocks.first()

@@ -1,5 +1,9 @@
 package de.visualtasker.blockeditor.domain
 
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspaceAction
+import de.visualtasker.workflow.core.WorkspaceReducer
+
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
 import de.visualtasker.blockeditor.registry.asFactory

@@ -1,7 +1,7 @@
 package de.visualtasker.blockeditor.ir
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.WorkspaceDocument
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockRegistry
@@ -106,13 +106,13 @@ class IrGeneratorTest {
         val ifDef = DefaultBlockRegistry.getDefinition(BlockTypes.CONTROL_IF_ELSEIF_ELSE)!!
         var ifBlock = ifDef.createNode(ifId)
         val thenBlock = DefaultBlockRegistry.getDefinition(BlockTypes.ACTION_CLICK_TEXT)!!.createNode(thenId)
-            .copy(fields = mapOf("text" to de.visualtasker.blockeditor.domain.FieldValue.Text("then")))
+            .copy(fields = mapOf("text" to de.visualtasker.workflow.core.FieldValue.Text("then")))
         val elifBlock = DefaultBlockRegistry.getDefinition(BlockTypes.ACTION_CLICK_TEXT)!!.createNode(elifId)
-            .copy(fields = mapOf("text" to de.visualtasker.blockeditor.domain.FieldValue.Text("elif")))
+            .copy(fields = mapOf("text" to de.visualtasker.workflow.core.FieldValue.Text("elif")))
         val elseBlock = DefaultBlockRegistry.getDefinition(BlockTypes.ACTION_CLICK_TEXT)!!.createNode(elseId)
-            .copy(fields = mapOf("text" to de.visualtasker.blockeditor.domain.FieldValue.Text("else")))
+            .copy(fields = mapOf("text" to de.visualtasker.workflow.core.FieldValue.Text("else")))
 
-        fun connectSlot(slotName: String, head: de.visualtasker.blockeditor.domain.BlockNode): de.visualtasker.blockeditor.domain.BlockNode {
+        fun connectSlot(slotName: String, head: de.visualtasker.workflow.core.BlockNode): de.visualtasker.workflow.core.BlockNode {
             val slot = ifBlock.statementInputs.first { it.name == slotName }
             val stmtConn = slot.connection
             val connected = head.copy(previous = head.previous!!.copy(connectedTo = stmtConn.id))
@@ -171,7 +171,7 @@ class IrGeneratorTest {
         val start = DefaultBlockRegistry.getDefinition(BlockTypes.EVENT_START)!!.createNode(startId)
         val ifBlock = DefaultBlockRegistry.getDefinition(BlockTypes.CONTROL_IF)!!.createNode(ifId)
         val boolBlock = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_BOOLEAN)!!.createNode(boolId)
-            .copy(fields = mapOf("value" to de.visualtasker.blockeditor.domain.FieldValue.Bool(false)))
+            .copy(fields = mapOf("value" to de.visualtasker.workflow.core.FieldValue.Bool(false)))
 
         val conditionInput = ifBlock.valueInputs.first { it.name == "CONDITION" }
         val connectedBool = boolBlock
@@ -219,13 +219,13 @@ class IrGeneratorTest {
         val start = DefaultBlockRegistry.getDefinition(BlockTypes.EVENT_START)!!.createNode(startId)
         val ifBlock = DefaultBlockRegistry.getDefinition(BlockTypes.CONTROL_IF)!!.createNode(ifId)
         var operateBlock = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_OPERATE)!!.createNode(operateId)
-            .copy(fields = mapOf("operator" to de.visualtasker.blockeditor.domain.FieldValue.Text("lt")))
+            .copy(fields = mapOf("operator" to de.visualtasker.workflow.core.FieldValue.Text("lt")))
         val varA = DefaultBlockRegistry.getDefinition(BlockTypes.VARIABLE_GET)!!.createNode(varAId)
-            .copy(fields = mapOf("variable" to de.visualtasker.blockeditor.domain.FieldValue.Text("a")))
+            .copy(fields = mapOf("variable" to de.visualtasker.workflow.core.FieldValue.Text("a")))
         val varB = DefaultBlockRegistry.getDefinition(BlockTypes.VARIABLE_GET)!!.createNode(varBId)
-            .copy(fields = mapOf("variable" to de.visualtasker.blockeditor.domain.FieldValue.Text("b")))
+            .copy(fields = mapOf("variable" to de.visualtasker.workflow.core.FieldValue.Text("b")))
 
-        fun connectValue(parent: de.visualtasker.blockeditor.domain.BlockNode, inputName: String, child: de.visualtasker.blockeditor.domain.BlockNode): Pair<de.visualtasker.blockeditor.domain.BlockNode, de.visualtasker.blockeditor.domain.BlockNode> {
+        fun connectValue(parent: de.visualtasker.workflow.core.BlockNode, inputName: String, child: de.visualtasker.workflow.core.BlockNode): Pair<de.visualtasker.workflow.core.BlockNode, de.visualtasker.workflow.core.BlockNode> {
             val input = parent.valueInputs.first { it.name == inputName }
             val childOutput = child.output!!
             val updatedParent = parent.copy(
@@ -298,13 +298,13 @@ class IrGeneratorTest {
         val start = DefaultBlockRegistry.getDefinition(BlockTypes.EVENT_START)!!.createNode(startId)
         val ifBlock = DefaultBlockRegistry.getDefinition(BlockTypes.CONTROL_IF)!!.createNode(ifId)
         var compareBlock = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_COMPARE)!!.createNode(compareId)
-            .copy(fields = mapOf("operator" to de.visualtasker.blockeditor.domain.FieldValue.Text("GREATER_OR_EQUAL")))
+            .copy(fields = mapOf("operator" to de.visualtasker.workflow.core.FieldValue.Text("GREATER_OR_EQUAL")))
         val left = DefaultBlockRegistry.getDefinition(BlockTypes.LITERAL_NUMBER)!!.createNode(leftId)
-            .copy(fields = mapOf("value" to de.visualtasker.blockeditor.domain.FieldValue.Number(3.0)))
+            .copy(fields = mapOf("value" to de.visualtasker.workflow.core.FieldValue.Number(3.0)))
         val right = DefaultBlockRegistry.getDefinition(BlockTypes.LITERAL_NUMBER)!!.createNode(rightId)
-            .copy(fields = mapOf("value" to de.visualtasker.blockeditor.domain.FieldValue.Number(2.0)))
+            .copy(fields = mapOf("value" to de.visualtasker.workflow.core.FieldValue.Number(2.0)))
 
-        fun connectValue(parent: de.visualtasker.blockeditor.domain.BlockNode, inputName: String, child: de.visualtasker.blockeditor.domain.BlockNode): Pair<de.visualtasker.blockeditor.domain.BlockNode, de.visualtasker.blockeditor.domain.BlockNode> {
+        fun connectValue(parent: de.visualtasker.workflow.core.BlockNode, inputName: String, child: de.visualtasker.workflow.core.BlockNode): Pair<de.visualtasker.workflow.core.BlockNode, de.visualtasker.workflow.core.BlockNode> {
             val input = parent.valueInputs.first { it.name == inputName }
             val childOutput = child.output!!
             val updatedParent = parent.copy(

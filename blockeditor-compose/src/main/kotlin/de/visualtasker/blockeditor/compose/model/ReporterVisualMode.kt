@@ -1,6 +1,6 @@
 package de.visualtasker.blockeditor.compose.model
 
-import de.visualtasker.blockeditor.domain.BlockNode
+import de.visualtasker.workflow.core.BlockNode
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockTypes
 

@@ -1,9 +1,9 @@
 package de.visualtasker.blockeditor.registry
 
-import de.visualtasker.blockeditor.domain.WorkspaceAction
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.WorkspaceGraph
-import de.visualtasker.blockeditor.domain.WorkspaceReducer
+import de.visualtasker.workflow.core.WorkspaceAction
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspaceGraph
+import de.visualtasker.workflow.core.WorkspaceReducer
 
 object SampleWorkspaceFactory {
     /** Leeres Arbeitsblatt: nur Script Start. */
@@ -83,7 +83,7 @@ object SampleWorkspaceFactory {
         return document
     }
 
-    fun mainChain(document: WorkspaceDocument): List<de.visualtasker.blockeditor.domain.BlockId> {
+    fun mainChain(document: WorkspaceDocument): List<de.visualtasker.workflow.core.BlockId> {
         val startId = document.rootBlocks.first {
             document.blocks[it]?.type == BlockTypes.EVENT_START
         }
@@ -93,6 +93,6 @@ object SampleWorkspaceFactory {
     private fun reduce(
         document: WorkspaceDocument,
         action: WorkspaceAction,
-        factory: de.visualtasker.blockeditor.domain.BlockFactory,
+        factory: de.visualtasker.workflow.core.BlockFactory,
     ): WorkspaceDocument = WorkspaceReducer.reduce(document, action, factory)
 }

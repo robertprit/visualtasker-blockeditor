@@ -23,6 +23,7 @@ dependencyResolutionManagement {
 rootProject.name = "BlockEditorDemo"
 include(
     ":emscript-language-core",
+    ":workflow-core",
     ":blockeditor-domain",
     ":blockeditor-registry",
     ":blockeditor-layout",

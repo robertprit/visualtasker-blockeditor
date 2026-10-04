@@ -1,17 +1,17 @@
 package de.visualtasker.blockeditor.interaction
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.BlockNode
-import de.visualtasker.blockeditor.domain.Connection
-import de.visualtasker.blockeditor.domain.ConnectionId
-import de.visualtasker.blockeditor.domain.ConnectionKind
-import de.visualtasker.blockeditor.domain.Offset2
-import de.visualtasker.blockeditor.domain.FieldValue
-import de.visualtasker.blockeditor.domain.ValueInput
-import de.visualtasker.blockeditor.domain.VariableDefinition
-import de.visualtasker.blockeditor.domain.VariableRegistry
-import de.visualtasker.blockeditor.domain.VariableScope
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.BlockNode
+import de.visualtasker.workflow.core.Connection
+import de.visualtasker.workflow.core.ConnectionId
+import de.visualtasker.workflow.core.ConnectionKind
+import de.visualtasker.workflow.core.Offset2
+import de.visualtasker.workflow.core.FieldValue
+import de.visualtasker.workflow.core.ValueInput
+import de.visualtasker.workflow.core.VariableDefinition
+import de.visualtasker.workflow.core.VariableRegistry
+import de.visualtasker.workflow.core.VariableScope
+import de.visualtasker.workflow.core.WorkspaceDocument
 import de.visualtasker.blockeditor.layout.ConnectionAnchor
 import de.visualtasker.blockeditor.layout.FlatLayoutIndex
 import de.visualtasker.blockeditor.layout.LayoutEngine
@@ -208,7 +208,7 @@ class SnapEngineTest {
             document = document,
             layoutCache = layoutEngine.build(layoutDoc),
             blockId = repeatId,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
         )
         val session = begin.dragSession!!
@@ -230,29 +230,29 @@ class SnapEngineTest {
     @Test
     fun findSnapCandidate_skipsOccupiedValueInput() {
         val factory = DefaultBlockRegistry.asFactory()
-        var document = de.visualtasker.blockeditor.domain.WorkspaceDocument(id = "occupied-value-snap")
-        document = de.visualtasker.blockeditor.domain.WorkspaceReducer.reduce(
+        var document = de.visualtasker.workflow.core.WorkspaceDocument(id = "occupied-value-snap")
+        document = de.visualtasker.workflow.core.WorkspaceReducer.reduce(
             document,
-            de.visualtasker.blockeditor.domain.WorkspaceAction.InstantiateBlock(BlockTypes.LOGIC_AND, 0f, 0f),
+            de.visualtasker.workflow.core.WorkspaceAction.InstantiateBlock(BlockTypes.LOGIC_AND, 0f, 0f),
             factory,
         )
         val andId = document.rootBlocks.single()
-        document = de.visualtasker.blockeditor.domain.WorkspaceReducer.reduce(
+        document = de.visualtasker.workflow.core.WorkspaceReducer.reduce(
             document,
-            de.visualtasker.blockeditor.domain.WorkspaceAction.InstantiateBlock(BlockTypes.LOGIC_BOOLEAN, 0f, 80f),
+            de.visualtasker.workflow.core.WorkspaceAction.InstantiateBlock(BlockTypes.LOGIC_BOOLEAN, 0f, 80f),
             factory,
         )
         val firstReporterId = document.rootBlocks.last()
-        document = de.visualtasker.blockeditor.domain.WorkspaceReducer.reduce(
+        document = de.visualtasker.workflow.core.WorkspaceReducer.reduce(
             document,
-            de.visualtasker.blockeditor.domain.WorkspaceAction.InstantiateBlock(BlockTypes.LOGIC_BOOLEAN, 0f, 140f),
+            de.visualtasker.workflow.core.WorkspaceAction.InstantiateBlock(BlockTypes.LOGIC_BOOLEAN, 0f, 140f),
             factory,
         )
         val secondReporterId = document.rootBlocks.last()
         val aInput = document.blocks[andId]!!.valueInputs.first { it.name == "A" }.connection.id
-        document = de.visualtasker.blockeditor.domain.WorkspaceReducer.reduce(
+        document = de.visualtasker.workflow.core.WorkspaceReducer.reduce(
             document,
-            de.visualtasker.blockeditor.domain.WorkspaceAction.Connect(
+            de.visualtasker.workflow.core.WorkspaceAction.Connect(
                 document.blocks[firstReporterId]!!.output!!.id,
                 aInput,
             ),

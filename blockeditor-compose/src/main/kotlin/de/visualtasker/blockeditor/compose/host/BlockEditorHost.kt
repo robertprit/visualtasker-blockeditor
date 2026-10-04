@@ -5,7 +5,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
 import de.visualtasker.blockeditor.compose.ui.BlockEditorScaffold
 import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
-import de.visualtasker.blockeditor.domain.BlockId
+import de.visualtasker.workflow.core.BlockId
 import de.visualtasker.blockeditor.registry.BlockTypes
 
 /**

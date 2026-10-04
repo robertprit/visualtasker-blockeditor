@@ -1,12 +1,12 @@
 package de.visualtasker.blockeditor.registry
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.ConnectionId
-import de.visualtasker.blockeditor.domain.FieldValue
-import de.visualtasker.blockeditor.domain.VariableDefinition
-import de.visualtasker.blockeditor.domain.VariableRegistry
-import de.visualtasker.blockeditor.domain.VariableScope
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.ConnectionId
+import de.visualtasker.workflow.core.FieldValue
+import de.visualtasker.workflow.core.VariableDefinition
+import de.visualtasker.workflow.core.VariableRegistry
+import de.visualtasker.workflow.core.VariableScope
+import de.visualtasker.workflow.core.WorkspaceDocument
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test

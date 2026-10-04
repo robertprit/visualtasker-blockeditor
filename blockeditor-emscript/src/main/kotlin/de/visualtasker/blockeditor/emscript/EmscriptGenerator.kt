@@ -1,13 +1,13 @@
 package de.visualtasker.blockeditor.emscript
 
-import de.visualtasker.blockeditor.domain.NormalizedOperator
-import de.visualtasker.blockeditor.domain.OperatorNormalization
-import de.visualtasker.blockeditor.domain.canonicalSymbol
+import de.visualtasker.workflow.core.NormalizedOperator
+import de.visualtasker.workflow.core.OperatorNormalization
+import de.visualtasker.workflow.core.canonicalSymbol
 import de.visualtasker.blockeditor.ir.IrExpression
 import de.visualtasker.blockeditor.ir.IrGenerator
 import de.visualtasker.blockeditor.ir.IrScript
 import de.visualtasker.blockeditor.ir.IrStatement
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspaceDocument
 
 class EmscriptGenerator(
     private val irGenerator: IrGenerator = IrGenerator(),

@@ -1,7 +1,7 @@
 package de.visualtasker.blockeditor.interaction
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.Offset2
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.Offset2
 
 data class ViewportState(
     val panX: Float = 0f,

@@ -1,9 +1,9 @@
 package de.visualtasker.blockeditor.interaction
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.ConnectionKind
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.withRootOffset
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.ConnectionKind
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.withRootOffset
 import de.visualtasker.blockeditor.layout.LayoutEngine
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
@@ -25,13 +25,13 @@ class InlineOperateDragTest {
         var operate = DefaultBlockRegistry.getDefinition(BlockTypes.LOGIC_OPERATE)!!.createNode(operateId)
             .withRootOffset(40f, 40f)
         val varA = DefaultBlockRegistry.getDefinition(BlockTypes.VARIABLE_GET)!!.createNode(varAId)
-            .copy(fields = mapOf("variable" to de.visualtasker.blockeditor.domain.FieldValue.Text("a")))
+            .copy(fields = mapOf("variable" to de.visualtasker.workflow.core.FieldValue.Text("a")))
             .withRootOffset(200f, 40f)
         val varB = DefaultBlockRegistry.getDefinition(BlockTypes.VARIABLE_GET)!!.createNode(varBId)
-            .copy(fields = mapOf("variable" to de.visualtasker.blockeditor.domain.FieldValue.Text("b")))
+            .copy(fields = mapOf("variable" to de.visualtasker.workflow.core.FieldValue.Text("b")))
             .withRootOffset(200f, 100f)
 
-        fun connectValue(parent: de.visualtasker.blockeditor.domain.BlockNode, inputName: String, child: de.visualtasker.blockeditor.domain.BlockNode): Pair<de.visualtasker.blockeditor.domain.BlockNode, de.visualtasker.blockeditor.domain.BlockNode> {
+        fun connectValue(parent: de.visualtasker.workflow.core.BlockNode, inputName: String, child: de.visualtasker.workflow.core.BlockNode): Pair<de.visualtasker.workflow.core.BlockNode, de.visualtasker.workflow.core.BlockNode> {
             val input = parent.valueInputs.first { it.name == inputName }
             val childOutput = child.output!!
             val updatedParent = parent.copy(
@@ -66,7 +66,7 @@ class InlineOperateDragTest {
             document = document,
             layoutCache = layoutEngine.build(document),
             blockId = operateId,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             viewport = ViewportState(),
             pullMode = DragPullMode.Single,
         )
@@ -105,6 +105,6 @@ class InlineOperateDragTest {
             rootBlocks = listOf(operateId, varId),
         )
 
-        assertFalse(varId in de.visualtasker.blockeditor.domain.WorkspaceGraph.topLevelRoots(document))
+        assertFalse(varId in de.visualtasker.workflow.core.WorkspaceGraph.topLevelRoots(document))
     }
 }

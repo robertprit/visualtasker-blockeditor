@@ -1,5 +1,7 @@
 package de.visualtasker.blockeditor.domain
 
+import de.visualtasker.workflow.core.*
+
 import de.visualtasker.emscript.contract.EmscriptV1OperatorIds
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

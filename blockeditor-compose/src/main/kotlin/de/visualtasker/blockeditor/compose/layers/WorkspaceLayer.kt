@@ -10,9 +10,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.rememberTextMeasurer
 import de.visualtasker.blockeditor.compose.render.drawBlock
 import de.visualtasker.blockeditor.compose.theme.defaultBlockEditorColors
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.Offset2
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.Offset2
+import de.visualtasker.workflow.core.WorkspaceDocument
 import de.visualtasker.blockeditor.layout.ContainerBranchLayout
 import de.visualtasker.blockeditor.layout.LayoutCache
 import de.visualtasker.blockeditor.registry.BlockRegistry

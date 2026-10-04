@@ -1,4 +1,4 @@
-package de.visualtasker.blockeditor.domain
+package de.visualtasker.workflow.core
 
 data class Connection(
     val id: ConnectionId,

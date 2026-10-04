@@ -16,7 +16,7 @@ class StartBlockDragTest {
             document = document,
             layoutCache = layout,
             blockId = startId,
-            pointer = de.visualtasker.blockeditor.domain.Offset2(0f, 0f),
+            pointer = de.visualtasker.workflow.core.Offset2(0f, 0f),
             ViewportState(),
         )
         val session = begin.dragSession!!

@@ -1,12 +1,12 @@
 package de.visualtasker.blockeditor.ir
 
-import de.visualtasker.blockeditor.domain.BlockId
-import de.visualtasker.blockeditor.domain.FieldValue
-import de.visualtasker.blockeditor.domain.VariableDefinition
-import de.visualtasker.blockeditor.domain.VariableScope
-import de.visualtasker.blockeditor.domain.WorkspaceAction
-import de.visualtasker.blockeditor.domain.WorkspaceDocument
-import de.visualtasker.blockeditor.domain.WorkspaceReducer
+import de.visualtasker.workflow.core.BlockId
+import de.visualtasker.workflow.core.FieldValue
+import de.visualtasker.workflow.core.VariableDefinition
+import de.visualtasker.workflow.core.VariableScope
+import de.visualtasker.workflow.core.WorkspaceAction
+import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.WorkspaceReducer
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.CompositeBlockRegistry
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
@@ -198,7 +198,7 @@ class IrGraphGeneratorTest {
     private fun WorkspaceDocument.connectionId(
         blockId: BlockId,
         key: String,
-    ): de.visualtasker.blockeditor.domain.ConnectionId {
+    ): de.visualtasker.workflow.core.ConnectionId {
         val block = blocks.getValue(blockId)
         return when (key) {
             "previous" -> block.previous!!.id
