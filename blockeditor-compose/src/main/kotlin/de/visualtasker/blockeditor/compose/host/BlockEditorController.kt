@@ -106,6 +106,8 @@ class BlockEditorController(
     private val disposed = AtomicBoolean(false)
     private var debounceJob: Job? = null
     private var lastValidDraft: String = ""
+    private var semanticProjectionKey: SemanticProjectionKey = initialDocument.semanticProjectionKey()
+    private var pendingSemanticProjection: Boolean = false
     private var lastPersistentValidationErrors: List<ValidationError> = emptyList()
     private var lastEmscriptGenerationFailure: String? = null
     private var releaseChecklist: BlockEditorReleaseChecklist = BlockEditorReleaseChecklist()
@@ -155,11 +157,7 @@ class BlockEditorController(
         private set
 
     override val codePreview: String
-        get() = if (disposed.get()) {
-            ""
-        } else {
-            generateDraft(reportFailure = false) ?: lastValidDraft
-        }
+        get() = if (disposed.get()) "" else lastValidDraft
 
     val isDisposed: Boolean
         get() = disposed.get()
@@ -906,11 +904,14 @@ class BlockEditorController(
         if (disposed.get()) return
         workspaceState = nextState
         val newDocument = nextState.document
+        val nextSemanticProjectionKey = newDocument.semanticProjectionKey()
+        val semanticProjectionChanged = nextSemanticProjectionKey != semanticProjectionKey
+        semanticProjectionKey = nextSemanticProjectionKey
         document = newDocument
         syncVariableReporters(newDocument.variables)
         layoutCache = layoutEngine.build(newDocument)
         callbacks.onWorkspaceDocumentChanged(WorkspaceSerializer.serialize(newDocument))
-        scheduleDerivedOutputs()
+        scheduleDerivedOutputs(semanticProjectionChanged)
     }
 
     private fun deleteSingleBlockPreservingChain(
@@ -1170,14 +1171,17 @@ class BlockEditorController(
         emitEmscriptImmediate()
     }
 
-    private fun scheduleDerivedOutputs() {
+    private fun scheduleDerivedOutputs(semanticProjectionChanged: Boolean) {
         if (disposed.get()) return
+        pendingSemanticProjection = pendingSemanticProjection || semanticProjectionChanged
         debounceJob?.cancel()
         debounceJob = coroutineScope.launch {
             delay(debounceMillis)
             if (disposed.get()) return@launch
+            val projectSemanticState = pendingSemanticProjection
+            pendingSemanticProjection = false
             emitValidationImmediate()
-            emitEmscriptImmediate()
+            if (projectSemanticState) emitEmscriptImmediate()
         }
     }
 
@@ -1807,3 +1811,46 @@ class BlockEditorController(
         )
     }
 }
+
+private data class SemanticProjectionKey(
+    val documentId: String,
+    val rootBlocks: List<BlockId>,
+    val blocks: Map<BlockId, SemanticBlockProjectionKey>,
+    val variables: VariableRegistry,
+)
+
+private data class SemanticBlockProjectionKey(
+    val id: BlockId,
+    val type: String,
+    val fields: Map<String, FieldValue>,
+    val previous: Connection?,
+    val next: Connection?,
+    val output: Connection?,
+    val valueInputs: List<ValueInput>,
+    val statementInputs: List<StatementInput>,
+    val metadata: Map<String, String>,
+)
+
+private fun WorkspaceDocument.semanticProjectionKey(): SemanticProjectionKey = SemanticProjectionKey(
+    documentId = id,
+    rootBlocks = rootBlocks,
+    blocks = blocks.mapValues { (_, block) ->
+        SemanticBlockProjectionKey(
+            id = block.id,
+            type = block.type,
+            fields = block.fields,
+            previous = block.previous,
+            next = block.next,
+            output = block.output,
+            valueInputs = block.valueInputs,
+            statementInputs = block.statementInputs,
+            metadata = block.metadata.filterKeys(SEMANTIC_PROJECTION_METADATA_KEYS::contains),
+        )
+    },
+    variables = variables,
+)
+
+private val SEMANTIC_PROJECTION_METADATA_KEYS = setOf(
+    "emscript.declaredType",
+    "if.branchCount",
+)

@@ -1832,14 +1832,130 @@ class BlockEditorControllerTest {
         )
 
         assertEquals(listOf("generated-1"), callbacks.emscriptDrafts)
-        assertEquals("generated-2", controller.codePreview)
-        assertEquals("generated-3", controller.regenerateCode())
-        assertEquals("generated-3", callbacks.emscriptDrafts.last())
+        assertEquals("generated-1", controller.codePreview)
+        assertEquals(1, calls)
+        assertEquals("generated-2", controller.regenerateCode())
+        assertEquals("generated-2", callbacks.emscriptDrafts.last())
 
         controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
         advanceTimeBy(20L)
         runCurrent()
-        assertEquals("generated-4", callbacks.emscriptDrafts.last())
+        assertEquals("generated-3", callbacks.emscriptDrafts.last())
+        controller.close()
+    }
+
+    @Test
+    fun transientUiChangesAndPresentationOnlyDropDoNotRegenerateSemanticProjection() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        var calls = 0
+        val blockId = BlockId("wait")
+        val controller = BlockEditorController(
+            initialDocument = singleBlockDocument(BlockTypes.ACTION_WAIT, blockId),
+            workspaceCodeGenerator = WorkspaceCodeGenerator { "generated-${++calls}" },
+            coroutineScope = CoroutineScope(SupervisorJob() + dispatcher),
+            debounceMillis = 20L,
+        )
+        controller.onCanvasSizeChange(Offset2(720f, 540f))
+        val bounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == blockId }.bounds
+        val initialPoint = Offset2(bounds.x + bounds.width * 0.5f, bounds.y + bounds.height * 0.5f)
+
+        repeat(10) { assertEquals("generated-1", controller.codePreview) }
+        controller.onTap(initialPoint)
+        controller.zoomIn()
+        controller.zoomOut()
+        assertTrue(controller.focusBlock(blockId))
+        val start = Offset2(
+            x = (bounds.x + bounds.width * 0.5f) * controller.viewport.scale + controller.viewport.panX,
+            y = (bounds.y + bounds.height * 0.5f) * controller.viewport.scale + controller.viewport.panY,
+        )
+        assertTrue(controller.onLongPressDragStart(start))
+        repeat(100) { index ->
+            controller.onPointerMove(Offset2(start.x + index + 1f, start.y + 40f))
+            assertEquals("generated-1", controller.codePreview)
+        }
+        controller.onPointerUp(Offset2(start.x + 100f, start.y + 40f))
+        advanceTimeBy(20L)
+        runCurrent()
+
+        assertEquals(1, calls)
+        controller.close()
+    }
+
+    @Test
+    fun snapPreviewDoesNotRegenerateButConnectionCommitDoes() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        var calls = 0
+        val controller = BlockEditorController(
+            initialDocument = WorkspaceBootstrap.empty(),
+            workspaceCodeGenerator = WorkspaceCodeGenerator { "generated-${++calls}" },
+            coroutineScope = CoroutineScope(SupervisorJob() + dispatcher),
+            debounceMillis = 20L,
+        )
+        controller.onCanvasSizeChange(Offset2(720f, 540f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.CONTROL_IF_ELSE, 96f, 120f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 360f, 320f))
+        advanceTimeBy(20L)
+        runCurrent()
+        val baselineCalls = calls
+        val ifId = controller.document.rootBlocks[0]
+        val actionId = controller.document.rootBlocks[1]
+        val actionBounds = controller.layoutCache.flatIndex.visibleBlocks.single { it.blockId == actionId }.bounds
+        val start = Offset2(actionBounds.x + actionBounds.width * 0.5f, actionBounds.y + actionBounds.height * 0.5f)
+        val sourceAnchor = controller.layoutCache.flatIndex.connectionAnchors
+            .single { it.connectionId == controller.document.blocks.getValue(actionId).previous!!.id }
+        val elseConnection = controller.document.blocks.getValue(ifId).statementInputs
+            .single { it.name == BlockTypes.SLOT_ELSE }
+            .connection
+        val elseAnchor = controller.layoutCache.flatIndex.connectionAnchors
+            .single { it.connectionId == elseConnection.id }
+        val drop = Offset2(
+            start.x + (elseAnchor.x - sourceAnchor.x),
+            start.y + (elseAnchor.y - sourceAnchor.y),
+        )
+
+        assertTrue(controller.onLongPressDragStart(start))
+        controller.onPointerMove(drop)
+        assertTrue(controller.dragRender?.snapCandidate != null)
+        assertEquals(baselineCalls, calls)
+        assertEquals("generated-$baselineCalls", controller.codePreview)
+
+        controller.onPointerUp(drop)
+        advanceTimeBy(20L)
+        runCurrent()
+
+        assertEquals(baselineCalls + 1, calls)
+        assertEquals(
+            controller.document.blocks.getValue(actionId).previous!!.id,
+            controller.document.blocks.getValue(ifId).statementInputs
+                .single { it.name == BlockTypes.SLOT_ELSE }
+                .connection
+                .connectedTo,
+        )
+        controller.close()
+    }
+
+    @Test
+    fun semanticFieldEditRegeneratesProjectionExactlyOnce() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        var calls = 0
+        val blockId = BlockId("wait")
+        val controller = BlockEditorController(
+            initialDocument = singleBlockDocument(BlockTypes.ACTION_WAIT, blockId),
+            workspaceCodeGenerator = WorkspaceCodeGenerator { document ->
+                calls++
+                document.blocks.getValue(blockId).fields.getValue("ms").asString()
+            },
+            coroutineScope = CoroutineScope(SupervisorJob() + dispatcher),
+            debounceMillis = 20L,
+        )
+        controller.selectBlockCenter(blockId)
+
+        controller.updateBlockField("ms", "750")
+        advanceTimeBy(20L)
+        runCurrent()
+
+        assertEquals(2, calls)
+        assertEquals("750.0", controller.codePreview)
         controller.close()
     }
 
