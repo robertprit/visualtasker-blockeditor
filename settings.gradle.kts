@@ -24,6 +24,7 @@ rootProject.name = "BlockEditorDemo"
 include(
     ":emscript-language-core",
     ":workflow-core",
+    ":workflow-semantics",
     ":blockeditor-domain",
     ":blockeditor-registry",
     ":blockeditor-layout",

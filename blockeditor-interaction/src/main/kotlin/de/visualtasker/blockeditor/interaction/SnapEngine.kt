@@ -8,7 +8,7 @@ import de.visualtasker.workflow.core.WorkspaceGraph
 import de.visualtasker.blockeditor.layout.ConnectionAnchor
 import de.visualtasker.blockeditor.layout.FlatLayoutIndex
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
-import de.visualtasker.blockeditor.registry.WorkspaceValueTypeSystem
+import de.visualtasker.workflow.semantics.WorkspaceValueTypeSystem
 import kotlin.math.hypot
 
 class SnapEngine(

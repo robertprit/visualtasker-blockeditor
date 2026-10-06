@@ -1,43 +1,52 @@
 package de.visualtasker.blockeditor.registry
 
-object BlockTypes {
-    const val EVENT_START = "event.start"
-    const val ACTION_CLICK_TEXT = "action.clickText"
-    const val ACTION_WAIT = "action.wait"
-    const val ACTION_FIND_TEMPLATE = "action.findTemplate"
-    const val FEEDBACK_BEEP = "feedback.beep"
-    const val FEEDBACK_VIBRATE = "feedback.vibrate"
-    const val DEBUG_LOG = "debug.log"
-    const val CONTROL_REPEAT = "control.repeat"
-    const val CONTROL_WHILE = "control.while"
-    const val CONTROL_IF = "control.if"
-    const val CONTROL_IF_ELSE = "control.ifElse"
-    const val CONTROL_IF_ELSEIF_ELSE = "control.ifElseIfElse"
-    const val LOGIC_SCREEN_CONTAINS = "logic.screenContains"
-    const val LOGIC_BOOLEAN = "logic.boolean"
-    const val LOGIC_AND = "logic.and"
-    const val LOGIC_OR = "logic.or"
-    const val LOGIC_OPERATE = "logic.operate"
-    const val LOGIC_COMPARE = "logic.compare"
-    const val LITERAL_NUMBER = "literal.number"
-    const val LITERAL_STRING = "literal.string"
-    const val LITERAL_REGION = "literal.region"
-    const val LITERAL_BOOLEAN = "literal.boolean"
-    const val VARIABLE_GET = "variable.get"
-    const val VARIABLE_REPORTER = "variable.reporter"
-    const val VARIABLES_GET = "variables.get"
-    const val VARIABLE_VALUE = "variable.value"
-    const val VARIABLE_SET = "variable.set"
-    const val VARIABLE_REPORTER_PREFIX = "variable.reporter."
-    const val EMSCRIPT_COMMAND_PREFIX = "emscript.command."
-    const val REM_FLOW_NODE_PREFIX = "emscript.command.rem."
-    const val CUSTOM_PREFIX = "custom."
+import de.visualtasker.workflow.semantics.WorkflowElementTypes
+import de.visualtasker.workflow.semantics.VisualTaskerCommandCatalog
+import de.visualtasker.workflow.semantics.WorkspaceValueTypeSystem
+import de.visualtasker.workflow.semantics.canBeUsedAsExpression
+import de.visualtasker.workflow.semantics.shortDisplayName
+import de.visualtasker.workflow.semantics.CommandArgument
+import de.visualtasker.workflow.semantics.CommandArgumentType
+import de.visualtasker.workflow.semantics.CommandCatalogEntry
 
-    const val SLOT_DO = "DO"
-    const val SLOT_THEN = "THEN"
-    const val SLOT_ELIF = "ELIF"
-    const val SLOT_ELSE = "ELSE"
-    const val SLOT_BODY = "BODY"
+object BlockTypes {
+    const val EVENT_START = WorkflowElementTypes.EVENT_START
+    const val ACTION_CLICK_TEXT = WorkflowElementTypes.ACTION_CLICK_TEXT
+    const val ACTION_WAIT = WorkflowElementTypes.ACTION_WAIT
+    const val ACTION_FIND_TEMPLATE = WorkflowElementTypes.ACTION_FIND_TEMPLATE
+    const val FEEDBACK_BEEP = WorkflowElementTypes.FEEDBACK_BEEP
+    const val FEEDBACK_VIBRATE = WorkflowElementTypes.FEEDBACK_VIBRATE
+    const val DEBUG_LOG = WorkflowElementTypes.DEBUG_LOG
+    const val CONTROL_REPEAT = WorkflowElementTypes.CONTROL_REPEAT
+    const val CONTROL_WHILE = WorkflowElementTypes.CONTROL_WHILE
+    const val CONTROL_IF = WorkflowElementTypes.CONTROL_IF
+    const val CONTROL_IF_ELSE = WorkflowElementTypes.CONTROL_IF_ELSE
+    const val CONTROL_IF_ELSEIF_ELSE = WorkflowElementTypes.CONTROL_IF_ELSEIF_ELSE
+    const val LOGIC_SCREEN_CONTAINS = WorkflowElementTypes.LOGIC_SCREEN_CONTAINS
+    const val LOGIC_BOOLEAN = WorkflowElementTypes.LOGIC_BOOLEAN
+    const val LOGIC_AND = WorkflowElementTypes.LOGIC_AND
+    const val LOGIC_OR = WorkflowElementTypes.LOGIC_OR
+    const val LOGIC_OPERATE = WorkflowElementTypes.LOGIC_OPERATE
+    const val LOGIC_COMPARE = WorkflowElementTypes.LOGIC_COMPARE
+    const val LITERAL_NUMBER = WorkflowElementTypes.LITERAL_NUMBER
+    const val LITERAL_STRING = WorkflowElementTypes.LITERAL_STRING
+    const val LITERAL_REGION = WorkflowElementTypes.LITERAL_REGION
+    const val LITERAL_BOOLEAN = WorkflowElementTypes.LITERAL_BOOLEAN
+    const val VARIABLE_GET = WorkflowElementTypes.VARIABLE_GET
+    const val VARIABLE_REPORTER = WorkflowElementTypes.VARIABLE_REPORTER
+    const val VARIABLES_GET = WorkflowElementTypes.VARIABLES_GET
+    const val VARIABLE_VALUE = WorkflowElementTypes.VARIABLE_VALUE
+    const val VARIABLE_SET = WorkflowElementTypes.VARIABLE_SET
+    const val VARIABLE_REPORTER_PREFIX = WorkflowElementTypes.VARIABLE_REPORTER_PREFIX
+    const val EMSCRIPT_COMMAND_PREFIX = WorkflowElementTypes.EMSCRIPT_COMMAND_PREFIX
+    const val REM_FLOW_NODE_PREFIX = WorkflowElementTypes.REM_FLOW_NODE_PREFIX
+    const val CUSTOM_PREFIX = WorkflowElementTypes.CUSTOM_PREFIX
+
+    const val SLOT_DO = WorkflowElementTypes.SLOT_DO
+    const val SLOT_THEN = WorkflowElementTypes.SLOT_THEN
+    const val SLOT_ELIF = WorkflowElementTypes.SLOT_ELIF
+    const val SLOT_ELSE = WorkflowElementTypes.SLOT_ELSE
+    const val SLOT_BODY = WorkflowElementTypes.SLOT_BODY
 }
 
 object DefaultBlockRegistry : BlockRegistry {

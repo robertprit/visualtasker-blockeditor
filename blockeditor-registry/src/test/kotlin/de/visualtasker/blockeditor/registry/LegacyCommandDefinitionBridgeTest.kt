@@ -1,5 +1,7 @@
 package de.visualtasker.blockeditor.registry
 
+import de.visualtasker.workflow.semantics.*
+
 import de.visualtasker.emscript.contract.ContractValue
 import de.visualtasker.emscript.contract.CoreTypes
 import de.visualtasker.emscript.contract.EmscriptV1Commands

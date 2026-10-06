@@ -1,5 +1,7 @@
 package de.visualtasker.blockeditor.registry
 
+import de.visualtasker.workflow.semantics.*
+
 enum class QueryInfrastructureFit {
     EXISTING_SCALAR,
     NEW_STRUCTURED_VALUE,

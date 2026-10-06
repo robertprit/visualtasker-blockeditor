@@ -10,6 +10,8 @@ import de.visualtasker.workflow.core.FieldValue
 import de.visualtasker.workflow.core.StatementInput
 import de.visualtasker.workflow.core.ValueInput
 import kotlinx.serialization.Serializable
+import de.visualtasker.workflow.semantics.WorkflowSemanticDefinition
+import de.visualtasker.workflow.semantics.WorkflowSemanticDefinitionProvider
 
 @Serializable
 enum class FieldKind {
@@ -110,10 +112,26 @@ data class BlockDefinition(
     val svgPath: String? = null,
 )
 
-interface BlockRegistry {
+interface BlockRegistry : WorkflowSemanticDefinitionProvider {
     fun getDefinition(id: String): BlockDefinition?
     fun allDefinitions(): List<BlockDefinition>
+
+    override fun semanticDefinition(type: String): WorkflowSemanticDefinition? =
+        getDefinition(type)?.toSemanticDefinition()
 }
+
+fun BlockDefinition.toSemanticDefinition(): WorkflowSemanticDefinition = WorkflowSemanticDefinition(
+    type = id,
+    hasPrevious = hasPrevious,
+    hasNext = hasNext,
+    outputType = outputType,
+    valueInputs = valueInputs.map {
+        de.visualtasker.workflow.semantics.SemanticValueInputDefinition(it.name, it.accepts, it.required)
+    },
+    statementInputs = statementInputs.mapTo(linkedSetOf()) { it.name },
+    fieldDefaults = fields.associate { it.key to it.defaultValue },
+    metadataDefaults = metadata,
+)
 
 fun BlockDefinition.createNode(blockId: BlockId): BlockNode {
     val defaults = fields.associate { field ->

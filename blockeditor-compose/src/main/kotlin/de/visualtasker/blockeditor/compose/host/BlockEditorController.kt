@@ -48,7 +48,7 @@ import de.visualtasker.blockeditor.interaction.ViewportConstraints
 import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.interaction.AutoArrangeConfig
 import de.visualtasker.blockeditor.interaction.WorkspaceAutoArrange
-import de.visualtasker.blockeditor.ir.IrGenerator
+import de.visualtasker.workflow.semantics.ir.IrGenerator
 import de.visualtasker.blockeditor.layout.LayoutCache
 import de.visualtasker.blockeditor.layout.LayoutEngine
 import de.visualtasker.blockeditor.registry.BlockCategories
@@ -64,8 +64,8 @@ import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
 import de.visualtasker.blockeditor.registry.asFactory
 import de.visualtasker.blockeditor.registry.createNode
 import de.visualtasker.blockeditor.serialization.WorkspaceSerializer
-import de.visualtasker.blockeditor.validation.Validator
-import de.visualtasker.blockeditor.validation.ValidationError
+import de.visualtasker.workflow.semantics.validation.Validator
+import de.visualtasker.workflow.semantics.validation.ValidationError
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoSnapshot
 import de.visualtasker.blockeditor.compose.viewmodel.BlockContextMenuRequest
 import de.visualtasker.blockeditor.compose.viewmodel.BlockTypeOption

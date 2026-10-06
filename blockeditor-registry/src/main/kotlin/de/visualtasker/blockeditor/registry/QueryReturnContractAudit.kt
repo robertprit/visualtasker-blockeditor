@@ -1,5 +1,7 @@
 package de.visualtasker.blockeditor.registry
 
+import de.visualtasker.workflow.semantics.*
+
 enum class QueryReturnClass {
     A_NULLABLE_SCALAR_READY,
     B_NONNULL_SCALAR_READY,

@@ -3,10 +3,10 @@ package de.visualtasker.blockeditor.emscript
 import de.visualtasker.workflow.core.NormalizedOperator
 import de.visualtasker.workflow.core.OperatorNormalization
 import de.visualtasker.workflow.core.canonicalSymbol
-import de.visualtasker.blockeditor.ir.IrExpression
-import de.visualtasker.blockeditor.ir.IrGenerator
-import de.visualtasker.blockeditor.ir.IrScript
-import de.visualtasker.blockeditor.ir.IrStatement
+import de.visualtasker.workflow.semantics.ir.IrExpression
+import de.visualtasker.workflow.semantics.ir.IrGenerator
+import de.visualtasker.workflow.semantics.ir.IrScript
+import de.visualtasker.workflow.semantics.ir.IrStatement
 import de.visualtasker.workflow.core.WorkspaceDocument
 
 class EmscriptGenerator(

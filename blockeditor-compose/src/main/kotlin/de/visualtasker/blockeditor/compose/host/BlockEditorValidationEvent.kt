@@ -1,6 +1,6 @@
 package de.visualtasker.blockeditor.compose.host
 
-import de.visualtasker.blockeditor.validation.ValidationError
+import de.visualtasker.workflow.semantics.validation.ValidationError
 
 enum class BlockEditorValidationPhase {
     INITIAL_LOAD,

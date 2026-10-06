@@ -88,17 +88,17 @@ class EmscriptGeneratorTest {
 
     @Test fun emitsContractShapedWaitOutputAndSetSubset() {
         val script = generator.generate(
-            de.visualtasker.blockeditor.ir.IrScript(
+            de.visualtasker.workflow.semantics.ir.IrScript(
                 "safe",
                 listOf(
-                    de.visualtasker.blockeditor.ir.IrStatement.Wait(500),
-                    de.visualtasker.blockeditor.ir.IrStatement.Beep(),
-                    de.visualtasker.blockeditor.ir.IrStatement.Beep(880, 150, 75),
-                    de.visualtasker.blockeditor.ir.IrStatement.Vibrate(listOf(0L, 80L, 40L, 120L)),
-                    de.visualtasker.blockeditor.ir.IrStatement.Log(
-                        de.visualtasker.blockeditor.ir.IrExpression.LiteralString("hello"),
+                    de.visualtasker.workflow.semantics.ir.IrStatement.Wait(500),
+                    de.visualtasker.workflow.semantics.ir.IrStatement.Beep(),
+                    de.visualtasker.workflow.semantics.ir.IrStatement.Beep(880, 150, 75),
+                    de.visualtasker.workflow.semantics.ir.IrStatement.Vibrate(listOf(0L, 80L, 40L, 120L)),
+                    de.visualtasker.workflow.semantics.ir.IrStatement.Log(
+                        de.visualtasker.workflow.semantics.ir.IrExpression.LiteralString("hello"),
                     ),
-                    de.visualtasker.blockeditor.ir.IrStatement.SetVariable("count", "3"),
+                    de.visualtasker.workflow.semantics.ir.IrStatement.SetVariable("count", "3"),
                 ),
             ),
         )
@@ -110,12 +110,12 @@ class EmscriptGeneratorTest {
 
     @Test fun sanitizesVariableNamesAcceptedByEditor() {
         val script = generator.generate(
-            de.visualtasker.blockeditor.ir.IrScript(
+            de.visualtasker.workflow.semantics.ir.IrScript(
                 "safe",
                 listOf(
-                    de.visualtasker.blockeditor.ir.IrStatement.SetVariable("1 user name", "3"),
-                    de.visualtasker.blockeditor.ir.IrStatement.While(
-                        de.visualtasker.blockeditor.ir.IrExpression.GetVariable("1 user name"),
+                    de.visualtasker.workflow.semantics.ir.IrStatement.SetVariable("1 user name", "3"),
+                    de.visualtasker.workflow.semantics.ir.IrStatement.While(
+                        de.visualtasker.workflow.semantics.ir.IrExpression.GetVariable("1 user name"),
                         emptyList(),
                     ),
                 ),
@@ -126,16 +126,16 @@ class EmscriptGeneratorTest {
 
     @Test fun emitsCompareReporterConditions() {
         val script = generator.generate(
-            de.visualtasker.blockeditor.ir.IrScript(
+            de.visualtasker.workflow.semantics.ir.IrScript(
                 "compare",
                 listOf(
-                    de.visualtasker.blockeditor.ir.IrStatement.If(
-                        condition = de.visualtasker.blockeditor.ir.IrExpression.Compare(
+                    de.visualtasker.workflow.semantics.ir.IrStatement.If(
+                        condition = de.visualtasker.workflow.semantics.ir.IrExpression.Compare(
                             operator = "GREATER_OR_EQUAL",
-                            left = de.visualtasker.blockeditor.ir.IrExpression.LiteralNumber(3.0),
-                            right = de.visualtasker.blockeditor.ir.IrExpression.LiteralNumber(2.0),
+                            left = de.visualtasker.workflow.semantics.ir.IrExpression.LiteralNumber(3.0),
+                            right = de.visualtasker.workflow.semantics.ir.IrExpression.LiteralNumber(2.0),
                         ),
-                        thenBranch = listOf(de.visualtasker.blockeditor.ir.IrStatement.Wait(100)),
+                        thenBranch = listOf(de.visualtasker.workflow.semantics.ir.IrStatement.Wait(100)),
                     ),
                 ),
             ),
@@ -144,7 +144,7 @@ class EmscriptGeneratorTest {
     }
 
     @Test fun stableOperatorIdsSerializeToCanonicalSymbols() {
-        val number = de.visualtasker.blockeditor.ir.IrExpression.LiteralNumber(1.0)
+        val number = de.visualtasker.workflow.semantics.ir.IrExpression.LiteralNumber(1.0)
         val comparisons = linkedMapOf(
             "equal" to "==",
             "notEqual" to "!=",
@@ -163,11 +163,11 @@ class EmscriptGeneratorTest {
 
         comparisons.forEach { (id, symbol) ->
             val script = generator.generate(
-                de.visualtasker.blockeditor.ir.IrScript(
+                de.visualtasker.workflow.semantics.ir.IrScript(
                     id,
                     listOf(
-                        de.visualtasker.blockeditor.ir.IrStatement.If(
-                            de.visualtasker.blockeditor.ir.IrExpression.Compare(id, number, number),
+                        de.visualtasker.workflow.semantics.ir.IrStatement.If(
+                            de.visualtasker.workflow.semantics.ir.IrExpression.Compare(id, number, number),
                             emptyList(),
                         ),
                     ),
@@ -177,11 +177,11 @@ class EmscriptGeneratorTest {
         }
         arithmetic.forEach { (id, symbol) ->
             val script = generator.generate(
-                de.visualtasker.blockeditor.ir.IrScript(
+                de.visualtasker.workflow.semantics.ir.IrScript(
                     id,
                     listOf(
-                        de.visualtasker.blockeditor.ir.IrStatement.While(
-                            de.visualtasker.blockeditor.ir.IrExpression.Operate(id, number, number),
+                        de.visualtasker.workflow.semantics.ir.IrStatement.While(
+                            de.visualtasker.workflow.semantics.ir.IrExpression.Operate(id, number, number),
                             emptyList(),
                         ),
                     ),
@@ -193,14 +193,14 @@ class EmscriptGeneratorTest {
 
     @Test fun emitsEmptyCompareSlotsAsBooleanFallbacks() {
         val script = generator.generate(
-            de.visualtasker.blockeditor.ir.IrScript(
+            de.visualtasker.workflow.semantics.ir.IrScript(
                 "compare",
                 listOf(
-                    de.visualtasker.blockeditor.ir.IrStatement.If(
-                        condition = de.visualtasker.blockeditor.ir.IrExpression.Compare(
+                    de.visualtasker.workflow.semantics.ir.IrStatement.If(
+                        condition = de.visualtasker.workflow.semantics.ir.IrExpression.Compare(
                             operator = "EQUAL",
-                            left = de.visualtasker.blockeditor.ir.IrExpression.LiteralBoolean(false),
-                            right = de.visualtasker.blockeditor.ir.IrExpression.LiteralBoolean(false),
+                            left = de.visualtasker.workflow.semantics.ir.IrExpression.LiteralBoolean(false),
+                            right = de.visualtasker.workflow.semantics.ir.IrExpression.LiteralBoolean(false),
                         ),
                         thenBranch = emptyList(),
                     ),
@@ -212,15 +212,15 @@ class EmscriptGeneratorTest {
 
     @Test fun emitsScreenContainsAndLiteralTextExpressions() {
         val script = generator.generate(
-            de.visualtasker.blockeditor.ir.IrScript(
+            de.visualtasker.workflow.semantics.ir.IrScript(
                 "semantic-expressions",
                 listOf(
-                    de.visualtasker.blockeditor.ir.IrStatement.While(
-                        de.visualtasker.blockeditor.ir.IrExpression.ScreenContains("Ready"),
+                    de.visualtasker.workflow.semantics.ir.IrStatement.While(
+                        de.visualtasker.workflow.semantics.ir.IrExpression.ScreenContains("Ready"),
                         emptyList(),
                     ),
-                    de.visualtasker.blockeditor.ir.IrStatement.If(
-                        condition = de.visualtasker.blockeditor.ir.IrExpression.LiteralText("manual condition"),
+                    de.visualtasker.workflow.semantics.ir.IrStatement.If(
+                        condition = de.visualtasker.workflow.semantics.ir.IrExpression.LiteralText("manual condition"),
                         thenBranch = emptyList(),
                     ),
                 ),
@@ -231,9 +231,9 @@ class EmscriptGeneratorTest {
 
     @Test fun allowsUnknownCustomCommandCallsAfterNameSanitizing() {
         val script = generator.generate(
-            de.visualtasker.blockeditor.ir.IrScript(
+            de.visualtasker.workflow.semantics.ir.IrScript(
                 "custom-command",
-                listOf(de.visualtasker.blockeditor.ir.IrStatement.CommandCall("Custom.Plugin.run", "\"payload\"")),
+                listOf(de.visualtasker.workflow.semantics.ir.IrStatement.CommandCall("Custom.Plugin.run", "\"payload\"")),
             ),
         )
         assertEquals("Custom.Plugin.run(\"payload\");", script)
@@ -241,15 +241,15 @@ class EmscriptGeneratorTest {
 
     @Test fun escapesControlCharactersInTextLiterals() {
         val script = generator.generate(
-            de.visualtasker.blockeditor.ir.IrScript(
+            de.visualtasker.workflow.semantics.ir.IrScript(
                 "escaped-text",
                 listOf(
-                    de.visualtasker.blockeditor.ir.IrStatement.ClickText("A\tB"),
-                    de.visualtasker.blockeditor.ir.IrStatement.Log(
-                        de.visualtasker.blockeditor.ir.IrExpression.LiteralString("line 1\nline 2"),
+                    de.visualtasker.workflow.semantics.ir.IrStatement.ClickText("A\tB"),
+                    de.visualtasker.workflow.semantics.ir.IrStatement.Log(
+                        de.visualtasker.workflow.semantics.ir.IrExpression.LiteralString("line 1\nline 2"),
                     ),
-                    de.visualtasker.blockeditor.ir.IrStatement.While(
-                        de.visualtasker.blockeditor.ir.IrExpression.ScreenContains("He said \"OK\""),
+                    de.visualtasker.workflow.semantics.ir.IrStatement.While(
+                        de.visualtasker.workflow.semantics.ir.IrExpression.ScreenContains("He said \"OK\""),
                         emptyList(),
                     ),
                 ),

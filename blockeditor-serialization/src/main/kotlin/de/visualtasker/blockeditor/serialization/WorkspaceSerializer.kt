@@ -1,7 +1,7 @@
 package de.visualtasker.blockeditor.serialization
 
-import de.visualtasker.blockeditor.registry.BlockRegistry
-import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
+import de.visualtasker.workflow.semantics.DefaultWorkflowSemanticDefinitions
+import de.visualtasker.workflow.semantics.WorkflowSemanticDefinitionProvider
 import de.visualtasker.workflow.core.WorkspaceDocument
 import de.visualtasker.workflow.serialization.WORKFLOW_SCHEMA_VERSION
 import de.visualtasker.workflow.serialization.WorkflowCompatibilityDiagnostic
@@ -19,8 +19,8 @@ object WorkspaceSerializer {
 
     fun decode(
         raw: String,
-        registry: BlockRegistry = DefaultBlockRegistry,
-    ): WorkspaceDecodeResult = WorkflowSerializer.decode(raw, registry.asWorkflowDefinitionResolver()).toLegacy()
+        definitions: WorkflowSemanticDefinitionProvider = DefaultWorkflowSemanticDefinitions,
+    ): WorkspaceDecodeResult = WorkflowSerializer.decode(raw, definitions.asWorkflowDefinitionResolver()).toLegacy()
 
     fun deserialize(raw: String): WorkspaceDocument = try {
         WorkflowSerializer.deserialize(raw)
@@ -29,12 +29,12 @@ object WorkspaceSerializer {
     }
 }
 
-private fun BlockRegistry.asWorkflowDefinitionResolver(): WorkflowDefinitionResolver =
+private fun WorkflowSemanticDefinitionProvider.asWorkflowDefinitionResolver(): WorkflowDefinitionResolver =
     WorkflowDefinitionResolver { type ->
-        getDefinition(type)?.let { definition ->
+        semanticDefinition(type)?.let { definition ->
             WorkflowDefinitionShape(
                 valueInputs = definition.valueInputs.mapTo(linkedSetOf()) { it.name },
-                statementInputs = definition.statementInputs.mapTo(linkedSetOf()) { it.name },
+                statementInputs = definition.statementInputs,
             )
         }
     }

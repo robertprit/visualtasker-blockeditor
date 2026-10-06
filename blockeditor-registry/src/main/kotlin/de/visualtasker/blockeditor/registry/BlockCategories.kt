@@ -1,32 +1,34 @@
 package de.visualtasker.blockeditor.registry
 
+import de.visualtasker.workflow.semantics.CommandCategories
+
 object BlockCategories {
-    const val EVENT = "event"
-    const val ACTION = "action"
-    const val FEEDBACK = "feedback"
-    const val EMSCRIPT = "emscript"
-    const val INPUT = "input"
-    const val PERCEPTION = "perception"
-    const val VISION = "vision"
-    const val SCENE = "scene"
-    const val TEXT = "text"
-    const val FILE = "file"
-    const val SYSTEM = "system"
-    const val CHROME_TAB = "chromeTab"
-    const val TASKER = "tasker"
-    const val SHIZUKU = "shizuku"
-    const val TERMUX = "termux"
-    const val SCRCPY = "scrcpy"
-    const val CHARTS = "charts"
-    const val CONTROL = "control"
-    const val LOGIC = "logic"
-    const val VARIABLES = "variables"
-    const val FLOW = "flow"
-    const val REM_FLOW_NODES = "remFlowNodes"
-    const val RUNTIME = "runtime"
-    const val DEBUG = "debug"
-    const val VARIABLE = "variable"
-    const val CUSTOM = "custom"
+    const val EVENT = CommandCategories.EVENT
+    const val ACTION = CommandCategories.ACTION
+    const val FEEDBACK = CommandCategories.FEEDBACK
+    const val EMSCRIPT = CommandCategories.EMSCRIPT
+    const val INPUT = CommandCategories.INPUT
+    const val PERCEPTION = CommandCategories.PERCEPTION
+    const val VISION = CommandCategories.VISION
+    const val SCENE = CommandCategories.SCENE
+    const val TEXT = CommandCategories.TEXT
+    const val FILE = CommandCategories.FILE
+    const val SYSTEM = CommandCategories.SYSTEM
+    const val CHROME_TAB = CommandCategories.CHROME_TAB
+    const val TASKER = CommandCategories.TASKER
+    const val SHIZUKU = CommandCategories.SHIZUKU
+    const val TERMUX = CommandCategories.TERMUX
+    const val SCRCPY = CommandCategories.SCRCPY
+    const val CHARTS = CommandCategories.CHARTS
+    const val CONTROL = CommandCategories.CONTROL
+    const val LOGIC = CommandCategories.LOGIC
+    const val VARIABLES = CommandCategories.VARIABLES
+    const val FLOW = CommandCategories.FLOW
+    const val REM_FLOW_NODES = CommandCategories.REM_FLOW_NODES
+    const val RUNTIME = CommandCategories.RUNTIME
+    const val DEBUG = CommandCategories.DEBUG
+    const val VARIABLE = CommandCategories.VARIABLE
+    const val CUSTOM = CommandCategories.CUSTOM
 
     data class CategoryMeta(
         val id: String,

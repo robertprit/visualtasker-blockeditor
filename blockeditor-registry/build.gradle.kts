@@ -9,6 +9,7 @@ kotlin {
 
 dependencies {
     implementation(project(":workflow-core"))
+    api(project(":workflow-semantics"))
     implementation(project(":emscript-language-core"))
     implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.junit)

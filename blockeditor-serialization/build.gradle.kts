@@ -9,9 +9,10 @@ kotlin {
 
 dependencies {
     implementation(project(":workflow-core"))
-    implementation(project(":blockeditor-registry"))
+    implementation(project(":workflow-semantics"))
     implementation(libs.kotlinx.serialization.json)
     testImplementation(project(":blockeditor-emscript"))
+    testImplementation(project(":blockeditor-registry"))
     testImplementation(libs.junit)
 }
 

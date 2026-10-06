@@ -34,7 +34,7 @@ import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.FieldKind
-import de.visualtasker.blockeditor.registry.VisualTaskerCommandCatalog
+import de.visualtasker.workflow.semantics.VisualTaskerCommandCatalog
 import kotlin.math.pow
 
 internal fun DrawScope.drawBlock(

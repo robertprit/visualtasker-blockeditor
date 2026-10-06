@@ -1,5 +1,7 @@
 package de.visualtasker.blockeditor.registry
 
+import de.visualtasker.workflow.semantics.*
+
 enum class NullableQueryResultState {
     VALUE,
     EMPTY_VALUE,

@@ -43,7 +43,7 @@ import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
 import de.visualtasker.blockeditor.registry.asFactory
 import de.visualtasker.blockeditor.registry.createNode
 import androidx.compose.ui.graphics.Color
-import de.visualtasker.blockeditor.validation.ValidationError
+import de.visualtasker.workflow.semantics.validation.ValidationError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob

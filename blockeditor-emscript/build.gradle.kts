@@ -8,7 +8,7 @@ kotlin {
 
 dependencies {
     implementation(project(":workflow-core"))
-    implementation(project(":blockeditor-ir"))
+    implementation(project(":workflow-semantics"))
     testImplementation(project(":blockeditor-registry"))
     testImplementation(libs.junit)
 }

@@ -1,5 +1,7 @@
 package de.visualtasker.blockeditor.registry
 
+import de.visualtasker.workflow.semantics.*
+
 import de.visualtasker.emscript.contract.CapabilityId
 import de.visualtasker.emscript.contract.CommandAliasDefinition
 import de.visualtasker.emscript.contract.CommandDefinition
@@ -592,7 +594,7 @@ class LegacyCommandDefinitionBridge(
             "text", "string" -> CoreTypes.STRING.ref
             "any" -> CoreTypes.ANY.ref
             null -> if (semanticClass == SemanticClass.QUERY) CoreTypes.VOID.ref else CoreTypes.VOID.ref
-            else -> LanguageTypeRef.Named(TypeId("legacy.${sanitizeId(entry.returnType)}"))
+            else -> LanguageTypeRef.Named(TypeId("legacy.${sanitizeId(requireNotNull(rawType))}"))
         }
     }
 

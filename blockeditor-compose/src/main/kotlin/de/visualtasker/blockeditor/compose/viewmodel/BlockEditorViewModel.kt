@@ -32,7 +32,7 @@ import de.visualtasker.blockeditor.interaction.WorkspaceAutoArrange
 import de.visualtasker.blockeditor.layout.LayoutCache
 import de.visualtasker.blockeditor.layout.LayoutEngine
 import de.visualtasker.blockeditor.emscript.EmscriptGenerator
-import de.visualtasker.blockeditor.ir.IrGenerator
+import de.visualtasker.workflow.semantics.ir.IrGenerator
 import de.visualtasker.blockeditor.registry.BlockDefinition
 import de.visualtasker.blockeditor.registry.BlockDesignBlueprint
 import de.visualtasker.blockeditor.registry.BlockDesignFactory

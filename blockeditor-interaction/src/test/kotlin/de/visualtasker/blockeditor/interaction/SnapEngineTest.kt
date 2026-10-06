@@ -19,7 +19,7 @@ import de.visualtasker.blockeditor.layout.SpatialIndex
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.SampleWorkspaceFactory
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
-import de.visualtasker.blockeditor.registry.VisualTaskerCommandCatalog
+import de.visualtasker.workflow.semantics.VisualTaskerCommandCatalog
 import de.visualtasker.blockeditor.registry.asFactory
 import de.visualtasker.blockeditor.registry.createNode
 import org.junit.Assert.assertEquals

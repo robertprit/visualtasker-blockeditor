@@ -1,5 +1,7 @@
 package de.visualtasker.blockeditor.registry
 
+import de.visualtasker.workflow.semantics.*
+
 import de.visualtasker.emscript.contract.CoreTypes
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
