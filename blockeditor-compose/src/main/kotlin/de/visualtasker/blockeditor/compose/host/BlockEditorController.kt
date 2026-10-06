@@ -10,6 +10,7 @@ import de.visualtasker.blockeditor.compose.model.blockWithReporterVisualMode
 import de.visualtasker.blockeditor.compose.model.reporterTemplateAsset
 import de.visualtasker.blockeditor.compose.model.reporterVisualModeFor
 import de.visualtasker.blockeditor.compose.model.resolveReporterFamily
+import de.visualtasker.blockeditor.compose.debug.BlockEditorDropTrace
 import de.visualtasker.workflow.core.BlockId
 import de.visualtasker.workflow.core.BlockNode
 import de.visualtasker.workflow.core.Connection
@@ -287,10 +288,30 @@ class BlockEditorController(
     fun onPointerUp(screenPoint: Offset2) {
         if (disposed.get()) return
         if (dragRender == null) return
+        val activeDrag = dragRender!!
+        val draggedBlock = document.blocks[activeDrag.session.rootBlockId]
+        val hadAttachment = WorkspaceGraph.isValuePlugged(document, activeDrag.session.rootBlockId) ||
+            WorkspaceGraph.previousChain(document, activeDrag.session.rootBlockId) != null ||
+            WorkspaceGraph.nextChain(document, activeDrag.session.rootBlockId) != null ||
+            WorkspaceGraph.slotContaining(document, activeDrag.session.rootBlockId) != null
+        val dropKind = when {
+            draggedBlock?.output != null && activeDrag.snapCandidate != null -> "REPORTER_ATTACH"
+            draggedBlock?.output != null && hadAttachment -> "REPORTER_DETACH"
+            draggedBlock?.output != null -> "REPORTER_MOVE"
+            draggedBlock?.statementInputs?.isNotEmpty() == true -> "CONTROL_BRANCH_FALLBACK"
+            activeDrag.snapCandidate != null -> "LINEAR_RECONNECT"
+            hadAttachment -> "LINEAR_DETACH"
+            else -> "PRESENTATION_MOVE"
+        }
+        val dropTraceId = BlockEditorDropTrace.begin(
+            type = dropKind,
+            blockCount = document.blocks.size,
+            details = "root=${activeDrag.session.rootBlockId.value} fromVersion=${document.version}",
+        )
         val transient = TransientEditorState(
             viewport = viewport,
-            dragSession = dragRender!!.session,
-            activeSnapCandidate = dragRender!!.snapCandidate,
+            dragSession = activeDrag.session,
+            activeSnapCandidate = activeDrag.snapCandidate,
             selectedBlockId = selectedBlockId,
         )
         callbacks.onValidationEvent(
@@ -298,20 +319,21 @@ class BlockEditorController(
                 phase = BlockEditorValidationPhase.BEFORE_DROP,
                 documentVersion = document.version,
                 dragActive = true,
-                snapActive = dragRender!!.snapCandidate != null,
+                snapActive = activeDrag.snapCandidate != null,
                 detachActive = false,
                 errors = emptyList(),
             ),
         )
-        val activeDrag = dragRender!!
-        val willDetach = WorkspaceGraph.isValuePlugged(document, activeDrag.session.rootBlockId) ||
-            WorkspaceGraph.previousChain(document, activeDrag.session.rootBlockId) != null ||
-            WorkspaceGraph.nextChain(document, activeDrag.session.rootBlockId) != null ||
-            WorkspaceGraph.slotContaining(document, activeDrag.session.rootBlockId) != null
+        val willDetach = hadAttachment
         pendingDetachActive = willDetach
+        BlockEditorDropTrace.mark(dropTraceId, "T1_END_DRAG_ENTER")
+        BlockEditorDropTrace.mark(dropTraceId, "T3_REDUCER_ENTER", "boundary=DragOperations.endDrag")
         val (droppedDocument, newTransient) = DragOperations.endDrag(transient, document)
+        BlockEditorDropTrace.mark(dropTraceId, "T4_REDUCER_RETURN", "boundary=DragOperations.endDrag")
+        BlockEditorDropTrace.mark(dropTraceId, "T2_END_DRAG_RETURN")
         val positionedDocument = preserveMissingRootOffsets(droppedDocument)
         val newDocument = clampDroppedRootToCanvas(positionedDocument, activeDrag)
+        BlockEditorDropTrace.bindRevision(dropTraceId, newDocument.version)
         dragRender = null
         selectedBlockId = newTransient.selectedBlockId
         if (newDocument != document) {
@@ -320,10 +342,18 @@ class BlockEditorController(
                 phase = if (willDetach) BlockEditorValidationPhase.AFTER_DETACH else BlockEditorValidationPhase.AFTER_DROP,
             )
         } else {
-            layoutCache = layoutEngine.build(newDocument)
+            BlockEditorDropTrace.mark(dropTraceId, "T7_LAYOUT_DECISION_ENTER")
+            layoutCache = layoutEngine.update(document, newDocument, layoutCache)
+            BlockEditorDropTrace.mark(
+                dropTraceId,
+                "T8_LAYOUT_RETURN",
+                layoutCache.updateDiagnostics.toTraceDetails(),
+            )
             pendingDetachActive = false
+            BlockEditorDropTrace.mark(dropTraceId, "T24_STABLE", "reason=noDocumentChange")
         }
         applyPendingFocusAfterInteraction()
+        BlockEditorDropTrace.mark(dropTraceId, "POINTER_UP_HANDLER_RETURN")
     }
 
     fun cancelActiveDrag() {
@@ -890,6 +920,8 @@ class BlockEditorController(
         if (disposed.get()) return
         if (newDocument == document) return
         pendingValidationPhase = phase
+        val dropTraceId = BlockEditorDropTrace.activeId()
+        BlockEditorDropTrace.mark(dropTraceId, "T5_HISTORY_UPDATE_ENTER", "record=$recordHistory")
         val nextState = if (recordHistory) {
             previousDocument?.let { baseline ->
                 workspaceState.copy(document = baseline).record(newDocument)
@@ -897,21 +929,55 @@ class BlockEditorController(
         } else {
             workspaceState.replaceWithoutHistory(newDocument)
         }
+        BlockEditorDropTrace.mark(
+            dropTraceId,
+            "T6_HISTORY_UPDATE_RETURN",
+            "undo=${nextState.history.undoStack.size} redo=${nextState.history.redoStack.size}",
+        )
         applyWorkspaceState(nextState)
     }
 
     private fun applyWorkspaceState(nextState: WorkspaceState) {
         if (disposed.get()) return
+        val dropTraceId = BlockEditorDropTrace.activeId()
+        BlockEditorDropTrace.mark(dropTraceId, "T9_APPLY_WORKSPACE_STATE_ENTER")
         workspaceState = nextState
+        val previousDocument = document
+        val previousLayout = layoutCache
         val newDocument = nextState.document
         val nextSemanticProjectionKey = newDocument.semanticProjectionKey()
         val semanticProjectionChanged = nextSemanticProjectionKey != semanticProjectionKey
         semanticProjectionKey = nextSemanticProjectionKey
+        BlockEditorDropTrace.bindRevision(dropTraceId, newDocument.version)
+        BlockEditorDropTrace.mark(dropTraceId, "T14_STATE_PUBLICATION_ENTER")
         document = newDocument
+        BlockEditorDropTrace.mark(dropTraceId, "T15_STATE_PUBLICATION_RETURN")
+        BlockEditorDropTrace.mark(dropTraceId, "VARIABLE_REPORTER_SYNC_ENTER")
         syncVariableReporters(newDocument.variables)
-        layoutCache = layoutEngine.build(newDocument)
-        callbacks.onWorkspaceDocumentChanged(WorkspaceSerializer.serialize(newDocument))
+        BlockEditorDropTrace.mark(dropTraceId, "VARIABLE_REPORTER_SYNC_RETURN")
+        BlockEditorDropTrace.mark(dropTraceId, "T7_LAYOUT_DECISION_ENTER")
+        layoutCache = layoutEngine.update(previousDocument, newDocument, previousLayout)
+        BlockEditorDropTrace.mark(
+            dropTraceId,
+            "T8_LAYOUT_RETURN",
+            layoutCache.updateDiagnostics.toTraceDetails(),
+        )
+        BlockEditorDropTrace.mark(dropTraceId, "T10_SERIALIZATION_ENTER", "blocks=${newDocument.blocks.size}")
+        val serialized = WorkspaceSerializer.serialize(newDocument)
+        BlockEditorDropTrace.mark(
+            dropTraceId,
+            "T11_SERIALIZATION_RETURN",
+            "calls=1 bytes=${serialized.toByteArray(Charsets.UTF_8).size}",
+        )
+        BlockEditorDropTrace.mark(dropTraceId, "T12_HOST_CALLBACK_ENTER", "name=onWorkspaceDocumentChanged")
+        callbacks.onWorkspaceDocumentChanged(serialized)
+        BlockEditorDropTrace.mark(dropTraceId, "T13_HOST_CALLBACK_RETURN", "name=onWorkspaceDocumentChanged")
         scheduleDerivedOutputs(semanticProjectionChanged)
+        BlockEditorDropTrace.mark(
+            dropTraceId,
+            "APPLY_WORKSPACE_STATE_RETURN",
+            "semanticProjectionChanged=$semanticProjectionChanged",
+        )
     }
 
     private fun deleteSingleBlockPreservingChain(
@@ -1849,6 +1915,11 @@ private fun WorkspaceDocument.semanticProjectionKey(): SemanticProjectionKey = S
     },
     variables = variables,
 )
+
+private fun de.visualtasker.blockeditor.layout.LayoutUpdateDiagnostics.toTraceDetails(): String =
+    "path=$path totalBlocks=$totalBlocks dirtyBlocks=$dirtyBlocks measuredBlocks=$measuredBlocks " +
+        "reusedBlocks=$reusedLayoutBlocks repositionedBlocks=$repositionedBlocks " +
+        "fullBuilds=$fullBuilds localOperations=$localLayoutOperations fallback=${fallbackReason ?: "none"}"
 
 private val SEMANTIC_PROJECTION_METADATA_KEYS = setOf(
     "emscript.declaredType",

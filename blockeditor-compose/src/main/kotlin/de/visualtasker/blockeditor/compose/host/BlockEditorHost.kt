@@ -2,7 +2,13 @@ package de.visualtasker.blockeditor.compose.host
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.layout.layout
+import de.visualtasker.blockeditor.compose.debug.BlockEditorDropTrace
 import de.visualtasker.blockeditor.compose.ui.BlockEditorScaffold
 import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
 import de.visualtasker.workflow.core.BlockId
@@ -42,6 +48,24 @@ fun BlockEditorHost(
     onSaveWorkspace: (() -> Unit)? = null,
     disposeControllerOnDispose: Boolean = true,
 ) {
+    val documentVersion = controller.document.version
+    BlockEditorDropTrace.markRevision(documentVersion, "T16_COMPOSE_OBSERVED_STATE")
+    BlockEditorDropTrace.markRevision(documentVersion, "T17_FIRST_RECOMPOSITION_ENTER")
+    SideEffect {
+        BlockEditorDropTrace.markRevision(documentVersion, "T18_FIRST_RECOMPOSITION_RETURN")
+    }
+    LaunchedEffect(documentVersion) {
+        repeat(MAX_DROP_TRACE_FRAMES) {
+            withFrameNanos {
+                BlockEditorDropTrace.frameNow(documentVersion)
+            }
+            if (it == 0) {
+                BlockEditorDropTrace.completeWithoutAnimation(documentVersion)
+            }
+            if (BlockEditorDropTrace.isStableRevision(documentVersion)) return@LaunchedEffect
+        }
+    }
+
     if (disposeControllerOnDispose) {
         DisposableEffect(controller) {
             onDispose { controller.close() }
@@ -116,6 +140,23 @@ fun BlockEditorHost(
         soundEffectsEnabled = uiConfig.soundEffectsEnabled,
         hapticFeedbackEnabled = uiConfig.hapticFeedbackEnabled,
         visualPathProvider = visualPathProvider,
-        modifier = modifier,
+        modifier = modifier.dropTraceLayoutAndDraw(documentVersion),
     )
 }
+
+private fun Modifier.dropTraceLayoutAndDraw(documentVersion: Long): Modifier =
+    this
+        .layout { measurable, constraints ->
+            BlockEditorDropTrace.markRevision(documentVersion, "T19_FIRST_MEASURE_LAYOUT_ENTER")
+            val placeable = measurable.measure(constraints)
+            layout(placeable.width, placeable.height) {
+                placeable.placeRelative(0, 0)
+                BlockEditorDropTrace.markRevision(documentVersion, "T20_FIRST_MEASURE_LAYOUT_RETURN")
+            }
+        }
+        .drawWithContent {
+            drawContent()
+            BlockEditorDropTrace.markRevision(documentVersion, "T21_FIRST_DRAW_AFTER_PUBLICATION")
+        }
+
+private const val MAX_DROP_TRACE_FRAMES = 360

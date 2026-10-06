@@ -9,6 +9,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalViewConfiguration
+import de.visualtasker.blockeditor.compose.debug.BlockEditorDropTrace
 import de.visualtasker.workflow.core.Offset2
 import kotlin.math.hypot
 
@@ -109,6 +110,7 @@ fun Modifier.workspacePointerGestures(
                                 }
                                 Log.d(BLOCK_POINTER_LOG_TAG, "dragEnd x=${latest.x} y=${latest.y}")
                                 onDragEndState.value(latest)
+                                BlockEditorDropTrace.markActive("GESTURE_CALLBACK_RETURN")
                                 completed = true
                             } finally {
                                 onBlockDragActiveChangeState.value(false)

@@ -119,4 +119,23 @@ data class LayoutCache(
     val flatIndex: FlatLayoutIndex,
     val measuredLayoutTree: MeasuredLayoutTree = MeasuredLayoutTree(documentVersion, emptyMap()),
     val placedLayoutTree: PlacedLayoutTree = PlacedLayoutTree(documentVersion, emptyMap()),
+    val updateDiagnostics: LayoutUpdateDiagnostics = LayoutUpdateDiagnostics(),
+)
+
+enum class LayoutUpdatePath {
+    FULL_BUILD,
+    ROOT_TRANSLATION,
+    RIGID_CHAIN_RELINK,
+}
+
+data class LayoutUpdateDiagnostics(
+    val path: LayoutUpdatePath = LayoutUpdatePath.FULL_BUILD,
+    val totalBlocks: Int = 0,
+    val dirtyBlocks: Int = 0,
+    val measuredBlocks: Int = 0,
+    val reusedLayoutBlocks: Int = 0,
+    val repositionedBlocks: Int = 0,
+    val fullBuilds: Int = 1,
+    val localLayoutOperations: Int = 0,
+    val fallbackReason: String? = null,
 )

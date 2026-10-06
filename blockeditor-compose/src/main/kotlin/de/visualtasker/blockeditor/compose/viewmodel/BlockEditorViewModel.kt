@@ -135,9 +135,11 @@ class BlockEditorViewModel(
 
     fun onAction(action: WorkspaceAction) {
         EditorDebugLog.i("Action", actionSummary(action))
+        val previousDocument = document
+        val previousLayout = layoutCache
         document = WorkspaceReducer.reduce(document, action, registry.asFactory())
         syncVariableReporters(document.variables)
-        layoutCache = layoutEngine.build(document)
+        layoutCache = layoutEngine.update(previousDocument, document, previousLayout)
         EditorDebugLog.d("Workspace", "v${document.version} chain=${chainSummary(document)}")
     }
 
@@ -221,9 +223,11 @@ class BlockEditorViewModel(
             activeSnapCandidate = dragRender!!.snapCandidate,
             selectedBlockId = selectedBlockId,
         )
+        val previousDocument = document
+        val previousLayout = layoutCache
         val (newDocument, newTransient) = DragOperations.endDrag(transient, document)
         document = newDocument
-        layoutCache = layoutEngine.build(newDocument)
+        layoutCache = layoutEngine.update(previousDocument, newDocument, previousLayout)
         dragRender = null
         selectedBlockId = newTransient.selectedBlockId
         EditorDebugLog.d("Workspace", "v${document.version} chain=${chainSummary(document)}")

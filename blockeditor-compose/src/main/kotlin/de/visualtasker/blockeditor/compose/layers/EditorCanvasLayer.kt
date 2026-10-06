@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.rememberTextMeasurer
 import de.visualtasker.workflow.core.ConnectionKind
 import de.visualtasker.blockeditor.compose.render.BlockVisualPathProvider
+import de.visualtasker.blockeditor.compose.debug.BlockEditorDropTrace
 import de.visualtasker.blockeditor.compose.render.drawBlock
 import de.visualtasker.blockeditor.compose.render.drawInlineReporterDockSlotOverlays
 import de.visualtasker.blockeditor.compose.theme.BlockEditorColors
@@ -124,13 +125,18 @@ fun EditorCanvasLayer(
                 animatedBlockPositions[blockId] = Animatable(target, Offset.VectorConverter)
             } else if (animation.targetValue != target) {
                 animationScope.launch {
-                    animation.animateTo(
-                        target,
-                        animationSpec = tween(
-                            durationMillis = BlockPlacementAnimationMillis,
-                            easing = FastOutSlowInEasing,
-                        ),
-                    )
+                    BlockEditorDropTrace.animationStarted(staticLayout.documentVersion)
+                    try {
+                        animation.animateTo(
+                            target,
+                            animationSpec = tween(
+                                durationMillis = BlockPlacementAnimationMillis,
+                                easing = FastOutSlowInEasing,
+                            ),
+                        )
+                    } finally {
+                        BlockEditorDropTrace.animationFinished(staticLayout.documentVersion)
+                    }
                 }
             }
         }

@@ -25,6 +25,7 @@ import de.visualtasker.blockeditor.emscript.WorkspaceCodeGenerator
 import de.visualtasker.blockeditor.interaction.DragPullMode
 import de.visualtasker.blockeditor.interaction.ViewportState
 import de.visualtasker.blockeditor.layout.LayoutConstants
+import de.visualtasker.blockeditor.layout.LayoutUpdatePath
 import de.visualtasker.blockeditor.registry.BlockTypes
 import de.visualtasker.blockeditor.registry.BlockCategories
 import de.visualtasker.blockeditor.registry.WorkspaceBootstrap
@@ -475,6 +476,31 @@ class BlockEditorControllerTest {
             },
             changed = { before, after -> before.rootPositions != after.rootPositions },
         )
+    }
+
+    @Test
+    fun rootPositionActionUsesTranslationWithoutSemanticProjection() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val callbacks = RecordingCallbacks()
+        val controller = BlockEditorController(
+            initialDocument = singleBlockDocument(BlockTypes.ACTION_WAIT, BlockId("wait")),
+            callbacks = callbacks,
+            debounceMillis = 1,
+            coroutineScope = CoroutineScope(SupervisorJob() + dispatcher),
+        )
+        callbacks.clear()
+
+        controller.onAction(WorkspaceAction.MoveRoot(BlockId("wait"), 180f, 240f))
+        advanceTimeBy(2)
+        runCurrent()
+
+        assertEquals(LayoutUpdatePath.ROOT_TRANSLATION, controller.layoutCache.updateDiagnostics.path)
+        assertEquals(0, controller.layoutCache.updateDiagnostics.measuredBlocks)
+        assertEquals(1, controller.layoutCache.updateDiagnostics.reusedLayoutBlocks)
+        assertTrue(callbacks.documentChanges.isNotEmpty())
+        assertTrue(callbacks.emscriptDrafts.isEmpty())
+
+        controller.close()
     }
 
     @Test

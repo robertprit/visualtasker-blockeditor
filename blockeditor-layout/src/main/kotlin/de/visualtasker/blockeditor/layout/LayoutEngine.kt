@@ -200,6 +200,42 @@ class LayoutEngine(
                     anchorIndex = anchorIndex,
                 ),
             ),
+            updateDiagnostics = LayoutUpdateDiagnostics(
+                path = LayoutUpdatePath.FULL_BUILD,
+                totalBlocks = document.blocks.size,
+                dirtyBlocks = document.blocks.size,
+                measuredBlocks = document.blocks.size,
+                reusedLayoutBlocks = 0,
+                repositionedBlocks = visibleBlocks.size,
+                fullBuilds = 1,
+                localLayoutOperations = 0,
+                fallbackReason = "initial-or-unproven-change",
+            ),
+        )
+    }
+
+    fun update(
+        previousDocument: WorkspaceDocument,
+        document: WorkspaceDocument,
+        previousCache: LayoutCache,
+    ): LayoutCache {
+        if (document == previousDocument) return previousCache
+        translateAffectedStructure(previousDocument, document, previousCache)?.let { return it }
+        val changedBlocks = (previousDocument.blocks.keys + document.blocks.keys).count { blockId ->
+            previousDocument.blocks[blockId] != document.blocks[blockId]
+        }
+        val rootContractChanged = previousDocument.rootBlocks != document.rootBlocks ||
+            previousDocument.rootPositions != document.rootPositions
+        val variableContractChanged = previousDocument.variables != document.variables
+        val dirtyBlocks = changedBlocks.coerceAtLeast(
+            if (rootContractChanged || variableContractChanged) 1 else 0,
+        )
+        val full = build(document)
+        return full.copy(
+            updateDiagnostics = full.updateDiagnostics.copy(
+                dirtyBlocks = dirtyBlocks,
+                fallbackReason = "semantic-or-unproven-change",
+            ),
         )
     }
 
