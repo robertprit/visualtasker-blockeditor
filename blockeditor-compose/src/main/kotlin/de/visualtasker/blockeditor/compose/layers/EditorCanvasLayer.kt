@@ -8,16 +8,17 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
@@ -45,7 +46,6 @@ import de.visualtasker.blockeditor.registry.BlockRegistry
 import de.visualtasker.blockeditor.registry.DefaultBlockRegistry
 import kotlinx.coroutines.launch
 
-private const val GhostBlockAlpha = 0.42f
 private const val BlockPlacementAnimationMillis = 170
 private const val SnapGapMinWidth = 112f
 
@@ -98,21 +98,20 @@ fun EditorCanvasLayer(
         mutableStateMapOf<BlockId, Animatable<Offset, androidx.compose.animation.core.AnimationVector2D>>()
     }
     val draggedIds = dragRender?.session?.includedBlocks.orEmpty()
+    var lastDraggedIds by remember { mutableStateOf(emptySet<BlockId>()) }
+    LaunchedEffect(draggedIds) {
+        if (draggedIds.isNotEmpty()) lastDraggedIds = draggedIds
+    }
+    val directDropIds = if (dragRender == null) lastDraggedIds else emptySet()
     val movesWithDrag: (BlockId) -> Boolean = { blockId ->
         blockId in draggedIds ||
             WorkspaceGraph.isAttachedToDraggedAncestor(document, blockId, draggedIds)
     }
     val staticLayout = dragRender?.staticLayoutCache ?: layoutCache
     val dragLayout = dragRender?.dragLayoutCache ?: layoutCache
-    val dragOffset = dragRender?.let { render ->
-        render.snapCandidate?.snapOffset ?: render.session.dragOffset
-    }
+    val dragOffset = dragRender?.session?.dragOffset
     val snapTargetId = dragRender?.snapCandidate?.targetConnectionId
-    val ghostRootId = dragRender
-        ?.takeIf { it.session.pullMode == DragPullMode.Single }
-        ?.session
-        ?.rootBlockId
-    LaunchedEffect(staticLayout.documentVersion) {
+    LaunchedEffect(staticLayout.documentVersion, directDropIds) {
         val targets = staticLayout.flatIndex.visibleBlocks.associate { layout ->
             layout.blockId to Offset(layout.bounds.x, layout.bounds.y)
         }
@@ -123,6 +122,8 @@ fun EditorCanvasLayer(
             val animation = animatedBlockPositions[blockId]
             if (animation == null) {
                 animatedBlockPositions[blockId] = Animatable(target, Offset.VectorConverter)
+            } else if (blockId in directDropIds) {
+                animation.snapTo(target)
             } else if (animation.targetValue != target) {
                 animationScope.launch {
                     BlockEditorDropTrace.animationStarted(staticLayout.documentVersion)
@@ -140,6 +141,9 @@ fun EditorCanvasLayer(
                 }
             }
         }
+        if (dragRender == null && directDropIds.isNotEmpty()) {
+            lastDraggedIds = emptySet()
+        }
     }
 
     Canvas(modifier = modifier.fillMaxSize()) {
@@ -151,11 +155,15 @@ fun EditorCanvasLayer(
                 staticLayout.flatIndex.visibleBlocks
                     .sortedBy { it.zIndex }
                     .forEach { layout ->
-                        if (movesWithDrag(layout.blockId) && layout.blockId != ghostRootId) return@forEach
+                        if (movesWithDrag(layout.blockId)) return@forEach
                         val block = document.blocks[layout.blockId] ?: return@forEach
                         val definition = registry.getDefinition(block.type)
-                        val animatedTopLeft = animatedBlockPositions[layout.blockId]?.value
-                            ?: Offset(layout.bounds.x, layout.bounds.y)
+                        val targetTopLeft = Offset(layout.bounds.x, layout.bounds.y)
+                        val animatedTopLeft = if (layout.blockId in directDropIds) {
+                            targetTopLeft
+                        } else {
+                            animatedBlockPositions[layout.blockId]?.value ?: targetTopLeft
+                        }
                         val blockTopLeft = Offset2(layout.bounds.x, layout.bounds.y)
                         val (branchDividers, branchSections) = ContainerBranchLayout.containerVisuals(
                             blockId = layout.blockId,
@@ -165,13 +173,12 @@ fun EditorCanvasLayer(
                         val inlineLayout = staticLayout.flatIndex.inlineReporterLayouts
                             .find { it.blockId == layout.blockId }
                             ?.relativeTo(layout)
-                        val drawStaticBlock = {
-	                            drawBlock(
-	                                block = block,
-	                                definition = definition,
-	                                topLeft = animatedTopLeft,
-	                                width = layout.bounds.width,
-	                                height = layout.bounds.height,
+                        drawBlock(
+                            block = block,
+                            definition = definition,
+                            topLeft = animatedTopLeft,
+                            width = layout.bounds.width,
+                            height = layout.bounds.height,
                                 textMeasurer = textMeasurer,
                                 colors = colors,
                                 registry = registry,
@@ -180,28 +187,12 @@ fun EditorCanvasLayer(
                                 inlineReporterLayout = inlineLayout,
                                 visualPathProvider = visualPathProvider,
                                 selected = layout.blockId in selectedBlockIds,
-                            )
-                        }
-                        if (layout.blockId == ghostRootId) {
-                            drawContext.canvas.saveLayer(
-                                Rect(
-                                    left = animatedTopLeft.x,
-                                    top = animatedTopLeft.y,
-                                    right = animatedTopLeft.x + layout.bounds.width,
-                                    bottom = animatedTopLeft.y + layout.bounds.height,
-                                ),
-                                Paint().apply { alpha = GhostBlockAlpha },
-                            )
-                            drawStaticBlock()
-                            drawContext.canvas.restore()
-                        } else {
-                            drawStaticBlock()
-                        }
+                        )
                     }
                 staticLayout.flatIndex.inlineReporterLayouts
                     .sortedBy { it.zIndex }
                     .forEach { inlineLayout ->
-                        if (movesWithDrag(inlineLayout.blockId) && inlineLayout.blockId != ghostRootId) return@forEach
+                        if (movesWithDrag(inlineLayout.blockId)) return@forEach
                         val block = document.blocks[inlineLayout.blockId] ?: return@forEach
                         val ownerLayout = staticLayout.flatIndex.visibleBlocks
                             .find { it.blockId == inlineLayout.blockId }

@@ -81,8 +81,14 @@ data class DragRenderState(
     val previewDocument: WorkspaceDocument,
     /** Hintergrund ohne gezogenen Block (Kette/Slot gelöst). */
     val staticLayoutCache: LayoutCache,
+    /** Kandidatenunabhängiger Hintergrund nach dem Lift. */
+    val baseStaticLayoutCache: LayoutCache = staticLayoutCache,
     /** Volles Layout für Drag-Positionen der gezogenen Blöcke (gleiche Topologie wie static). */
     val dragLayoutCache: LayoutCache,
+    /** Nur die Umgebung, die durch den aktuellen Insert-Kandidaten verdrängt wird. */
+    val previewAffectedBlockIds: Set<BlockId> = emptySet(),
+    /** Hypothetische Verbindung nur für Layout/Tests; niemals kanonischer Zustand. */
+    val insertionPreviewDocument: WorkspaceDocument? = null,
     val runtimeState: DragRuntimeState = DragRuntimeState(),
 )
 
@@ -204,7 +210,14 @@ class BlockEditorViewModel(
                 },
             )
         }
-        dragRender = render.copy(
+        val candidateChanged = render.snapCandidate?.sourceConnectionId != updated.activeSnapCandidate?.sourceConnectionId ||
+            render.snapCandidate?.targetConnectionId != updated.activeSnapCandidate?.targetConnectionId
+        val previewRender = if (candidateChanged) {
+            resolveInsertionPreview(render, updated.activeSnapCandidate, layoutEngine)
+        } else {
+            render
+        }
+        dragRender = previewRender.copy(
             session = session,
             snapCandidate = updated.activeSnapCandidate,
         )
@@ -609,6 +622,7 @@ class BlockEditorViewModel(
                 snapCandidate = null,
                 previewDocument = snapDoc,
                 staticLayoutCache = staticLayout,
+                baseStaticLayoutCache = staticLayout,
                 dragLayoutCache = dragLayout,
             )
             EditorDebugLog.i(

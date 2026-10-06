@@ -28,7 +28,7 @@ fun DragLayer(
     val session = dragRender.session
     val colors = remember { defaultBlockEditorColors() }
     val textMeasurer = rememberTextMeasurer()
-    val offset = dragRender.snapCandidate?.snapOffset ?: session.dragOffset
+    val offset = session.dragOffset
     val blocks = remember(layoutCache.documentVersion, session.rootBlockId) {
         layoutCache.flatIndex.visibleBlocks
             .filter { it.blockId in session.includedBlocks }

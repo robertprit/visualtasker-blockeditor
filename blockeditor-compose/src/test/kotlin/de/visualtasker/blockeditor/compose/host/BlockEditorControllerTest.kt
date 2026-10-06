@@ -54,6 +54,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -1236,7 +1237,7 @@ class BlockEditorControllerTest {
     }
 
     @Test
-    fun singleDraggingBlockOutOfStartStackKeepsGhostUntilDropThenBridgesGap() {
+    fun singleDraggingBlockOutOfStartStackClosesGapDuringDragAndCommitsOnce() {
         val controller = BlockEditorController(
             initialDocument = WorkspaceBootstrap.starter(),
         )
@@ -1266,15 +1267,251 @@ class BlockEditorControllerTest {
         val staticRemainingBounds = controller.dragRender!!.staticLayoutCache.flatIndex.visibleBlocks
             .single { it.blockId == remainingHead }
             .bounds
-        assertEquals(remainingBoundsBefore.y, staticRemainingBounds.y, 0.01f)
+        assertTrue(staticRemainingBounds.y < remainingBoundsBefore.y)
+        val documentDuringDrag = controller.document
+        val historyDuringDrag = controller.historySize
         val detachedDropPoint = Offset2(screenCenter.x + 360f, screenCenter.y + 160f)
         controller.onPointerMove(detachedDropPoint)
         assertNull(controller.dragRender!!.snapCandidate)
+        assertEquals(documentDuringDrag, controller.document)
+        assertEquals(historyDuringDrag, controller.historySize)
         controller.onPointerUp(detachedDropPoint)
 
         assertEquals(remainingHead, WorkspaceGraph.nextChain(controller.document, startId))
         assertTrue(firstDetached in controller.document.rootBlocks)
+        assertEquals(historyDuringDrag + 1, controller.historySize)
 
+        controller.close()
+    }
+
+    @Test
+    fun statementInsertionPreviewDisplacesTargetStackWithoutCanonicalMutationAndRollsBack() {
+        val controller = BlockEditorController(initialDocument = WorkspaceBootstrap.empty())
+        controller.onCanvasSizeChange(Offset2(900f, 700f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 96f, 220f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.DEBUG_LOG, 96f, 320f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 420f, 220f))
+        val targetHead = controller.document.rootBlocks[0]
+        val displaced = controller.document.rootBlocks[1]
+        val targetTail = controller.document.rootBlocks[2]
+        val dragged = controller.document.rootBlocks[3]
+        controller.onAction(
+            WorkspaceAction.Connect(
+                controller.document.blocks.getValue(targetHead).next!!.id,
+                controller.document.blocks.getValue(displaced).previous!!.id,
+            ),
+        )
+        controller.onAction(
+            WorkspaceAction.Connect(
+                controller.document.blocks.getValue(displaced).next!!.id,
+                controller.document.blocks.getValue(targetTail).previous!!.id,
+            ),
+        )
+        val canonicalBefore = controller.document
+        val historyBefore = controller.historySize
+        val layoutBefore = controller.layoutCache
+        val draggedBounds = layoutBefore.flatIndex.visibleBlocks.single { it.blockId == dragged }.bounds
+        val start = Offset2(draggedBounds.x + draggedBounds.width * 0.5f, draggedBounds.y + draggedBounds.height * 0.5f)
+        val source = layoutBefore.flatIndex.connectionAnchors.single {
+            it.connectionId == canonicalBefore.blocks.getValue(dragged).previous!!.id
+        }
+        val target = layoutBefore.flatIndex.connectionAnchors.single {
+            it.connectionId == canonicalBefore.blocks.getValue(targetHead).next!!.id
+        }
+
+        assertTrue(controller.onLongPressDragStart(start))
+        val drop = Offset2(start.x + target.x - source.x, start.y + target.y - source.y)
+        controller.onPointerMove(drop)
+
+        val preview = controller.dragRender!!
+        assertEquals(target.connectionId, preview.snapCandidate!!.targetConnectionId)
+        assertEquals(canonicalBefore, controller.document)
+        assertEquals(historyBefore, controller.historySize)
+        assertTrue(displaced in preview.previewAffectedBlockIds)
+        val baseY = preview.baseStaticLayoutCache.flatIndex.visibleBlocks.single { it.blockId == displaced }.bounds.y
+        val previewY = preview.staticLayoutCache.flatIndex.visibleBlocks.single { it.blockId == displaced }.bounds.y
+        assertTrue(previewY > baseY)
+
+        controller.onPointerMove(Offset2(drop.x + 900f, drop.y + 900f))
+
+        assertNull(controller.dragRender!!.snapCandidate)
+        assertTrue(controller.dragRender!!.previewAffectedBlockIds.isEmpty())
+        assertEquals(controller.dragRender!!.baseStaticLayoutCache, controller.dragRender!!.staticLayoutCache)
+        assertEquals(canonicalBefore, controller.document)
+        assertEquals(historyBefore, controller.historySize)
+        controller.onPointerMove(drop)
+        assertEquals(target.connectionId, controller.dragRender!!.snapCandidate!!.targetConnectionId)
+        controller.onPointerUp(drop)
+
+        assertEquals(dragged, WorkspaceGraph.nextChain(controller.document, targetHead))
+        assertEquals(displaced, WorkspaceGraph.nextChain(controller.document, dragged))
+        assertEquals(historyBefore + 1, controller.historySize)
+        assertTrue(controller.undo())
+        assertEquals(canonicalBefore, controller.document)
+        controller.close()
+    }
+
+    @Test
+    fun candidateSwitchRetargetsPreviewWithoutSemanticMutation() {
+        val controller = BlockEditorController(initialDocument = WorkspaceBootstrap.empty())
+        controller.onCanvasSizeChange(Offset2(1000f, 800f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 460f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 520f, 280f))
+        val firstTargetId = controller.document.rootBlocks[0]
+        val secondTargetId = controller.document.rootBlocks[1]
+        val draggedId = controller.document.rootBlocks[2]
+        val canonicalBefore = controller.document
+        val historyBefore = controller.historySize
+        val layout = controller.layoutCache
+        val draggedBounds = layout.flatIndex.visibleBlocks.single { it.blockId == draggedId }.bounds
+        val start = Offset2(draggedBounds.x + draggedBounds.width * 0.5f, draggedBounds.y + draggedBounds.height * 0.5f)
+        val source = layout.flatIndex.connectionAnchors.single {
+            it.connectionId == canonicalBefore.blocks.getValue(draggedId).previous!!.id
+        }
+        fun dropFor(targetId: BlockId): Offset2 {
+            val target = layout.flatIndex.connectionAnchors.single {
+                it.connectionId == canonicalBefore.blocks.getValue(targetId).next!!.id
+            }
+            return Offset2(start.x + target.x - source.x, start.y + target.y - source.y)
+        }
+
+        assertTrue(controller.onLongPressDragStart(start))
+        controller.onPointerMove(dropFor(firstTargetId))
+        val firstCandidate = controller.dragRender!!.snapCandidate!!.targetConnectionId
+        controller.onPointerMove(dropFor(secondTargetId))
+        val secondCandidate = controller.dragRender!!.snapCandidate!!.targetConnectionId
+
+        assertNotEquals(firstCandidate, secondCandidate)
+        assertEquals(canonicalBefore.blocks.getValue(secondTargetId).next!!.id, secondCandidate)
+        assertEquals(canonicalBefore, controller.document)
+        assertEquals(historyBefore, controller.historySize)
+        controller.cancelActiveDrag()
+        assertEquals(canonicalBefore, controller.document)
+        controller.close()
+    }
+
+    @Test
+    fun controlSubtreeInsertionPreviewReservesCompleteContainerEnvelope() {
+        val controller = BlockEditorController(initialDocument = WorkspaceBootstrap.empty())
+        controller.onCanvasSizeChange(Offset2(1200f, 900f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 96f, 120f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_CLICK_TEXT, 96f, 240f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.CONTROL_IF_ELSE, 520f, 160f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.ACTION_WAIT, 600f, 280f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.DEBUG_LOG, 600f, 380f))
+        val waitRoots = controller.document.rootBlocks.filter {
+            controller.document.blocks.getValue(it).type == BlockTypes.ACTION_WAIT
+        }
+        val targetHead = waitRoots[0]
+        val thenChild = waitRoots[1]
+        val displaced = controller.document.rootBlocks.first {
+            controller.document.blocks.getValue(it).type == BlockTypes.ACTION_CLICK_TEXT
+        }
+        val control = controller.document.rootBlocks.first {
+            controller.document.blocks.getValue(it).type == BlockTypes.CONTROL_IF_ELSE
+        }
+        val elseChild = controller.document.rootBlocks.first {
+            controller.document.blocks.getValue(it).type == BlockTypes.DEBUG_LOG
+        }
+        controller.onAction(
+            WorkspaceAction.Connect(
+                controller.document.blocks.getValue(targetHead).next!!.id,
+                controller.document.blocks.getValue(displaced).previous!!.id,
+            ),
+        )
+        controller.onAction(
+            WorkspaceAction.Connect(
+                requireNotNull(
+                    controller.document.blocks.getValue(control).statementInputs.firstOrNull { it.name == BlockTypes.SLOT_THEN },
+                ) { "THEN input missing" }.connection.id,
+                controller.document.blocks.getValue(thenChild).previous!!.id,
+            ),
+        )
+        controller.onAction(
+            WorkspaceAction.Connect(
+                requireNotNull(
+                    controller.document.blocks.getValue(control).statementInputs.firstOrNull { it.name == BlockTypes.SLOT_ELSE },
+                ) { "ELSE input missing" }.connection.id,
+                controller.document.blocks.getValue(elseChild).previous!!.id,
+            ),
+        )
+        val canonicalBefore = controller.document
+        val layout = controller.layoutCache
+        val controlLayout = layout.flatIndex.visibleBlocks.firstOrNull { it.blockId == control }
+        assertNotNull("Control is not visible: ${layout.flatIndex.visibleBlocks.map { it.blockId.value }}", controlLayout)
+        val start = Offset2(
+            controlLayout!!.bounds.x + controlLayout.bounds.width * 0.5f,
+            controlLayout.bounds.y + controlLayout.bounds.height * 0.5f,
+        )
+        val source = layout.flatIndex.connectionAnchors.firstOrNull {
+            it.connectionId == canonicalBefore.blocks.getValue(control).previous!!.id
+        }
+        assertNotNull("Control previous anchor missing", source)
+        val target = layout.flatIndex.connectionAnchors.firstOrNull {
+            it.connectionId == canonicalBefore.blocks.getValue(targetHead).next!!.id
+        }
+        assertNotNull("Target next anchor missing", target)
+
+        assertTrue(controller.onLongPressDragStart(start))
+        assertTrue(thenChild in controller.dragRender!!.session.includedBlocks)
+        assertTrue(elseChild in controller.dragRender!!.session.includedBlocks)
+        controller.onPointerMove(Offset2(start.x + target!!.x - source!!.x, start.y + target.y - source.y))
+
+        val preview = controller.dragRender!!
+        assertEquals(target.connectionId, preview.snapCandidate!!.targetConnectionId)
+        val beforeBlock = preview.baseStaticLayoutCache.flatIndex.visibleBlocks.firstOrNull { it.blockId == displaced }
+        val afterBlock = preview.staticLayoutCache.flatIndex.visibleBlocks.firstOrNull { it.blockId == displaced }
+        assertNotNull(
+            "Base layout lost displaced block; ids=${preview.baseStaticLayoutCache.flatIndex.visibleBlocks.map { it.blockId.value }}",
+            beforeBlock,
+        )
+        assertNotNull(
+            "Insertion preview lost displaced block; ids=${preview.staticLayoutCache.flatIndex.visibleBlocks.map { it.blockId.value }}",
+            afterBlock,
+        )
+        val beforeY = beforeBlock!!.bounds.y
+        val afterY = afterBlock!!.bounds.y
+        assertTrue(afterY - beforeY >= controlLayout.bounds.height)
+        assertEquals(canonicalBefore, controller.document)
+        controller.cancelActiveDrag()
+        controller.close()
+    }
+
+    @Test
+    fun reporterAttachPreviewUsesHypotheticalDocumentOnly() {
+        val controller = BlockEditorController(initialDocument = WorkspaceBootstrap.empty())
+        controller.onCanvasSizeChange(Offset2(900f, 700f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.LOGIC_COMPARE, 96f, 120f))
+        controller.onAction(WorkspaceAction.InstantiateBlock(BlockTypes.LITERAL_NUMBER, 420f, 220f))
+        val compareId = controller.document.rootBlocks[0]
+        val reporterId = controller.document.rootBlocks[1]
+        val canonicalBefore = controller.document
+        val historyBefore = controller.historySize
+        val layout = controller.layoutCache
+        val reporterBounds = layout.flatIndex.visibleBlocks.single { it.blockId == reporterId }.bounds
+        val start = Offset2(reporterBounds.x + reporterBounds.width * 0.5f, reporterBounds.y + reporterBounds.height * 0.5f)
+        val source = layout.flatIndex.connectionAnchors.single {
+            it.connectionId == canonicalBefore.blocks.getValue(reporterId).output!!.id
+        }
+        val input = canonicalBefore.blocks.getValue(compareId).valueInputs.first()
+        val target = layout.flatIndex.connectionAnchors.single { it.connectionId == input.connection.id }
+
+        assertTrue(controller.onLongPressDragStart(start))
+        controller.onPointerMove(Offset2(start.x + target.x - source.x, start.y + target.y - source.y))
+
+        val preview = controller.dragRender!!
+        assertEquals(target.connectionId, preview.snapCandidate!!.targetConnectionId)
+        assertEquals(canonicalBefore, controller.document)
+        assertEquals(historyBefore, controller.historySize)
+        val previewDocument = preview.insertionPreviewDocument!!
+        assertTrue(WorkspaceGraph.isValuePlugged(previewDocument, reporterId))
+        assertFalse(WorkspaceGraph.isValuePlugged(controller.document, reporterId))
+
+        controller.cancelActiveDrag()
+        assertEquals(canonicalBefore, controller.document)
+        assertEquals(historyBefore, controller.historySize)
         controller.close()
     }
 

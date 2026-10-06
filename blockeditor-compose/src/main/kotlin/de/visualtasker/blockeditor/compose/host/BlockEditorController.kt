@@ -71,6 +71,7 @@ import de.visualtasker.blockeditor.compose.viewmodel.BlockContextMenuRequest
 import de.visualtasker.blockeditor.compose.viewmodel.BlockTypeOption
 import de.visualtasker.blockeditor.compose.viewmodel.CommonBlockInfoFields
 import de.visualtasker.blockeditor.compose.viewmodel.DragRenderState
+import de.visualtasker.blockeditor.compose.viewmodel.resolveInsertionPreview
 import de.visualtasker.blockeditor.compose.viewmodel.parameterSourceFieldKey
 import de.visualtasker.blockeditor.compose.viewmodel.parseInfoValue
 import de.visualtasker.blockeditor.compose.viewmodel.toBlockInfoField
@@ -265,7 +266,14 @@ class BlockEditorController(
         )
         val session = updated.dragSession ?: return
         render.runtimeState.update(session.dragOffset, updated.activeSnapCandidate)
-        dragRender = render.copy(
+        val candidateChanged = render.snapCandidate?.sourceConnectionId != updated.activeSnapCandidate?.sourceConnectionId ||
+            render.snapCandidate?.targetConnectionId != updated.activeSnapCandidate?.targetConnectionId
+        val previewRender = if (candidateChanged) {
+            resolveInsertionPreview(render, updated.activeSnapCandidate, layoutEngine)
+        } else {
+            render
+        }
+        dragRender = previewRender.copy(
             session = session,
             snapCandidate = updated.activeSnapCandidate,
         )
@@ -1788,11 +1796,7 @@ class BlockEditorController(
                 blockId,
                 session.includedBlocks,
             ).let(::preserveMissingRootOffsets)
-            val staticLayout = if (session.pullMode == DragPullMode.Single) {
-                preLiftLayout
-            } else {
-                layoutEngine.build(layoutDoc)
-            }
+            val staticLayout = layoutEngine.build(layoutDoc)
             val dragLayout = layoutEngine.build(layoutDoc)
             val rootLayout = staticLayout.flatIndex.visibleBlocks
                 .find { it.blockId == blockId }
@@ -1810,6 +1814,7 @@ class BlockEditorController(
                 snapCandidate = null,
                 previewDocument = snapDoc,
                 staticLayoutCache = staticLayout,
+                baseStaticLayoutCache = staticLayout,
                 dragLayoutCache = dragLayout,
             )
         }

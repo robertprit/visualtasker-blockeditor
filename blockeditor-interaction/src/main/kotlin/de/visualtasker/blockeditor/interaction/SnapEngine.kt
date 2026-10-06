@@ -83,7 +83,10 @@ class SnapEngine(
         if (currentCandidate != null && best != null) {
             if (best.targetConnectionId != currentCandidate.targetConnectionId) {
                 val improvement = currentCandidate.distance - best.distance
-                if (improvement < config.switchThreshold) {
+                if (
+                    isCandidateStillValid(layout, dragSession, currentCandidate) &&
+                    improvement < config.switchThreshold
+                ) {
                     return currentCandidate
                 }
             }
