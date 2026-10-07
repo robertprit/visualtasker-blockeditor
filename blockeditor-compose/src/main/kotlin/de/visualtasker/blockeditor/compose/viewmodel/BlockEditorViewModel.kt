@@ -13,6 +13,7 @@ import de.visualtasker.workflow.core.ConnectionKind
 import de.visualtasker.workflow.core.Offset2
 import de.visualtasker.workflow.core.WorkspaceAction
 import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.CanonicalWorkspaceMigration
 import de.visualtasker.workflow.core.WorkspaceGraph
 import de.visualtasker.workflow.core.WorkspaceReducer
 import de.visualtasker.workflow.core.asString
@@ -99,10 +100,15 @@ class BlockEditorViewModel(
     private val snapEngine: SnapEngine = SnapEngine(),
     private val emscriptGenerator: EmscriptGenerator = EmscriptGenerator(IrGenerator(registry)),
 ) : ViewModel() {
-    var document by mutableStateOf(initialDocument)
+    private val initialCanonicalDocument = CanonicalWorkspaceMigration.toCurrent(initialDocument)
+        .takeIf { it.isValid }
+        ?.document
+        ?: initialDocument
+
+    var document by mutableStateOf(initialCanonicalDocument)
         private set
 
-    var layoutCache by mutableStateOf(layoutEngine.build(initialDocument))
+    var layoutCache by mutableStateOf(layoutEngine.build(initialCanonicalDocument))
         private set
 
     var viewport by mutableStateOf(ViewportState())
@@ -516,8 +522,12 @@ class BlockEditorViewModel(
 
     private fun actionSummary(action: WorkspaceAction): String = when (action) {
         is WorkspaceAction.InstantiateBlock -> "Instantiate ${action.definitionId} @ (${action.x}, ${action.y})"
+        is WorkspaceAction.CreateBlock -> "CreateBlock ${action.block.id.value}"
+        is WorkspaceAction.ReplaceBlockShape -> "ReplaceBlockShape ${action.block.id.value}"
         is WorkspaceAction.Connect -> "Connect ${action.source.value} -> ${action.target.value}"
         is WorkspaceAction.DeleteBlock -> "Delete ${action.blockId.value}"
+        is WorkspaceAction.DeleteBlockPreservingChain -> "DeletePreservingChain ${action.blockId.value}"
+        is WorkspaceAction.DeleteBlocks -> "DeleteBlocks ${action.blockIds.size}"
         is WorkspaceAction.MoveRoot -> "MoveRoot ${action.blockId.value} -> (${action.x}, ${action.y})"
         is WorkspaceAction.Disconnect -> "Disconnect ${action.connection.value}"
         is WorkspaceAction.DetachBlock -> "Detach ${action.blockId.value}"

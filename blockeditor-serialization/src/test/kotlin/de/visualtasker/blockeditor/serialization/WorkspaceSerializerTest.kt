@@ -223,16 +223,8 @@ class WorkspaceSerializerTest {
     @Test
     fun legacyRootMetadata_deserializesIntoRootPositions() {
         val blockId = BlockId("legacy-root")
-        val block = DefaultBlockRegistry.getDefinition(BlockTypes.ACTION_WAIT)!!
-            .createNode(blockId)
-            .withRootOffset(11f, 22f)
-        val legacyJson = WorkspaceSerializer.serialize(
-            WorkspaceDocument(
-                id = "legacy-root-position",
-                blocks = mapOf(blockId to block),
-                rootBlocks = listOf(blockId),
-            ),
-        ).replace(""""rootPositions":[],""", "")
+        val legacyJson =
+            """{"schemaVersion":1,"id":"legacy-root-position","version":0,"blocks":[{"id":"legacy-root","node":{"type":"event.start","fields":[],"previous":null,"next":{"id":"legacy-root.next","owner":"legacy-root","kind":"Next","accepts":[],"provides":null,"connectedTo":null,"slotName":null},"output":null,"valueInputs":[],"statementInputs":[],"collapsed":false,"metadata":[{"key":"rootX","value":"11.0"},{"key":"rootY","value":"22.0"}]}}],"rootBlocks":["legacy-root"],"variables":[]}"""
 
         val restored = WorkspaceSerializer.deserialize(legacyJson)
 

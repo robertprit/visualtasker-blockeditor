@@ -3,6 +3,7 @@ package de.visualtasker.blockeditor.compose.host
 import de.visualtasker.workflow.core.Offset2
 import de.visualtasker.workflow.core.BlockId
 import de.visualtasker.workflow.core.BlockNode
+import de.visualtasker.workflow.core.CanonicalWorkspaceMigration
 import de.visualtasker.workflow.core.FieldValue
 import de.visualtasker.workflow.core.VariableDefinition
 import de.visualtasker.workflow.core.VariableRegistry
@@ -44,6 +45,7 @@ import de.visualtasker.blockeditor.registry.asFactory
 import de.visualtasker.blockeditor.registry.createNode
 import androidx.compose.ui.graphics.Color
 import de.visualtasker.workflow.semantics.validation.ValidationError
+import de.visualtasker.workflow.serialization.WORKFLOW_SCHEMA_VERSION
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
@@ -640,7 +642,7 @@ class BlockEditorControllerTest {
         assertEquals(1, callbacks.documentChanges.size)
 
         assertTrue(controller.undo())
-        assertEquals(WorkspaceBootstrap.empty(), controller.document)
+        assertEquals(CanonicalWorkspaceMigration.toCurrent(WorkspaceBootstrap.empty()).document, controller.document)
         assertTrue(controller.redo())
         assertEquals(imported, controller.document)
 
@@ -1715,7 +1717,7 @@ class BlockEditorControllerTest {
         )
 
         assertEquals(1, callbacks.documentChanges.size)
-        assertTrue(callbacks.documentChanges.single().contains("\"schemaVersion\":1"))
+        assertTrue(callbacks.documentChanges.single().contains("\"schemaVersion\":$WORKFLOW_SCHEMA_VERSION"))
 
         advanceTimeBy(200L)
         runCurrent()

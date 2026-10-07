@@ -58,6 +58,11 @@ data class WorkspaceDocument(
     val rootBlocks: List<BlockId> = emptyList(),
     val rootPositions: Map<BlockId, WorkspacePoint> = emptyMap(),
     val variables: VariableRegistry = VariableRegistry(),
+    /**
+     * Schema-2 semantic authority. Connector endpoints and [rootBlocks] are compatibility projections
+     * whenever this value is present; they must not be mutated independently.
+     */
+    val canonical: CanonicalWorkspaceDocument? = null,
 )
 
 const val META_ROOT_X = "rootX"

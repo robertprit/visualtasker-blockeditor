@@ -2,6 +2,9 @@ package de.visualtasker.workflow.serialization
 
 import de.visualtasker.workflow.core.BlockId
 import de.visualtasker.workflow.core.BlockNode
+import de.visualtasker.workflow.core.CanonicalCompatibilityProjection
+import de.visualtasker.workflow.core.CanonicalWorkspaceDocument
+import de.visualtasker.workflow.core.CanonicalWorkspaceMigration
 import de.visualtasker.workflow.core.Connection
 import de.visualtasker.workflow.core.ConnectionId
 import de.visualtasker.workflow.core.ConnectionKind
@@ -23,7 +26,8 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-const val WORKFLOW_SCHEMA_VERSION = 1
+const val WORKFLOW_SCHEMA_VERSION = 2
+private const val LEGACY_WORKFLOW_SCHEMA_VERSION = 1
 
 @Serializable
 private data class WorkspaceDocumentDto(
@@ -34,6 +38,7 @@ private data class WorkspaceDocumentDto(
     val rootBlocks: List<String> = emptyList(),
     val rootPositions: List<RootPositionDto> = emptyList(),
     val variables: List<VariableEntryDto> = emptyList(),
+    val canonical: CanonicalWorkspaceDocument? = null,
 )
 
 @Serializable
@@ -171,8 +176,17 @@ object WorkflowSerializer {
         explicitNulls = false
     }
 
-    fun serialize(document: WorkspaceDocument): String =
-        json.encodeToString(WorkflowDocumentNormalizer.normalize(document).toDto())
+    fun serialize(document: WorkspaceDocument): String {
+        val normalized = WorkflowDocumentNormalizer.normalize(document)
+        val migration = CanonicalWorkspaceMigration.toCurrent(normalized)
+        if (!migration.isValid) {
+            val details = (migration.issues.map { it.message } + migration.diagnostics.map { it.message })
+                .distinct()
+                .joinToString("; ")
+            throw WorkflowSerializationException("Cannot serialize invalid canonical workspace: $details")
+        }
+        return json.encodeToString(migration.document.toDto())
+    }
 
     fun decode(
         raw: String,
@@ -245,13 +259,44 @@ object WorkflowSerializer {
         } catch (error: IllegalArgumentException) {
             throw WorkflowSerializationException("Malformed workspace JSON.", error)
         }
-        if (dto.schemaVersion != WORKFLOW_SCHEMA_VERSION) {
+        val actualSchemaVersion = rawSchemaVersion(raw) ?: LEGACY_WORKFLOW_SCHEMA_VERSION
+        if (actualSchemaVersion !in LEGACY_WORKFLOW_SCHEMA_VERSION..WORKFLOW_SCHEMA_VERSION) {
             throw WorkflowSerializationException(
-                "Unsupported workspace schema version ${dto.schemaVersion}; " +
-                    "expected $WORKFLOW_SCHEMA_VERSION.",
+                "Unsupported workspace schema version $actualSchemaVersion; " +
+                    "expected $LEGACY_WORKFLOW_SCHEMA_VERSION..$WORKFLOW_SCHEMA_VERSION.",
             )
         }
-        return WorkflowDocumentNormalizer.normalize(dto.toDomain())
+        val decoded = WorkflowDocumentNormalizer.normalize(dto.toDomain())
+        val migrated = when (actualSchemaVersion) {
+            LEGACY_WORKFLOW_SCHEMA_VERSION -> CanonicalWorkspaceMigration.toCurrent(decoded)
+            WORKFLOW_SCHEMA_VERSION -> {
+                if (decoded.canonical == null) {
+                    throw WorkflowSerializationException("Schema $WORKFLOW_SCHEMA_VERSION document has no canonical state.")
+                }
+                val projection = CanonicalCompatibilityProjection.project(decoded)
+                if (!projection.isValid) {
+                    throw WorkflowSerializationException(
+                        "Invalid schema $WORKFLOW_SCHEMA_VERSION canonical state: " +
+                            projection.issues.joinToString("; ") { it.message },
+                    )
+                }
+                de.visualtasker.workflow.core.CanonicalMigrationResult(
+                    document = projection.document,
+                    diagnostics = emptyList(),
+                    issues = emptyList(),
+                )
+            }
+            else -> error("schema checked above")
+        }
+        if (!migrated.isValid) {
+            throw WorkflowSerializationException(
+                "Cannot migrate workspace schema $actualSchemaVersion: " +
+                    (migrated.issues.map { it.message } + migrated.diagnostics.map { it.message })
+                        .distinct()
+                        .joinToString("; "),
+            )
+        }
+        return migrated.document
     }
 
     private fun rawSchemaVersion(raw: String): Int? = runCatching {
@@ -332,41 +377,42 @@ object WorkflowSerializer {
         version = version,
         blocks = blocks.entries
             .sortedBy { it.key.value }
-            .map { BlockEntryDto(it.key.value, it.value.toDto(it.key.value)) },
-        rootBlocks = rootBlocks.map { it.value },
+            .map { BlockEntryDto(it.key.value, it.value.toDto(it.key.value, includeLinks = false)) },
+        rootBlocks = emptyList(),
         rootPositions = rootPositions.entries
             .sortedBy { it.key.value }
             .map { RootPositionDto(it.key.value, it.value.x, it.value.y) },
         variables = variables.variables.entries
             .sortedBy { it.key }
             .map { VariableEntryDto(it.key, it.value.toDto()) },
+        canonical = canonical,
     )
 
-    private fun BlockNode.toDto(blockId: String): BlockNodeDto = BlockNodeDto(
+    private fun BlockNode.toDto(blockId: String, includeLinks: Boolean): BlockNodeDto = BlockNodeDto(
         type = type,
         fields = fields.entries
             .sortedBy { it.key }
             .map { FieldEntryDto(it.key, it.value.toDto()) },
-        previous = previous?.toDto(),
-        next = next?.toDto(),
-        output = output?.toDto(),
+        previous = previous?.toDto(includeLinks),
+        next = next?.toDto(includeLinks),
+        output = output?.toDto(includeLinks),
         valueInputs = valueInputs
-            .map { ValueInputDto(it.name, it.connection.toDto()) },
+            .map { ValueInputDto(it.name, it.connection.toDto(includeLinks)) },
         statementInputs = statementInputs
-            .map { StatementInputDto(it.name, it.connection.toDto()) },
+            .map { StatementInputDto(it.name, it.connection.toDto(includeLinks)) },
         collapsed = collapsed,
         metadata = metadata.entries
             .sortedBy { it.key }
             .map { MetadataEntryDto(it.key, it.value) },
     )
 
-    private fun Connection.toDto(): ConnectionDto = ConnectionDto(
+    private fun Connection.toDto(includeLinks: Boolean): ConnectionDto = ConnectionDto(
         id = id.value,
         owner = owner.value,
         kind = kind.name,
         accepts = accepts.sorted(),
         provides = provides,
-        connectedTo = connectedTo?.value,
+        connectedTo = connectedTo?.value.takeIf { includeLinks },
         slotName = slotName,
     )
 
@@ -401,10 +447,11 @@ object WorkflowSerializer {
             version = version,
             blocks = domainBlocks,
             rootBlocks = domainRoots,
-            rootPositions = (legacyPositions + explicitPositions).filterKeys { it in domainRoots },
+            rootPositions = legacyPositions + explicitPositions,
             variables = VariableRegistry(
                 variables = variables.associate { it.id to it.definition.toDomain(it.id) },
             ),
+            canonical = canonical,
         )
     }
 

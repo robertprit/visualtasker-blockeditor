@@ -308,9 +308,9 @@ object LegacyWorkspaceCanonicalizer {
     ): Pair<SemanticRelationRole, Int?> {
         if (isCondition) return SemanticRelationRole(SemanticRelationRoleKind.Condition) to null
         val order = owner.valueInputs.indexOfFirst { it.name == inputName }.takeIf { it >= 0 }
-        return when (inputName.uppercase()) {
-            "VALUE" -> SemanticRelationRole(SemanticRelationRoleKind.Value) to null
-            "A", "B", "C", "LEFT", "RIGHT", "INPUT1", "INPUT2" ->
+        return when {
+            inputName == "VALUE" -> SemanticRelationRole(SemanticRelationRoleKind.Value) to null
+            inputName.uppercase() in setOf("A", "B", "C", "LEFT", "RIGHT", "INPUT1", "INPUT2") ->
                 SemanticRelationRole(SemanticRelationRoleKind.Operand) to order
             else -> SemanticRelationRole(SemanticRelationRoleKind.Argument, name = inputName) to order
         }

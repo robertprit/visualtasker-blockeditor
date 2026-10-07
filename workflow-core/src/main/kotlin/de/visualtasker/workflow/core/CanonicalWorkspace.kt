@@ -81,6 +81,14 @@ object CanonicalWorkspaceValidator {
             if (relation.target.id !in entityIds) {
                 add(CanonicalValidationIssue("relation.target.missing", "Missing target ${relation.target.id.value}.", relationId = relation.id))
             }
+            val source = entitiesById[relation.source.id]?.singleOrNull()?.ref
+            val target = entitiesById[relation.target.id]?.singleOrNull()?.ref
+            if (source != null && source.kind != relation.source.kind) {
+                add(CanonicalValidationIssue("relation.source.kind", "Source kind does not match entity ${source.id.value}.", relationId = relation.id))
+            }
+            if (target != null && target.kind != relation.target.kind) {
+                add(CanonicalValidationIssue("relation.target.kind", "Target kind does not match entity ${target.id.value}.", relationId = relation.id))
+            }
             validateCompatibility(relation)?.let(::add)
         }
         document.relations
@@ -93,6 +101,36 @@ object CanonicalWorkspaceValidator {
                         code = "sequence.outgoing.duplicate",
                         message = "Statement ${sourceId.value} has ${relations.size} outgoing sequence relations.",
                         entityId = sourceId,
+                    ),
+                )
+            }
+        document.relations
+            .filter { it.kind == SemanticRelationKind.Sequence }
+            .groupBy { it.target.id }
+            .filterValues { it.size > 1 }
+            .forEach { (targetId, relations) ->
+                add(
+                    CanonicalValidationIssue(
+                        code = "sequence.incoming.duplicate",
+                        message = "Statement ${targetId.value} has ${relations.size} incoming sequence relations.",
+                        entityId = targetId,
+                    ),
+                )
+            }
+        document.relations
+            .filter {
+                it.kind == SemanticRelationKind.Containment &&
+                    it.role.kind in setOf(SemanticRelationRoleKind.Root, SemanticRelationRoleKind.Branch)
+            }
+            .filter { it.order != null }
+            .groupBy { Triple(it.source.id, it.role.kind, it.order) }
+            .filterValues { it.size > 1 }
+            .forEach { (_, relations) ->
+                add(
+                    CanonicalValidationIssue(
+                        code = "containment.order.duplicate",
+                        message = "Containment order ${relations.first().order} is duplicated for ${relations.first().source.id.value}.",
+                        relationId = relations.first().id,
                     ),
                 )
             }

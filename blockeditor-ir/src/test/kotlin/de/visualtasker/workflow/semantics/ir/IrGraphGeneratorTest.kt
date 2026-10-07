@@ -145,15 +145,13 @@ class IrGraphGeneratorTest {
         }
 
         fun instantiate(id: String, type: String): BlockId {
-            val before = document.blocks.keys
-            document = WorkspaceReducer.reduce(document, WorkspaceAction.InstantiateBlock(type, 64f, 64f), factory)
-            val created = (document.blocks.keys - before).single()
-            document = document.copy(
-                blocks = document.blocks - created + (BlockId(id) to document.blocks.getValue(created).copy(id = BlockId(id))),
-                rootBlocks = document.rootBlocks.map { if (it == created) BlockId(id) else it },
-                rootPositions = document.rootPositions - created + (BlockId(id) to document.rootPositions.getValue(created)),
+            val blockId = BlockId(id)
+            document = WorkspaceReducer.reduce(
+                document,
+                WorkspaceAction.InstantiateBlock(type, 64f, 64f, blockId),
+                factory,
             )
-            return BlockId(id)
+            return blockId
         }
 
         val start = instantiate("start", BlockTypes.EVENT_START)

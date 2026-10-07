@@ -15,8 +15,15 @@ class CanonicalWorkflowContractTest {
 
         val serialized = WorkflowSerializer.serialize(original)
         val restored = WorkflowSerializer.deserialize(serialized)
+        val expected = CanonicalWorkspaceMigration.toCurrent(original).document
 
-        assertEquals(original, restored)
+        assertEquals(expected.id, restored.id)
+        assertEquals(expected.version, restored.version)
+        assertEquals(expected.blocks, restored.blocks)
+        assertEquals(expected.rootBlocks, restored.rootBlocks)
+        assertEquals(expected.rootPositions, restored.rootPositions)
+        assertEquals(expected.variables, restored.variables)
+        assertEquals(expected.canonical, restored.canonical)
         assertEquals(serialized, WorkflowSerializer.serialize(restored))
         assertEquals(
             listOf("start", "let", "set", "if", "while", "repeat"),
@@ -40,7 +47,8 @@ class CanonicalWorkflowContractTest {
         assertEquals(loaded, reloaded)
         assertEquals(BlockId("start"), reloaded.rootBlocks.single())
         assertEquals("event.start", reloaded.blocks.getValue(BlockId("start")).type)
-        assertTrue(saved.contains("\"schemaVersion\":1"))
+        assertTrue(saved.contains("\"schemaVersion\":2"))
+        assertTrue(saved.contains("\"canonical\":"))
         assertEquals(saved, WorkflowSerializer.serialize(reloaded))
     }
 

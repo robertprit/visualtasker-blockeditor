@@ -16,6 +16,7 @@ import de.visualtasker.workflow.core.BlockNode
 import de.visualtasker.workflow.core.Connection
 import de.visualtasker.workflow.core.ConnectionId
 import de.visualtasker.workflow.core.ConnectionKind
+import de.visualtasker.workflow.core.CanonicalWorkspaceMigration
 import de.visualtasker.workflow.core.FieldValue
 import de.visualtasker.workflow.core.Offset2
 import de.visualtasker.workflow.core.StatementInput
@@ -106,22 +107,26 @@ class BlockEditorController(
         get() = registry
 
     private val disposed = AtomicBoolean(false)
+    private val initialCanonicalDocument = CanonicalWorkspaceMigration.toCurrent(initialDocument)
+        .takeIf { it.isValid }
+        ?.document
+        ?: initialDocument
     private var debounceJob: Job? = null
     private var lastValidDraft: String = ""
-    private var semanticProjectionKey: SemanticProjectionKey = initialDocument.semanticProjectionKey()
+    private var semanticProjectionKey: SemanticProjectionKey = initialCanonicalDocument.semanticProjectionKey()
     private var pendingSemanticProjection: Boolean = false
     private var lastPersistentValidationErrors: List<ValidationError> = emptyList()
     private var lastEmscriptGenerationFailure: String? = null
     private var releaseChecklist: BlockEditorReleaseChecklist = BlockEditorReleaseChecklist()
 
-    override var document by mutableStateOf(initialDocument)
+    override var document by mutableStateOf(initialCanonicalDocument)
         private set
 
     init {
-        syncVariableReporters(initialDocument.variables)
+        syncVariableReporters(initialCanonicalDocument.variables)
     }
 
-    override var layoutCache by mutableStateOf(layoutEngine.build(initialDocument))
+    override var layoutCache by mutableStateOf(layoutEngine.build(initialCanonicalDocument))
         private set
 
     override var viewport by mutableStateOf(ViewportState())
@@ -136,7 +141,7 @@ class BlockEditorController(
     private var infoPanelBlockId by mutableStateOf<BlockId?>(null)
     var blockContextMenuRequest by mutableStateOf<BlockContextMenuRequest?>(null)
         private set
-    private var workspaceState: WorkspaceState = WorkspaceState(initialDocument)
+    private var workspaceState: WorkspaceState = WorkspaceState(initialCanonicalDocument)
     private var pendingFocusBlockId: BlockId? = null
     private var pendingFocusSelect: Boolean = false
     private var initialCanvasFitApplied: Boolean = false
@@ -515,7 +520,11 @@ class BlockEditorController(
             if (toDelete.isEmpty()) return false
             dragRender = null
             clearSelection()
-            val updated = deleteDragGroup(document, toDelete.toSet())
+            val updated = WorkspaceReducer.reduce(
+                document,
+                WorkspaceAction.DeleteBlocks(toDelete.toSet()),
+                registry.asFactory(),
+            )
             val changed = updated != document
             applyPersistentDocumentChange(updated, previousDocument = document)
             return changed
@@ -527,7 +536,11 @@ class BlockEditorController(
         }
         dragRender = null
         clearSelection()
-        val updated = deleteSingleBlockPreservingChain(document, selected)
+        val updated = WorkspaceReducer.reduce(
+            document,
+            WorkspaceAction.DeleteBlockPreservingChain(selected),
+            registry.asFactory(),
+        )
         applyPersistentDocumentChange(updated, previousDocument = document)
         return true
     }
@@ -759,10 +772,12 @@ class BlockEditorController(
         val effectiveMode = if (family == ReporterFamily.BOOLEAN) ReporterVisualMode.COMPACT else mode
         val updatedBlock = blockWithReporterVisualMode(block, effectiveMode)
         if (updatedBlock == block) return
-        applyPersistentDocumentChange(
-            document.copy(blocks = document.blocks + (blockId to updatedBlock)),
-            previousDocument = document,
+        val updated = WorkspaceReducer.reduce(
+            document,
+            WorkspaceAction.ReplaceBlockShape(updatedBlock),
+            registry.asFactory(),
         )
+        applyPersistentDocumentChange(updated, previousDocument = document)
     }
 
     fun toggleSelectedBlockActive(): Boolean {
@@ -926,16 +941,25 @@ class BlockEditorController(
         phase: BlockEditorValidationPhase = BlockEditorValidationPhase.AFTER_DOCUMENT_MUTATION,
     ) {
         if (disposed.get()) return
-        if (newDocument == document) return
+        val migration = CanonicalWorkspaceMigration.toCurrent(newDocument)
+        if (!migration.isValid) {
+            logController("document publication rejected: ${migration.issues.joinToString { it.code }}")
+            return
+        }
+        val publishableDocument = migration.document
+        if (publishableDocument == document) return
+        val canonicalPrevious = previousDocument?.let(CanonicalWorkspaceMigration::toCurrent)
+            ?.takeIf { it.isValid }
+            ?.document
         pendingValidationPhase = phase
         val dropTraceId = BlockEditorDropTrace.activeId()
         BlockEditorDropTrace.mark(dropTraceId, "T5_HISTORY_UPDATE_ENTER", "record=$recordHistory")
         val nextState = if (recordHistory) {
-            previousDocument?.let { baseline ->
-                workspaceState.copy(document = baseline).record(newDocument)
-            } ?: workspaceState.record(newDocument)
+            canonicalPrevious?.let { baseline ->
+                workspaceState.copy(document = baseline).record(publishableDocument)
+            } ?: workspaceState.record(publishableDocument)
         } else {
-            workspaceState.replaceWithoutHistory(newDocument)
+            workspaceState.replaceWithoutHistory(publishableDocument)
         }
         BlockEditorDropTrace.mark(
             dropTraceId,
@@ -986,179 +1010,6 @@ class BlockEditorController(
             "APPLY_WORKSPACE_STATE_RETURN",
             "semanticProjectionChanged=$semanticProjectionChanged",
         )
-    }
-
-    private fun deleteSingleBlockPreservingChain(
-        source: WorkspaceDocument,
-        blockId: BlockId,
-    ): WorkspaceDocument {
-        val block = source.blocks[blockId] ?: return source
-        val previousId = WorkspaceGraph.previousChain(source, blockId)
-        val nextId = WorkspaceGraph.nextChain(source, blockId)
-        val directStatementSlot = if (previousId == null) {
-            WorkspaceGraph.slotContaining(source, blockId)?.takeIf { (parentId, slotName) ->
-                WorkspaceGraph.statementStackHead(source, parentId, slotName) == blockId
-            }
-        } else {
-            null
-        }
-        val nestedToRemove = collectOwnedNestedBlocks(source, blockId)
-        val toRemove = nestedToRemove + blockId
-        var blocks = source.blocks.toMutableMap()
-        var promotedRootId: BlockId? = null
-
-        toRemove.forEach { removedId ->
-            source.blocks[removedId]?.allConnections().orEmpty().forEach { connection ->
-                val partnerId = connection.connectedTo ?: return@forEach
-                val (partnerBlockId, _) = WorkspaceGraph.findConnection(source, partnerId) ?: return@forEach
-                if (partnerBlockId !in toRemove) {
-                    blocks[partnerBlockId] = blocks[partnerBlockId]
-                        ?.withConnectionUpdated(partnerId) { it.copy(connectedTo = null) }
-                        ?: return@forEach
-                }
-            }
-        }
-
-        val roots = source.rootBlocks.toMutableList()
-        when {
-            previousId != null -> {
-                val previousNext = source.blocks[previousId]?.next?.id
-                val nextPrevious = nextId?.let { source.blocks[it]?.previous?.id }
-                if (previousNext != null) {
-                    blocks[previousId]?.let { previous ->
-                        blocks[previousId] = previous.withConnectionUpdated(previousNext) {
-                            it.copy(connectedTo = nextPrevious)
-                        }
-                    }
-                }
-                if (nextId != null && nextPrevious != null) {
-                    blocks[nextId]?.let { next ->
-                        blocks[nextId] = next.withConnectionUpdated(nextPrevious) {
-                            it.copy(connectedTo = previousNext)
-                        }
-                    }
-                }
-            }
-            directStatementSlot != null -> {
-                val (parentId, slotName) = directStatementSlot
-                val slotConnection = source.blocks[parentId]
-                    ?.statementInputs
-                    ?.find { it.name == slotName }
-                    ?.connection
-                    ?.id
-                val nextPrevious = nextId?.let { source.blocks[it]?.previous?.id }
-                if (slotConnection != null) {
-                    blocks[parentId]?.let { parent ->
-                        blocks[parentId] = parent.withConnectionUpdated(slotConnection) {
-                            it.copy(connectedTo = nextPrevious)
-                        }
-                    }
-                }
-                if (nextId != null && nextPrevious != null) {
-                    blocks[nextId]?.let { next ->
-                        blocks[nextId] = next.withConnectionUpdated(nextPrevious) {
-                            it.copy(connectedTo = slotConnection)
-                        }
-                    }
-                    roots.remove(nextId)
-                }
-            }
-            nextId != null -> {
-                val nextPrevious = source.blocks[nextId]?.previous?.id
-                if (nextPrevious != null) {
-                    blocks[nextId]?.let { next ->
-                        blocks[nextId] = next.withConnectionUpdated(nextPrevious) {
-                            it.copy(connectedTo = null)
-                        }
-                    }
-                }
-                val selectedRootIndex = roots.indexOf(blockId)
-                if (selectedRootIndex >= 0) {
-                    roots[selectedRootIndex] = nextId
-                    promotedRootId = nextId
-                } else if (nextId !in roots) {
-                    roots += nextId
-                    promotedRootId = nextId
-                }
-            }
-        }
-
-        toRemove.forEach(blocks::remove)
-        val reduced = source.copy(
-            version = source.version + 1,
-            blocks = blocks,
-            rootPositions = source.rootPositions - toRemove,
-        )
-        val withNextRootPosition = promotedRootId?.let { id ->
-            source.rootOffset(blockId)?.let { offset ->
-                reduced.withRootOffset(id, offset.x, offset.y)
-            }
-        } ?: reduced
-        return withNextRootPosition.copy(
-            rootBlocks = WorkspaceGraph.pruneRootBlocks(
-                withNextRootPosition,
-                roots.filter { it !in toRemove },
-            ),
-            rootPositions = withNextRootPosition.rootPositions.filterKeys {
-                it in roots.filter { root -> root !in toRemove }
-            },
-        )
-    }
-
-    private fun deleteDragGroup(
-        source: WorkspaceDocument,
-        blockIds: Set<BlockId>,
-    ): WorkspaceDocument {
-        if (blockIds.isEmpty()) return source
-        val toRemove = blockIds.filterTo(mutableSetOf()) { it in source.blocks }
-        if (toRemove.isEmpty()) return source
-        var blocks = source.blocks.toMutableMap()
-        toRemove.forEach { removedId ->
-            source.blocks[removedId]?.allConnections().orEmpty().forEach { connection ->
-                val partnerId = connection.connectedTo ?: return@forEach
-                val (partnerBlockId, _) = WorkspaceGraph.findConnection(source, partnerId) ?: return@forEach
-                if (partnerBlockId !in toRemove) {
-                    blocks[partnerBlockId] = blocks[partnerBlockId]
-                        ?.withConnectionUpdated(partnerId) { it.copy(connectedTo = null) }
-                        ?: return@forEach
-                }
-            }
-        }
-        toRemove.forEach(blocks::remove)
-        val reduced = source.copy(
-            version = source.version + 1,
-            blocks = blocks,
-            rootBlocks = source.rootBlocks.filter { it !in toRemove },
-            rootPositions = source.rootPositions - toRemove,
-        )
-        return reduced.copy(
-            rootBlocks = WorkspaceGraph.pruneRootBlocks(reduced, reduced.rootBlocks),
-            rootPositions = reduced.rootPositions.filterKeys { it in reduced.rootBlocks },
-        )
-    }
-
-    private fun collectOwnedNestedBlocks(
-        source: WorkspaceDocument,
-        blockId: BlockId,
-    ): Set<BlockId> {
-        val result = mutableSetOf<BlockId>()
-        fun walk(id: BlockId) {
-            val block = source.blocks[id] ?: return
-            block.statementInputs.forEach { slot ->
-                WorkspaceGraph.statementStack(source, id, slot.name).forEach { childId ->
-                    if (result.add(childId)) walk(childId)
-                }
-            }
-            block.valueInputs.forEach { input ->
-                val connected = input.connection.connectedTo ?: return@forEach
-                val (childId, connection) = WorkspaceGraph.findConnection(source, connected) ?: return@forEach
-                if (connection.kind == de.visualtasker.workflow.core.ConnectionKind.Output && result.add(childId)) {
-                    walk(childId)
-                }
-            }
-        }
-        walk(blockId)
-        return result
     }
 
     private fun zoomBy(factor: Float) {
@@ -1428,13 +1279,13 @@ class BlockEditorController(
         val sourceBounds = layoutCache.flatIndex.visibleBlocks.find { it.blockId == blockId }?.bounds
         val x = (sourceBounds?.x ?: document.rootOffset(blockId)?.x ?: 96f) + 36f
         val y = (sourceBounds?.y ?: document.rootOffset(blockId)?.y ?: 120f) + 36f
-        val documentWithDuplicateVariable = document.withDuplicateVariable(block, duplicate)
-        val withDuplicateBlock = documentWithDuplicateVariable.copy(
-            version = document.version + 1,
-            blocks = documentWithDuplicateVariable.blocks + (duplicateId to duplicate),
-        ).withRootOffset(duplicateId, x, y)
-        val updated = withDuplicateBlock.copy(
-            rootBlocks = WorkspaceGraph.pruneRootBlocks(withDuplicateBlock, withDuplicateBlock.rootBlocks + duplicateId),
+        val baseline = duplicateVariableDefinition(block, duplicate)?.let { variable ->
+            WorkspaceReducer.reduce(document, WorkspaceAction.CreateVariable(variable), registry.asFactory())
+        } ?: document
+        val updated = WorkspaceReducer.reduce(
+            baseline,
+            WorkspaceAction.CreateBlock(duplicate, x, y),
+            registry.asFactory(),
         )
         applyPersistentDocumentChange(updated, previousDocument = document)
         selectSingle(duplicateId)
@@ -1468,24 +1319,19 @@ class BlockEditorController(
         )
     }
 
-    private fun WorkspaceDocument.withDuplicateVariable(source: BlockNode, duplicate: BlockNode): WorkspaceDocument {
-        if (source.type != VARIABLE_DECLARE_BLOCK_TYPE) return this
+    private fun duplicateVariableDefinition(source: BlockNode, duplicate: BlockNode): VariableDefinition? {
+        if (source.type != VARIABLE_DECLARE_BLOCK_TYPE) return null
         val variableId = duplicate.fields["variableId"]?.asString().orEmpty()
         val name = duplicate.fields["name"]?.asString().orEmpty()
-        if (variableId.isBlank() || name.isBlank()) return this
+        if (variableId.isBlank() || name.isBlank()) return null
         val sourceVariableId = source.fields["variableId"]?.asString().orEmpty()
-        val sourceVariable = variables.variables[sourceVariableId]
-        val variable = VariableDefinition(
+        val sourceVariable = document.variables.variables[sourceVariableId]
+        return VariableDefinition(
             id = variableId,
             name = name,
             type = sourceVariable?.type ?: duplicate.fields["type"]?.asString().orEmpty().ifBlank { "Any" },
             scope = sourceVariable?.scope ?: VariableScope.Global,
             defaultValue = sourceVariable?.defaultValue,
-        )
-        return copy(
-            variables = variables.copy(
-                variables = variables.variables + (variable.id to variable),
-            ),
         )
     }
 
@@ -1494,26 +1340,6 @@ class BlockEditorController(
         if (source.type == targetType) return false
         val targetDefinition = registry.getDefinition(targetType) ?: return false
         val targetTemplate = targetDefinition.createNode(blockId)
-        val targetConnectionIds = targetTemplate.allConnections().map { it.id }.toSet()
-        val promotedRoots = mutableListOf<BlockId>()
-        var blocks = document.blocks.toMutableMap()
-
-        source.allConnections()
-            .filter { it.id !in targetConnectionIds }
-            .forEach { removedConnection ->
-                val partnerId = removedConnection.connectedTo ?: return@forEach
-                val (partnerBlockId, partnerConnection) = WorkspaceGraph.findConnection(document, partnerId)
-                    ?: return@forEach
-                blocks[partnerBlockId] = blocks[partnerBlockId]
-                    ?.withConnectionUpdated(partnerConnection.id) { it.copy(connectedTo = null) }
-                    ?: return@forEach
-                if (removedConnection.kind == de.visualtasker.workflow.core.ConnectionKind.StatementInput &&
-                    partnerConnection.kind == de.visualtasker.workflow.core.ConnectionKind.Previous
-                ) {
-                    promotedRoots += partnerBlockId
-                }
-            }
-
         val sourceValueInputs = source.valueInputs.associateBy { it.name }
         val sourceStatementInputs = source.statementInputs.associateBy { it.name }
         val replacement = targetTemplate.copy(
@@ -1534,11 +1360,10 @@ class BlockEditorController(
             collapsed = source.collapsed,
             metadata = source.metadata,
         )
-        blocks[blockId] = replacement
-        val updated = document.copy(
-            version = document.version + 1,
-            blocks = blocks,
-            rootBlocks = WorkspaceGraph.pruneRootBlocks(document.copy(blocks = blocks), document.rootBlocks + promotedRoots),
+        val updated = WorkspaceReducer.reduce(
+            document,
+            WorkspaceAction.ReplaceBlockShape(replacement),
+            registry.asFactory(),
         )
         applyPersistentDocumentChange(updated, previousDocument = document)
         selectSingle(blockId)
@@ -1569,26 +1394,6 @@ class BlockEditorController(
         val targetDefinition = registry.getDefinition(targetType) ?: return false
         val targetTemplate = targetDefinition.createNode(blockId)
         val dynamicTemplate = targetTemplate.withIfBranches(branchCount)
-        val targetConnectionIds = dynamicTemplate.allConnections().map { it.id }.toSet()
-        val promotedRoots = mutableListOf<BlockId>()
-        var blocks = document.blocks.toMutableMap()
-
-        source.allConnections()
-            .filter { it.id !in targetConnectionIds }
-            .forEach { removedConnection ->
-                val partnerId = removedConnection.connectedTo ?: return@forEach
-                val (partnerBlockId, partnerConnection) = WorkspaceGraph.findConnection(document, partnerId)
-                    ?: return@forEach
-                blocks[partnerBlockId] = blocks[partnerBlockId]
-                    ?.withConnectionUpdated(partnerConnection.id) { it.copy(connectedTo = null) }
-                    ?: return@forEach
-                if (removedConnection.kind == ConnectionKind.StatementInput &&
-                    partnerConnection.kind == ConnectionKind.Previous
-                ) {
-                    promotedRoots += partnerBlockId
-                }
-            }
-
         val sourceValueInputs = source.valueInputs.associateBy { it.name }
         val sourceStatementInputs = source.statementInputs.associateBy { it.name }
         val replacement = dynamicTemplate.copy(
@@ -1609,13 +1414,10 @@ class BlockEditorController(
             collapsed = source.collapsed,
             metadata = source.metadata + ("if.branchCount" to branchCount.toString()),
         )
-        blocks[blockId] = replacement
-        val updated = preserveMissingRootOffsets(
-            document.copy(
-                version = document.version + 1,
-                blocks = blocks,
-                rootBlocks = WorkspaceGraph.pruneRootBlocks(document.copy(blocks = blocks), document.rootBlocks + promotedRoots),
-            ),
+        val updated = WorkspaceReducer.reduce(
+            document,
+            WorkspaceAction.ReplaceBlockShape(replacement),
+            registry.asFactory(),
         )
         applyPersistentDocumentChange(updated, previousDocument = document)
         selectSingle(blockId)

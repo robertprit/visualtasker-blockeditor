@@ -3,6 +3,7 @@ package de.visualtasker.workflow.semantics
 import de.visualtasker.workflow.core.BlockId
 import de.visualtasker.workflow.core.BlockNode
 import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.CanonicalWorkspaceMigration
 import de.visualtasker.workflow.core.withConnectionUpdated
 import de.visualtasker.workflow.semantics.ir.IrGenerator
 import de.visualtasker.workflow.semantics.ir.IrStatement
@@ -30,7 +31,7 @@ class SharedSemanticServicesTest {
         val validation = Validator.validate(decoded)
         val ir = IrGenerator().generate(decoded)
 
-        assertEquals(document, decoded)
+        assertEquals(CanonicalWorkspaceMigration.toCurrent(document).document, decoded)
         assertTrue(validation.errors.toString(), validation.isValid)
         assertEquals(listOf(IrStatement.Wait(500L)), ir.statements)
     }
