@@ -24,9 +24,7 @@ internal object CanonicalWorkspaceReducer {
             is WorkspaceAction.DetachBlock -> detach(current, action.blockId)
             is WorkspaceAction.Collapse -> updateBlock(current, action.blockId) { it.copy(collapsed = true) }
             is WorkspaceAction.Expand -> updateBlock(current, action.blockId) { it.copy(collapsed = false) }
-            is WorkspaceAction.UpdateField -> updateBlock(current, action.blockId) {
-                it.copy(fields = it.fields + (action.key to action.value))
-            }
+            is WorkspaceAction.UpdateField -> updateField(current, action)
             is WorkspaceAction.CreateVariable -> createVariable(current, action.variable)
             is WorkspaceAction.RenameVariable -> renameVariable(current, action.variableId, action.name)
             is WorkspaceAction.DeleteVariable -> deleteVariable(current, action.variableId)
@@ -426,6 +424,20 @@ internal object CanonicalWorkspaceReducer {
         }
     }
 
+    private fun updateField(document: WorkspaceDocument, action: WorkspaceAction.UpdateField): WorkspaceDocument {
+        val target = document.entityForBlock(action.blockId)?.ref?.id ?: return document
+        val operation = WorkspaceOperation.SetProperty(
+            operationId = WorkspaceOperationId("editor:set-property:${document.version}:${action.blockId.value}:${action.key}"),
+            target = target,
+            property = SemanticPropertyId(action.key),
+            value = action.value.toWorkspacePropertyValue(),
+        )
+        return when (val result = WorkspaceOperationExecutor.execute(document, operation)) {
+            is WorkspaceOperationResult.Success -> result.document
+            is WorkspaceOperationResult.Failure -> document
+        }
+    }
+
     private fun desiredVariableReference(
         document: WorkspaceDocument,
         owner: SemanticEntityRef,
@@ -693,6 +705,12 @@ internal object CanonicalWorkspaceReducer {
         valueInputs = valueInputs.map { it.copy(connection = it.connection.copy(connectedTo = null)) },
         statementInputs = statementInputs.map { it.copy(connection = it.connection.copy(connectedTo = null)) },
     )
+
+    private fun FieldValue.toWorkspacePropertyValue(): WorkspacePropertyValue = when (this) {
+        is FieldValue.Text -> WorkspacePropertyValue.Text(value)
+        is FieldValue.Number -> WorkspacePropertyValue.Number(value)
+        is FieldValue.Bool -> WorkspacePropertyValue.Bool(value)
+    }
 
     private fun String.toBranchRole(): SemanticBranchRole? = when {
         this == "THEN" -> SemanticBranchRole.Then
