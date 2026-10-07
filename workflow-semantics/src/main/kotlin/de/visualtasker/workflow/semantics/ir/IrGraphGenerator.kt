@@ -178,7 +178,7 @@ class IrGraphGenerator(
             val kind = edgeKindForStatementSlot(input.name)
             val role = branchRoleForStatementSlot(input.name)
             val branchRef = IrGraphBranchRef(
-                id = "branch:${blockId.value}:${role.name.lowercase()}:$branchIndex:${input.name}",
+                id = "branch:${blockId.value}:${input.name}",
                 ownerBlockId = blockId.value,
                 role = role,
                 index = branchIndex,

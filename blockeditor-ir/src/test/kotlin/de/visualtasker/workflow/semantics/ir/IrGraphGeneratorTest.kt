@@ -37,6 +37,10 @@ class IrGraphGeneratorTest {
         assertTrue(graph.branches.any { it.ownerNodeId == IrGraphNodeId("block:if") && it.role == IrGraphBranchRole.THEN && it.bodyEntryNodeId == IrGraphNodeId("block:then") })
         assertTrue(graph.branches.any { it.ownerNodeId == IrGraphNodeId("block:if") && it.role == IrGraphBranchRole.ELSE_IF })
         assertTrue(graph.branches.any { it.ownerNodeId == IrGraphNodeId("block:if") && it.role == IrGraphBranchRole.ELSE && it.bodyEntryNodeId == IrGraphNodeId("block:else") })
+        assertEquals(
+            setOf("branch:if:THEN", "branch:if:ELIF", "branch:if:ELSE"),
+            graph.branches.map { it.id }.toSet(),
+        )
         assertTrue(graph.facets.any { it.kind == IrGraphFacetKind.BRANCH_REGION && IrGraphNodeId("block:elif") in it.nodeIds })
         assertTrue(graph.edges.any { it.sourceNodeId.value == "block:start" && it.targetNodeId.value == "block:if" && it.kind == IrGraphEdgeKind.SEQUENCE })
         assertTrue(graph.edges.any { it.sourceNodeId.value == "block:if" && it.targetNodeId.value == "block:then" && it.kind == IrGraphEdgeKind.TRUE_BRANCH })
