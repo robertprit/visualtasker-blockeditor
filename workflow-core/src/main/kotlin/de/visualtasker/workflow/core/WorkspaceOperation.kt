@@ -155,6 +155,34 @@ object WorkspaceOperationExecutor {
         document: WorkspaceDocument,
         transaction: WorkspaceTransaction,
         propertySchema: SemanticPropertySchema = CanonicalSemanticPropertySchema,
+    ): WorkspaceOperationResult = executeInternal(
+        document = document,
+        transaction = transaction,
+        propertySchema = propertySchema,
+        stagedPayload = null,
+    )
+
+    /**
+     * Applies a transaction against a validated baseline while using locally prepared block and variable payload.
+     * The payload is never published unless the complete canonical transaction validates.
+     */
+    fun executeWithStagedPayload(
+        document: WorkspaceDocument,
+        transaction: WorkspaceTransaction,
+        stagedPayload: WorkspaceDocument,
+        propertySchema: SemanticPropertySchema = CanonicalSemanticPropertySchema,
+    ): WorkspaceOperationResult = executeInternal(
+        document = document,
+        transaction = transaction,
+        propertySchema = propertySchema,
+        stagedPayload = stagedPayload,
+    )
+
+    private fun executeInternal(
+        document: WorkspaceDocument,
+        transaction: WorkspaceTransaction,
+        propertySchema: SemanticPropertySchema,
+        stagedPayload: WorkspaceDocument?,
     ): WorkspaceOperationResult {
         val migration = CanonicalWorkspaceMigration.toCurrent(document)
         if (!migration.isValid) {
@@ -164,7 +192,14 @@ object WorkspaceOperationExecutor {
                 migration.issues.firstOrNull()?.message ?: "Canonical workspace migration failed.",
             )
         }
-        val baseline = migration.document
+        val canonicalBaseline = migration.document
+        val baseline = stagedPayload?.let { staged ->
+            canonicalBaseline.copy(
+                blocks = staged.blocks,
+                rootPositions = canonicalBaseline.rootPositions,
+                variables = staged.variables,
+            )
+        } ?: canonicalBaseline
         if (transaction.expectedRevision != null && transaction.expectedRevision != baseline.version) {
             return failure(
                 document,
@@ -206,7 +241,7 @@ object WorkspaceOperationExecutor {
 
         val mutations = transaction.operations.map(::toCanonicalMutation)
         return when (val result = CanonicalWorkspaceMutator.apply(baseline, mutations)) {
-            is CanonicalMutationResult.Applied -> success(baseline, result.document, transaction.operations)
+            is CanonicalMutationResult.Applied -> success(canonicalBaseline, result.document, transaction.operations)
             is CanonicalMutationResult.Rejected -> {
                 val issue = result.issues.firstOrNull()
                     ?: CanonicalValidationIssue("validation.failed", "Canonical mutation was rejected.")

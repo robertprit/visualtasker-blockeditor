@@ -148,6 +148,45 @@ class WorkspaceOperationExecutorTest {
     }
 
     @Test
+    fun stagedSourcePayloadPublishesOnlyWithSuccessfulTransaction() {
+        val document = fixture()
+        val clickId = BlockId("click")
+        val stagedClick = document.blocks.getValue(clickId).copy(
+            fields = document.blocks.getValue(clickId).fields +
+                ("text" to FieldValue.Text("Prepared")) +
+                ("displayLabel" to FieldValue.Text("Preserved label")),
+        )
+        val staged = document.copy(blocks = document.blocks + (clickId to stagedClick))
+        val valid = WorkspaceTransaction(
+            transactionId = id("staged-valid"),
+            expectedRevision = document.version,
+            operations = listOf(
+                setProperty("staged-text", SemanticEntityId("block:click"), "text", WorkspacePropertyValue.Text("Prepared")),
+            ),
+        )
+
+        val success = WorkspaceOperationExecutor.executeWithStagedPayload(document, valid, staged)
+            as WorkspaceOperationResult.Success
+
+        assertEquals(document.version + 1, success.resultingRevision)
+        assertEquals(FieldValue.Text("Prepared"), success.document.blocks.getValue(clickId).fields["text"])
+        assertEquals(FieldValue.Text("Preserved label"), success.document.blocks.getValue(clickId).fields["displayLabel"])
+
+        val invalid = WorkspaceTransaction(
+            transactionId = id("staged-invalid"),
+            expectedRevision = document.version,
+            operations = listOf(
+                setProperty("missing-property", SemanticEntityId("block:click"), "missing", WorkspacePropertyValue.Text("x")),
+            ),
+        )
+        val failure = WorkspaceOperationExecutor.executeWithStagedPayload(document, invalid, staged)
+            as WorkspaceOperationResult.Failure
+
+        assertEquals(document, failure.document)
+        assertEquals(WorkspaceOperationDiagnosticCode.PROPERTY_NOT_FOUND, failure.diagnostic.code)
+    }
+
+    @Test
     fun identicalOperationReplayIsDeterministic() {
         val firstDocument = fixture()
         val secondDocument = fixture()
