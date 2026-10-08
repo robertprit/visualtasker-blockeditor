@@ -27,6 +27,19 @@ class EmscriptGeneratorTest {
     }
 
     @Test
+    fun workspaceGenerationEmitsDeterministicRuntimeInertSourceAnchors() {
+        val document = SampleWorkspaceFactory.createDemo()
+
+        val first = generator.generate(document)
+        val second = generator.generate(document)
+
+        assertEquals(first, second)
+        assertTrue(first.contains("@source.entity(\"block\", \""))
+        assertTrue(first.contains("@source.relation(\""))
+        assertTrue(first.lineSequence().any { it.contains("\"Branch\")") })
+    }
+
+    @Test
     fun ifElseIfElse_emitsElseifKeyword() {
         val startId = BlockId("start")
         val ifId = BlockId("if")

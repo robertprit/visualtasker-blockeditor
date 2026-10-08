@@ -8,6 +8,7 @@ import de.visualtasker.workflow.semantics.ir.IrGenerator
 import de.visualtasker.workflow.semantics.ir.IrScript
 import de.visualtasker.workflow.semantics.ir.IrStatement
 import de.visualtasker.workflow.core.WorkspaceDocument
+import de.visualtasker.workflow.core.SemanticRelation
 
 class EmscriptGenerator(
     private val irGenerator: IrGenerator = IrGenerator(),
@@ -16,14 +17,38 @@ class EmscriptGenerator(
     override fun generate(document: WorkspaceDocument): String =
         generate(document, document.id)
 
-    fun generate(document: WorkspaceDocument, scriptName: String): String =
-        generate(irGenerator.generate(document, scriptName))
+    fun generate(document: WorkspaceDocument, scriptName: String): String {
+        val script = irGenerator.generate(document, scriptName)
+        val projection = WorkspaceSourceAnchorProjector.project(document)
+        return projection?.let { generate(script, it) } ?: generate(script)
+    }
 
     fun generate(script: IrScript): String = buildString {
-        script.statements.forEach { appendStatement(it, 0) }
+        script.statements.forEach { appendStatement(it, 0, null) }
     }.trimEnd()
 
-    private fun StringBuilder.appendStatement(statement: IrStatement, depth: Int) {
+    private fun generate(script: IrScript, projection: WorkspaceSourceAnchorProjection): String = buildString {
+        projection.relations.forEach { appendRelationAnchor(it.relation) }
+        if (projection.relations.isNotEmpty() && script.statements.isNotEmpty()) append('\n')
+        val anchors = projection.statements.iterator()
+        script.statements.forEach { appendStatement(it, 0, anchors) }
+        check(!anchors.hasNext()) { "Source-anchor projection contains more statements than EMScript IR." }
+    }.trimEnd()
+
+    private fun StringBuilder.appendStatement(
+        statement: IrStatement,
+        depth: Int,
+        anchors: Iterator<ProjectedStatementSourceAnchors>?,
+    ) {
+        anchors?.let {
+            check(it.hasNext()) { "EMScript IR contains more statements than the source-anchor projection." }
+            it.next().entities.forEach { anchor ->
+                appendLine(
+                    depth,
+                    "@source.entity(\"${escape(anchor.locator)}\", \"${escape(anchor.entityId)}\", \"${anchor.entityKind.name}\")",
+                )
+            }
+        }
         when (statement) {
             is IrStatement.CommandCall -> {
                 val command = sanitizeCommandName(statement.command)
@@ -54,28 +79,45 @@ class EmscriptGenerator(
             is IrStatement.Repeat -> {
                 require(statement.times >= 0) { "repeat count must not be negative" }
                 appendLine(depth, "repeat (${statement.times}) {")
-                statement.body.forEach { appendStatement(it, depth + 1) }
+                statement.body.forEach { appendStatement(it, depth + 1, anchors) }
                 appendLine(depth, "}")
             }
             is IrStatement.While -> {
                 appendLine(depth, "while (${emitExpression(statement.condition)}) {")
-                statement.body.forEach { appendStatement(it, depth + 1) }
+                statement.body.forEach { appendStatement(it, depth + 1, anchors) }
                 appendLine(depth, "}")
             }
             is IrStatement.If -> {
                 appendLine(depth, "if (${emitExpression(statement.condition)}) {")
-                statement.thenBranch.forEach { appendStatement(it, depth + 1) }
+                statement.thenBranch.forEach { appendStatement(it, depth + 1, anchors) }
                 statement.elseIfBranches.forEach { branch ->
                     appendLine(depth, "} else if (${emitExpression(branch.condition)}) {")
-                    branch.body.forEach { appendStatement(it, depth + 1) }
+                    branch.body.forEach { appendStatement(it, depth + 1, anchors) }
                 }
                 if (statement.elseBranch.isNotEmpty()) {
                     appendLine(depth, "} else {")
-                    statement.elseBranch.forEach { appendStatement(it, depth + 1) }
+                    statement.elseBranch.forEach { appendStatement(it, depth + 1, anchors) }
                 }
                 appendLine(depth, "}")
             }
         }
+    }
+
+    private fun StringBuilder.appendRelationAnchor(relation: SemanticRelation) {
+        append("@source.relation(")
+        append(
+            listOf(
+                relation.id.value,
+                relation.kind.name,
+                relation.source.id.value,
+                relation.target.id.value,
+                relation.role.kind.name,
+                relation.role.name.orEmpty(),
+                relation.role.branchRole?.name.orEmpty(),
+                relation.order?.toString().orEmpty(),
+            ).joinToString(", ") { "\"${escape(it)}\"" },
+        )
+        append(")\n")
     }
 
     private fun emitExpression(expression: IrExpression): String = when (expression) {

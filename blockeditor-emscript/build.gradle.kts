@@ -7,6 +7,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":emscript-language-core"))
     implementation(project(":workflow-core"))
     implementation(project(":workflow-semantics"))
     testImplementation(project(":blockeditor-registry"))
