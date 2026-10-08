@@ -14,7 +14,8 @@ object WorkspaceReducer {
         document: WorkspaceDocument,
         action: WorkspaceAction,
         factory: BlockFactory = BlockFactory { _, _ -> null },
-    ): WorkspaceDocument = CanonicalWorkspaceReducer.reduce(document, action, factory)
+        propertySchema: SemanticPropertySchema = CanonicalSemanticPropertySchema,
+    ): WorkspaceDocument = CanonicalWorkspaceReducer.reduce(document, action, factory, propertySchema)
 
     fun detachBlock(document: WorkspaceDocument, blockId: BlockId): WorkspaceDocument =
         CanonicalWorkspaceReducer.reduce(

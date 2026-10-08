@@ -411,7 +411,8 @@ class IrGraphGenerator(
         }
     }
 
-    private fun nodeLabel(block: BlockNode, document: WorkspaceDocument): String = when (block.type) {
+    private fun nodeLabel(block: BlockNode, document: WorkspaceDocument): String =
+        block.fieldTextOrNull("displayLabel")?.takeIf(String::isNotBlank) ?: when (block.type) {
         BlockTypes.EVENT_START -> "START"
         BlockTypes.ACTION_CLICK_TEXT -> "CLICK \"${block.fieldText("text")}\""
         BlockTypes.ACTION_WAIT -> "WAIT ${block.fieldNumber("ms").toLong()}ms"
@@ -447,7 +448,7 @@ class IrGraphGenerator(
                 block.fieldText("command").ifBlank { block.type.removePrefix(BlockTypes.EMSCRIPT_COMMAND_PREFIX) }
             else -> block.type
         }
-    }
+        }
 
     private fun expressionInputLabel(
         document: WorkspaceDocument,

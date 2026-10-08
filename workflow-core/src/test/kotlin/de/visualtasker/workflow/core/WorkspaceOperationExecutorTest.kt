@@ -298,6 +298,73 @@ class WorkspaceOperationExecutorTest {
         assertFalse(result.document.canonical!!.entities.any { it.ref.id == SemanticEntityId("block:spare") })
     }
 
+    @Test
+    fun schemaRejectsWrongOwnerTypeAndNullWithoutChangingRevision() {
+        val document = fixture()
+        val variable = SemanticEntityId("variable:counter")
+        val wait = SemanticEntityId("block:wait")
+        val click = SemanticEntityId("block:click")
+        val cases = listOf(
+            setProperty("wrong-owner", variable, "duration", WorkspacePropertyValue.Number(1.0)) to
+                WorkspaceOperationDiagnosticCode.PROPERTY_NOT_FOUND,
+            setProperty("wrong-type-schema", wait, "duration", WorkspacePropertyValue.Text("fast")) to
+                WorkspaceOperationDiagnosticCode.INVALID_PROPERTY_TYPE,
+            setProperty("null-required", click, "text", WorkspacePropertyValue.Null) to
+                WorkspaceOperationDiagnosticCode.INVALID_PROPERTY_TYPE,
+        )
+
+        cases.forEach { (operation, expectedCode) ->
+            val result = failure(document, operation)
+            assertEquals(expectedCode, result.diagnostic.code)
+            assertEquals(document.version, result.document.version)
+            assertEquals(document, result.document)
+        }
+    }
+
+    @Test
+    fun schemaRejectsReadOnlyStructuralAndConstraintProperties() {
+        val document = fixture()
+        val click = SemanticEntityId("block:click")
+        val variable = SemanticEntityId("variable:counter")
+
+        assertFailureCode(
+            document,
+            setProperty("readonly", click, "entityId", WorkspacePropertyValue.Text("other")),
+            WorkspaceOperationDiagnosticCode.PROPERTY_NOT_WRITABLE,
+        )
+        assertFailureCode(
+            document,
+            setProperty("structural", click, "relationOrder", WorkspacePropertyValue.Number(4.0)),
+            WorkspaceOperationDiagnosticCode.STRUCTURAL_PROPERTY_REQUIRED,
+        )
+        assertFailureCode(
+            document,
+            setProperty("constraint", variable, "name", WorkspacePropertyValue.Text(" ")),
+            WorkspaceOperationDiagnosticCode.PROPERTY_CONSTRAINT_VIOLATION,
+        )
+    }
+
+    @Test
+    fun nullableAndDisplayLabelPropertiesAreDiscoverableAndWritable() {
+        val document = fixture()
+        val click = SemanticEntityId("block:click")
+        val properties = CanonicalSemanticPropertySchema.propertiesFor(document, click)
+        assertEquals(properties, CanonicalSemanticPropertySchema.propertiesFor(document, click))
+        assertTrue(properties.single { it.propertyId.value == "note" }.nullable)
+        assertTrue(properties.single { it.propertyId.value == "displayLabel" }.writable)
+
+        val withoutNote = success(document, setProperty("nullable", click, "note", WorkspacePropertyValue.Null))
+        val labeled = success(
+            withoutNote.document,
+            setProperty("display-label", click, "displayLabel", WorkspacePropertyValue.Text("Continue")),
+        )
+        assertFalse(labeled.document.blocks.getValue(BlockId("click")).fields.containsKey("note"))
+        assertEquals(
+            FieldValue.Text("Continue"),
+            labeled.document.blocks.getValue(BlockId("click")).fields["displayLabel"],
+        )
+    }
+
     private fun success(document: WorkspaceDocument, operation: WorkspaceOperation): WorkspaceOperationResult.Success =
         WorkspaceOperationExecutor.execute(document, operation) as WorkspaceOperationResult.Success
 
@@ -377,6 +444,17 @@ class WorkspaceOperationExecutorTest {
             version = 7,
             blocks = blocks,
             rootBlocks = listOf(startId, spareId, conditionId, boolId),
+            variables = VariableRegistry(
+                mapOf(
+                    "counter" to VariableDefinition(
+                        id = "counter",
+                        name = "counter",
+                        type = "Number",
+                        scope = VariableScope.Script,
+                        defaultValue = "0",
+                    ),
+                ),
+            ),
         )
         return CanonicalWorkspaceMigration.toCurrent(legacy).document
     }

@@ -67,6 +67,7 @@ import de.visualtasker.blockeditor.registry.createNode
 import de.visualtasker.blockeditor.serialization.WorkspaceSerializer
 import de.visualtasker.workflow.semantics.validation.Validator
 import de.visualtasker.workflow.semantics.validation.ValidationError
+import de.visualtasker.workflow.semantics.VisualTaskerSemanticPropertySchema
 import de.visualtasker.blockeditor.compose.viewmodel.BlockInfoSnapshot
 import de.visualtasker.blockeditor.compose.viewmodel.BlockContextMenuRequest
 import de.visualtasker.blockeditor.compose.viewmodel.BlockTypeOption
@@ -191,7 +192,12 @@ class BlockEditorController(
 
     fun onAction(action: WorkspaceAction) {
         if (disposed.get()) return
-        val reduced = WorkspaceReducer.reduce(document, action, registry.asFactory())
+        val reduced = WorkspaceReducer.reduce(
+            document,
+            action,
+            registry.asFactory(),
+            VisualTaskerSemanticPropertySchema,
+        )
         applyPersistentDocumentChange(
             reduced,
             previousDocument = document,

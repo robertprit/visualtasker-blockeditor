@@ -5,7 +5,19 @@ import de.visualtasker.workflow.core.BlockNode
 import de.visualtasker.workflow.core.WorkspaceDocument
 import de.visualtasker.workflow.core.CanonicalWorkspaceMigration
 import de.visualtasker.workflow.core.withConnectionUpdated
+import de.visualtasker.workflow.core.FieldValue
+import de.visualtasker.workflow.core.SemanticEntityId
+import de.visualtasker.workflow.core.SemanticEntityKind
+import de.visualtasker.workflow.core.SemanticPropertyConstraint
+import de.visualtasker.workflow.core.SemanticPropertyId
+import de.visualtasker.workflow.core.WorkspaceOperation
+import de.visualtasker.workflow.core.WorkspaceOperationDiagnosticCode
+import de.visualtasker.workflow.core.WorkspaceOperationExecutor
+import de.visualtasker.workflow.core.WorkspaceOperationId
+import de.visualtasker.workflow.core.WorkspaceOperationResult
+import de.visualtasker.workflow.core.WorkspacePropertyValue
 import de.visualtasker.workflow.semantics.ir.IrGenerator
+import de.visualtasker.workflow.semantics.ir.IrGraphGenerator
 import de.visualtasker.workflow.semantics.ir.IrStatement
 import de.visualtasker.workflow.semantics.validation.TypeMismatch
 import de.visualtasker.workflow.semantics.validation.Validator
@@ -69,6 +81,80 @@ class SharedSemanticServicesTest {
         assertTrue(result.errors.any { error ->
             error is TypeMismatch && error.blockId == decision.id && error.inputName == "CONDITION"
         })
+    }
+
+    @Test
+    fun commandCatalogProvidesDeterministicTypedPropertyDefinitions() {
+        val wait = VisualTaskerCommandCatalog.findByCanonicalName("wait")!!
+        val first = wait.semanticPropertyDefinitions(SemanticEntityKind.Statement)
+        val second = wait.semanticPropertyDefinitions(SemanticEntityKind.Statement)
+
+        assertEquals(first, second)
+        val duration = first.single { it.propertyId.value == "ms" }
+        assertEquals("action.wait", duration.commandId)
+        assertEquals("Number", WorkspaceValueTypeSystem.workspaceName(duration.valueType))
+        assertTrue(duration.writable)
+        assertFalse(duration.nullable)
+        assertTrue(duration.constraints.any { it is SemanticPropertyConstraint.NumberRange })
+    }
+
+    @Test
+    fun catalogSchemaValidatesAndAppliesCommandProperty() {
+        val wait = node(WorkflowElementTypes.ACTION_WAIT, "wait")
+        val document = CanonicalWorkspaceMigration.toCurrent(
+            WorkspaceDocument(
+                id = "catalog-property",
+                blocks = mapOf(wait.id to wait),
+                rootBlocks = listOf(wait.id),
+            ),
+        ).document
+        val target = SemanticEntityId("block:wait")
+        val definitions = VisualTaskerSemanticPropertySchema.propertiesFor(document, target)
+        assertEquals(definitions, VisualTaskerSemanticPropertySchema.propertiesFor(document, target))
+        assertEquals("action.wait", definitions.single { it.propertyId.value == "ms" }.commandId)
+
+        val applied = WorkspaceOperationExecutor.execute(
+            document,
+            WorkspaceOperation.SetProperty(
+                WorkspaceOperationId("set-wait"),
+                target,
+                SemanticPropertyId("ms"),
+                WorkspacePropertyValue.Number(750.0),
+            ),
+            VisualTaskerSemanticPropertySchema,
+        ) as WorkspaceOperationResult.Success
+        assertEquals(FieldValue.Number(750.0), applied.document.blocks.getValue(wait.id).fields["ms"])
+
+        val rejected = WorkspaceOperationExecutor.execute(
+            applied.document,
+            WorkspaceOperation.SetProperty(
+                WorkspaceOperationId("set-wait-invalid"),
+                target,
+                SemanticPropertyId("ms"),
+                WorkspacePropertyValue.Text("fast"),
+            ),
+            VisualTaskerSemanticPropertySchema,
+        ) as WorkspaceOperationResult.Failure
+        assertEquals(WorkspaceOperationDiagnosticCode.INVALID_PROPERTY_TYPE, rejected.diagnostic.code)
+        assertEquals(applied.document, rejected.document)
+    }
+
+    @Test
+    fun customDisplayLabelSurvivesSerializationAndFeedsSharedIrProjection() {
+        val defaultWait = node(WorkflowElementTypes.ACTION_WAIT, "wait")
+        val wait = defaultWait.copy(
+            fields = defaultWait.fields + ("displayLabel" to FieldValue.Text("Shared wait")),
+        )
+        val document = WorkspaceDocument(
+            id = "shared-display-label",
+            blocks = mapOf(wait.id to wait),
+            rootBlocks = listOf(wait.id),
+        )
+
+        val reloaded = WorkflowSerializer.deserialize(WorkflowSerializer.serialize(document))
+        val projected = IrGraphGenerator().generate(reloaded)
+
+        assertEquals("Shared wait", projected.nodes.single { it.source.blockId == wait.id.value }.label)
     }
 
     private fun node(type: String, id: String): BlockNode =

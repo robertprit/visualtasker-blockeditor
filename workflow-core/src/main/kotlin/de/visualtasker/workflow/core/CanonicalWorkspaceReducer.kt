@@ -7,7 +7,12 @@ import java.util.UUID
 
 /** Schema-2 reducer. It changes canonical relations first and rebuilds legacy connector fields afterwards. */
 internal object CanonicalWorkspaceReducer {
-    fun reduce(document: WorkspaceDocument, action: WorkspaceAction, factory: BlockFactory): WorkspaceDocument {
+    fun reduce(
+        document: WorkspaceDocument,
+        action: WorkspaceAction,
+        factory: BlockFactory,
+        propertySchema: SemanticPropertySchema = CanonicalSemanticPropertySchema,
+    ): WorkspaceDocument {
         val migration = CanonicalWorkspaceMigration.toCurrent(document)
         if (!migration.isValid) return document
         val current = migration.document
@@ -24,7 +29,7 @@ internal object CanonicalWorkspaceReducer {
             is WorkspaceAction.DetachBlock -> detach(current, action.blockId)
             is WorkspaceAction.Collapse -> updateBlock(current, action.blockId) { it.copy(collapsed = true) }
             is WorkspaceAction.Expand -> updateBlock(current, action.blockId) { it.copy(collapsed = false) }
-            is WorkspaceAction.UpdateField -> updateField(current, action)
+            is WorkspaceAction.UpdateField -> updateField(current, action, propertySchema)
             is WorkspaceAction.CreateVariable -> createVariable(current, action.variable)
             is WorkspaceAction.RenameVariable -> renameVariable(current, action.variableId, action.name)
             is WorkspaceAction.DeleteVariable -> deleteVariable(current, action.variableId)
@@ -424,7 +429,11 @@ internal object CanonicalWorkspaceReducer {
         }
     }
 
-    private fun updateField(document: WorkspaceDocument, action: WorkspaceAction.UpdateField): WorkspaceDocument {
+    private fun updateField(
+        document: WorkspaceDocument,
+        action: WorkspaceAction.UpdateField,
+        propertySchema: SemanticPropertySchema,
+    ): WorkspaceDocument {
         val target = document.entityForBlock(action.blockId)?.ref?.id ?: return document
         val operation = WorkspaceOperation.SetProperty(
             operationId = WorkspaceOperationId("editor:set-property:${document.version}:${action.blockId.value}:${action.key}"),
@@ -432,7 +441,7 @@ internal object CanonicalWorkspaceReducer {
             property = SemanticPropertyId(action.key),
             value = action.value.toWorkspacePropertyValue(),
         )
-        return when (val result = WorkspaceOperationExecutor.execute(document, operation)) {
+        return when (val result = WorkspaceOperationExecutor.execute(document, operation, propertySchema)) {
             is WorkspaceOperationResult.Success -> result.document
             is WorkspaceOperationResult.Failure -> document
         }

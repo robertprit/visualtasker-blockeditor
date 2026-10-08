@@ -16,6 +16,7 @@ import de.visualtasker.workflow.core.WorkspaceDocument
 import de.visualtasker.workflow.core.CanonicalWorkspaceMigration
 import de.visualtasker.workflow.core.WorkspaceGraph
 import de.visualtasker.workflow.core.WorkspaceReducer
+import de.visualtasker.workflow.semantics.VisualTaskerSemanticPropertySchema
 import de.visualtasker.workflow.core.asString
 import de.visualtasker.workflow.core.withRootOffset
 import de.visualtasker.blockeditor.interaction.DragLayoutPreview
@@ -149,7 +150,12 @@ class BlockEditorViewModel(
         EditorDebugLog.i("Action", actionSummary(action))
         val previousDocument = document
         val previousLayout = layoutCache
-        document = WorkspaceReducer.reduce(document, action, registry.asFactory())
+        document = WorkspaceReducer.reduce(
+            document,
+            action,
+            registry.asFactory(),
+            VisualTaskerSemanticPropertySchema,
+        )
         syncVariableReporters(document.variables)
         layoutCache = layoutEngine.update(previousDocument, document, previousLayout)
         EditorDebugLog.d("Workspace", "v${document.version} chain=${chainSummary(document)}")

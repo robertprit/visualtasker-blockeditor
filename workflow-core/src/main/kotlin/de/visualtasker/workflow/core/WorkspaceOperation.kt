@@ -101,6 +101,9 @@ enum class WorkspaceOperationDiagnosticCode {
     RELATION_NOT_FOUND,
     PROPERTY_NOT_FOUND,
     INVALID_PROPERTY_TYPE,
+    PROPERTY_NOT_WRITABLE,
+    STRUCTURAL_PROPERTY_REQUIRED,
+    PROPERTY_CONSTRAINT_VIOLATION,
     INVALID_RELATION,
     DANGLING_REFERENCE,
     INVALID_ORDER,
@@ -134,16 +137,25 @@ sealed interface WorkspaceOperationResult {
 
 /** Public local command boundary over the M2 canonical mutation engine. */
 object WorkspaceOperationExecutor {
-    fun execute(document: WorkspaceDocument, operation: WorkspaceOperation): WorkspaceOperationResult =
+    fun execute(
+        document: WorkspaceDocument,
+        operation: WorkspaceOperation,
+        propertySchema: SemanticPropertySchema = CanonicalSemanticPropertySchema,
+    ): WorkspaceOperationResult =
         execute(
             document,
             WorkspaceTransaction(
                 transactionId = operation.operationId,
                 operations = listOf(operation),
             ),
+            propertySchema,
         )
 
-    fun execute(document: WorkspaceDocument, transaction: WorkspaceTransaction): WorkspaceOperationResult {
+    fun execute(
+        document: WorkspaceDocument,
+        transaction: WorkspaceTransaction,
+        propertySchema: SemanticPropertySchema = CanonicalSemanticPropertySchema,
+    ): WorkspaceOperationResult {
         val migration = CanonicalWorkspaceMigration.toCurrent(document)
         if (!migration.isValid) {
             return failure(
@@ -171,6 +183,24 @@ object WorkspaceOperationExecutor {
                 WorkspaceOperationDiagnosticCode.DUPLICATE_ID,
                 "Operation ID ${duplicateOperationId.value} occurs more than once.",
                 operationId = duplicateOperationId,
+            )
+        }
+
+        transaction.operations.filterIsInstance<WorkspaceOperation.SetProperty>().forEach { operation ->
+            val issue = propertySchema.validate(
+                baseline,
+                operation.target,
+                operation.property,
+                operation.value,
+            ) ?: return@forEach
+            return WorkspaceOperationResult.Failure(
+                document = document,
+                diagnostic = WorkspaceOperationDiagnostic(
+                    code = issue.code.toOperationCode(),
+                    message = issue.message,
+                    operationId = operation.operationId,
+                    entityId = operation.target,
+                ),
             )
         }
 
@@ -264,5 +294,16 @@ object WorkspaceOperationExecutor {
         "relation.source.missing", "relation.target.missing", "property.reference.missing" -> WorkspaceOperationDiagnosticCode.DANGLING_REFERENCE
         "relation.incompatible", "relation.semantic.duplicate", "sequence.outgoing.duplicate", "sequence.incoming.duplicate" -> WorkspaceOperationDiagnosticCode.INVALID_RELATION
         else -> WorkspaceOperationDiagnosticCode.VALIDATION_FAILED
+    }
+
+    private fun SemanticPropertyValidationCode.toOperationCode(): WorkspaceOperationDiagnosticCode = when (this) {
+        SemanticPropertyValidationCode.ENTITY_NOT_FOUND -> WorkspaceOperationDiagnosticCode.ENTITY_NOT_FOUND
+        SemanticPropertyValidationCode.PROPERTY_NOT_FOUND -> WorkspaceOperationDiagnosticCode.PROPERTY_NOT_FOUND
+        SemanticPropertyValidationCode.PROPERTY_NOT_WRITABLE -> WorkspaceOperationDiagnosticCode.PROPERTY_NOT_WRITABLE
+        SemanticPropertyValidationCode.STRUCTURAL_PROPERTY -> WorkspaceOperationDiagnosticCode.STRUCTURAL_PROPERTY_REQUIRED
+        SemanticPropertyValidationCode.INVALID_TYPE,
+        SemanticPropertyValidationCode.NULL_NOT_ALLOWED,
+        -> WorkspaceOperationDiagnosticCode.INVALID_PROPERTY_TYPE
+        SemanticPropertyValidationCode.CONSTRAINT_VIOLATION -> WorkspaceOperationDiagnosticCode.PROPERTY_CONSTRAINT_VIOLATION
     }
 }

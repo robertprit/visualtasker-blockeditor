@@ -317,7 +317,7 @@ object CanonicalWorkspaceMutator {
 
     private fun missingPropertyPrototype(block: BlockNode, key: String): FieldValue? = when {
         key == "active" -> FieldValue.Bool(false)
-        key in setOf("note", "variableId", "variableLabel", "command", "args") -> FieldValue.Text("")
+        key in setOf("note", "variableId", "variableLabel", "command", "args", "displayLabel") -> FieldValue.Text("")
         key.endsWith(".source") && block.fields.containsKey(key.removeSuffix(".source")) -> FieldValue.Text("")
         else -> null
     }
