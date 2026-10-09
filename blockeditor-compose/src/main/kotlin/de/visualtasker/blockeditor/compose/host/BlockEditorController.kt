@@ -615,19 +615,27 @@ class BlockEditorController(
             scope = VariableScope.Global,
         )
         val baseline = document
-        val withVariable = WorkspaceReducer.reduce(baseline, WorkspaceAction.CreateVariable(variable), registry.asFactory())
-        if (withVariable == document) return
-        syncVariableReporters(withVariable.variables)
-        val withReporter = WorkspaceReducer.reduce(
-            withVariable,
-            WorkspaceAction.InstantiateBlock(
-                VariableReporterFactory.reporterId(variable.id),
-                96f,
-                120f + (baseline.rootBlocks.size * 24f),
+        val stagedVariables = baseline.variables.copy(
+            variables = baseline.variables.variables + (variable.id to variable),
+        )
+        syncVariableReporters(stagedVariables)
+        val updated = WorkspaceReducer.reduceAll(
+            baseline,
+            listOf(
+                WorkspaceAction.CreateVariable(variable),
+                WorkspaceAction.InstantiateBlock(
+                    VariableReporterFactory.reporterId(variable.id),
+                    96f,
+                    120f + (baseline.rootBlocks.size * 24f),
+                ),
             ),
             registry.asFactory(),
         )
-        applyPersistentDocumentChange(withReporter, previousDocument = baseline)
+        if (updated == baseline) {
+            syncVariableReporters(baseline.variables)
+            return
+        }
+        applyPersistentDocumentChange(updated, previousDocument = baseline)
     }
 
     fun renameVariable(variableId: String, name: String): Boolean {
@@ -1285,12 +1293,14 @@ class BlockEditorController(
         val sourceBounds = layoutCache.flatIndex.visibleBlocks.find { it.blockId == blockId }?.bounds
         val x = (sourceBounds?.x ?: document.rootOffset(blockId)?.x ?: 96f) + 36f
         val y = (sourceBounds?.y ?: document.rootOffset(blockId)?.y ?: 120f) + 36f
-        val baseline = duplicateVariableDefinition(block, duplicate)?.let { variable ->
-            WorkspaceReducer.reduce(document, WorkspaceAction.CreateVariable(variable), registry.asFactory())
-        } ?: document
-        val updated = WorkspaceReducer.reduce(
-            baseline,
-            WorkspaceAction.CreateBlock(duplicate, x, y),
+        val variable = duplicateVariableDefinition(block, duplicate)
+        val actions = buildList {
+            variable?.let { add(WorkspaceAction.CreateVariable(it)) }
+            add(WorkspaceAction.CreateBlock(duplicate, x, y))
+        }
+        val updated = WorkspaceReducer.reduceAll(
+            document,
+            actions,
             registry.asFactory(),
         )
         applyPersistentDocumentChange(updated, previousDocument = document)

@@ -187,6 +187,37 @@ class WorkspaceOperationExecutorTest {
     }
 
     @Test
+    fun payloadReplacementRequiresChangedStagedPayload() {
+        val document = fixture()
+        val operation = WorkspaceOperation.ReplaceEntityPayload(
+            id("replace-payload"),
+            SemanticEntityId("block:click"),
+        )
+
+        val withoutPayload = WorkspaceOperationExecutor.execute(document, operation) as WorkspaceOperationResult.Failure
+        assertEquals(WorkspaceOperationDiagnosticCode.VALIDATION_FAILED, withoutPayload.diagnostic.code)
+        assertEquals(document, withoutPayload.document)
+
+        val unchanged = WorkspaceOperationExecutor.executeWithStagedPayload(
+            document,
+            WorkspaceTransaction(id("unchanged-payload"), listOf(operation)),
+            document,
+        ) as WorkspaceOperationResult.Failure
+        assertEquals(WorkspaceOperationDiagnosticCode.VALIDATION_FAILED, unchanged.diagnostic.code)
+
+        val clickId = BlockId("click")
+        val changedBlock = document.blocks.getValue(clickId).copy(type = "alternate-click")
+        val staged = document.copy(blocks = document.blocks + (clickId to changedBlock))
+        val changed = WorkspaceOperationExecutor.executeWithStagedPayload(
+            document,
+            WorkspaceTransaction(id("changed-payload"), listOf(operation)),
+            staged,
+        ) as WorkspaceOperationResult.Success
+        assertEquals(document.version + 1, changed.resultingRevision)
+        assertEquals("alternate-click", changed.document.blocks.getValue(clickId).type)
+    }
+
+    @Test
     fun identicalOperationReplayIsDeterministic() {
         val firstDocument = fixture()
         val secondDocument = fixture()

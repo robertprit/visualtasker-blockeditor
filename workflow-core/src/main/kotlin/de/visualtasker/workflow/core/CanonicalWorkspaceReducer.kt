@@ -3,7 +3,6 @@ package de.visualtasker.workflow.core
 import de.visualtasker.emscript.contract.CoreTypes
 import de.visualtasker.emscript.contract.LanguageTypeCompatibility
 import de.visualtasker.emscript.contract.LanguageTypeRef
-import java.util.UUID
 
 /** Schema-2 reducer. It changes canonical relations first and rebuilds legacy connector fields afterwards. */
 internal object CanonicalWorkspaceReducer {
@@ -435,15 +434,11 @@ internal object CanonicalWorkspaceReducer {
         propertySchema: SemanticPropertySchema,
     ): WorkspaceDocument {
         val target = document.entityForBlock(action.blockId)?.ref?.id ?: return document
-        val operation = WorkspaceOperation.SetProperty(
-            operationId = WorkspaceOperationId("editor:set-property:${document.version}:${action.blockId.value}:${action.key}"),
-            target = target,
-            property = SemanticPropertyId(action.key),
-            value = action.value.toWorkspacePropertyValue(),
-        )
-        return when (val result = WorkspaceOperationExecutor.execute(document, operation, propertySchema)) {
-            is WorkspaceOperationResult.Success -> result.document
-            is WorkspaceOperationResult.Failure -> document
+        val property = SemanticPropertyId(action.key)
+        val value = action.value.toWorkspacePropertyValue()
+        if (propertySchema.validate(document, target, property, value) != null) return document
+        return updateBlock(document, action.blockId) { block ->
+            block.copy(fields = block.fields + (action.key to action.value))
         }
     }
 
@@ -736,7 +731,17 @@ internal object CanonicalWorkspaceReducer {
         role: SemanticRelationRole,
         order: Int? = null,
     ): SemanticRelation = SemanticRelation(
-        id = SemanticRelationId("native:${UUID.randomUUID()}"),
+        id = SemanticRelationId(
+            listOf(
+                "native",
+                kind.name,
+                source.id.value,
+                target.id.value,
+                role.kind.name,
+                role.name.orEmpty(),
+                role.branchRole?.name.orEmpty(),
+            ).joinToString(":"),
+        ),
         kind = kind,
         source = source,
         target = target,

@@ -11,6 +11,7 @@ sealed interface CanonicalMutation {
         val property: SemanticPropertyId,
         val value: WorkspacePropertyValue,
     ) : CanonicalMutation
+    data class ReplaceEntityPayload(val target: SemanticEntityId) : CanonicalMutation
 }
 
 sealed interface CanonicalMutationResult {
@@ -139,6 +140,35 @@ object CanonicalWorkspaceMutator {
                 is CanonicalMutation.SetProperty -> {
                     setProperty(entities, relations, blocks, variables, mutation)?.let { issue ->
                         return CanonicalMutationResult.Rejected(document, listOf(issue), mutationIndex)
+                    }
+                }
+                is CanonicalMutation.ReplaceEntityPayload -> {
+                    val entity = entities[mutation.target]
+                        ?: return reject(
+                            document,
+                            "mutation.entity.missing",
+                            "Entity ${mutation.target.value} does not exist.",
+                            mutationIndex,
+                        )
+                    val payloadExists = when (entity.ref.kind) {
+                        SemanticEntityKind.Statement,
+                        SemanticEntityKind.Expression,
+                        -> entity.legacySourceId?.let(::BlockId)?.let(blocks::containsKey) == true
+                        SemanticEntityKind.Variable -> {
+                            val variableId = entity.legacySourceId ?: entity.ref.id.value.removePrefix("variable:")
+                            variableId in variables
+                        }
+                        SemanticEntityKind.Workflow,
+                        SemanticEntityKind.Branch,
+                        -> true
+                    }
+                    if (!payloadExists) {
+                        return reject(
+                            document,
+                            "mutation.payload.missing",
+                            "Staged payload for ${mutation.target.value} does not exist.",
+                            mutationIndex,
+                        )
                     }
                 }
             }

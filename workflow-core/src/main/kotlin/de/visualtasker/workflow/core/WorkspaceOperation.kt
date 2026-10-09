@@ -86,6 +86,18 @@ sealed interface WorkspaceOperation {
         val property: SemanticPropertyId,
         val value: WorkspacePropertyValue,
     ) : WorkspaceOperation
+
+    /**
+     * Publishes a locally staged semantic payload change whose shape is not represented by a scalar property.
+     * The payload itself remains in [WorkspaceOperationExecutor.executeWithStagedPayload]; this operation only
+     * names the stable semantic owner and makes the revision-changing intent explicit.
+     */
+    @Serializable
+    @SerialName("replaceEntityPayload")
+    data class ReplaceEntityPayload(
+        override val operationId: WorkspaceOperationId,
+        val target: SemanticEntityId,
+    ) : WorkspaceOperation
 }
 
 @Serializable
@@ -221,6 +233,47 @@ object WorkspaceOperationExecutor {
             )
         }
 
+        transaction.operations.filterIsInstance<WorkspaceOperation.ReplaceEntityPayload>().forEach { operation ->
+            val staged = stagedPayload ?: return failure(
+                document,
+                WorkspaceOperationDiagnosticCode.VALIDATION_FAILED,
+                "ReplaceEntityPayload requires a staged payload.",
+                operation.operationId,
+            )
+            val entity = canonicalBaseline.canonical?.entity(operation.target) ?: return WorkspaceOperationResult.Failure(
+                document,
+                WorkspaceOperationDiagnostic(
+                    WorkspaceOperationDiagnosticCode.ENTITY_NOT_FOUND,
+                    "Entity ${operation.target.value} does not exist.",
+                    operation.operationId,
+                    entityId = operation.target,
+                ),
+            )
+            val changed = when (entity.ref.kind) {
+                SemanticEntityKind.Statement,
+                SemanticEntityKind.Expression,
+                -> entity.legacySourceId?.let(::BlockId)?.let { staged.blocks[it] != canonicalBaseline.blocks[it] } == true
+                SemanticEntityKind.Variable -> {
+                    val variableId = entity.legacySourceId ?: entity.ref.id.value.removePrefix("variable:")
+                    staged.variables.variables[variableId] != canonicalBaseline.variables.variables[variableId]
+                }
+                SemanticEntityKind.Workflow,
+                SemanticEntityKind.Branch,
+                -> false
+            }
+            if (!changed) {
+                return WorkspaceOperationResult.Failure(
+                    document,
+                    WorkspaceOperationDiagnostic(
+                        WorkspaceOperationDiagnosticCode.VALIDATION_FAILED,
+                        "Staged payload for ${operation.target.value} is unchanged or missing.",
+                        operation.operationId,
+                        entityId = operation.target,
+                    ),
+                )
+            }
+        }
+
         transaction.operations.filterIsInstance<WorkspaceOperation.SetProperty>().forEach { operation ->
             val issue = propertySchema.validate(
                 baseline,
@@ -267,6 +320,7 @@ object WorkspaceOperationExecutor {
         is WorkspaceOperation.RemoveRelation -> CanonicalMutation.RemoveRelation(operation.relationId)
         is WorkspaceOperation.SetOrder -> CanonicalMutation.SetRelationOrder(operation.relationId, operation.order)
         is WorkspaceOperation.SetProperty -> CanonicalMutation.SetProperty(operation.target, operation.property, operation.value)
+        is WorkspaceOperation.ReplaceEntityPayload -> CanonicalMutation.ReplaceEntityPayload(operation.target)
     }
 
     private fun success(
@@ -281,6 +335,8 @@ object WorkspaceOperationExecutor {
         val beforeRelations = beforeCanonical.relations.associateBy(SemanticRelation::id)
         val afterRelations = afterCanonical.relations.associateBy(SemanticRelation::id)
         val explicitPropertyTargets = operations.filterIsInstance<WorkspaceOperation.SetProperty>().mapTo(mutableSetOf()) { it.target }
+        operations.filterIsInstance<WorkspaceOperation.ReplaceEntityPayload>()
+            .mapTo(explicitPropertyTargets) { it.target }
         val affectedEntities = (beforeEntities.keys + afterEntities.keys).filterTo(explicitPropertyTargets) {
             beforeEntities[it] != afterEntities[it]
         }
@@ -309,6 +365,7 @@ object WorkspaceOperationExecutor {
         is WorkspaceOperation.CreateEntity -> entity.ref.id
         is WorkspaceOperation.DeleteEntity -> entityId
         is WorkspaceOperation.SetProperty -> target
+        is WorkspaceOperation.ReplaceEntityPayload -> target
         else -> null
     }
 
