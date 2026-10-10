@@ -86,7 +86,7 @@ class ProviderBoolSemanticsFreezeTest {
     fun `bridge and native populations remain frozen`() {
         val report = LegacyCommandDefinitionBridge().analyze()
 
-        assertEquals(127, report.results.size)
+        assertEquals(134, report.results.size)
         assertEquals(3, report.results.count { it.migrationClass == CommandMigrationClass.NATIVE_V1 })
     }
 }

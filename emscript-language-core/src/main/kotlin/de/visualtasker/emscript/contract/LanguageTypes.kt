@@ -73,6 +73,10 @@ object CoreTypes {
 }
 
 object DomainTypeIds {
+    val POINT = TypeId("domain.geometry.point")
+    val PATH_SEGMENT = TypeId("domain.geometry.path-segment")
+    val PATH = TypeId("domain.geometry.path")
+    val POINTER_PATH = TypeId("domain.gesture.pointer-path")
     val IMAGE_MATCH = TypeId("domain.perception.image-match")
     val TEXT_MATCH = TypeId("domain.perception.text-match")
     val MARKER = TypeId("domain.resource.marker")
@@ -80,6 +84,30 @@ object DomainTypeIds {
 }
 
 object DomainTypes {
+    val POINT = TypeDefinition(
+        id = DomainTypeIds.POINT,
+        canonicalName = "Point",
+        kind = TypeDefinitionKind.DOMAIN,
+        documentation = "Immutable absolute display coordinate.",
+    )
+    val PATH_SEGMENT = TypeDefinition(
+        id = DomainTypeIds.PATH_SEGMENT,
+        canonicalName = "PathSegment",
+        kind = TypeDefinitionKind.DOMAIN,
+        documentation = "Immutable line or Bezier segment in timeless Path geometry.",
+    )
+    val PATH = TypeDefinition(
+        id = DomainTypeIds.PATH,
+        canonicalName = "Path",
+        kind = TypeDefinitionKind.DOMAIN,
+        documentation = "Immutable timeless path geometry.",
+    )
+    val POINTER_PATH = TypeDefinition(
+        id = DomainTypeIds.POINTER_PATH,
+        canonicalName = "PointerPath",
+        kind = TypeDefinitionKind.DOMAIN,
+        documentation = "Immutable single-pointer path with execution timing.",
+    )
     val IMAGE_MATCH = TypeDefinition(
         id = DomainTypeIds.IMAGE_MATCH,
         canonicalName = "ImageMatch",
@@ -105,7 +133,16 @@ object DomainTypes {
         documentation = "Immutable snapshot of a persisted chart resource.",
     )
 
-    val ALL: List<TypeDefinition> = listOf(IMAGE_MATCH, TEXT_MATCH, MARKER, CHART_SNAPSHOT)
+    val ALL: List<TypeDefinition> = listOf(
+        POINT,
+        PATH_SEGMENT,
+        PATH,
+        POINTER_PATH,
+        IMAGE_MATCH,
+        TEXT_MATCH,
+        MARKER,
+        CHART_SNAPSHOT,
+    )
 }
 
 object ProviderTypeIds {
@@ -153,6 +190,10 @@ object LanguageTypeCompatibility {
         "bool", "boolean" -> CoreTypes.BOOL.ref
         "any" -> CoreTypes.ANY.ref
         "void" -> CoreTypes.VOID.ref
+        DomainTypes.POINT.canonicalName.lowercase() -> DomainTypes.POINT.ref
+        DomainTypes.PATH_SEGMENT.canonicalName.lowercase() -> DomainTypes.PATH_SEGMENT.ref
+        DomainTypes.PATH.canonicalName.lowercase() -> DomainTypes.PATH.ref
+        DomainTypes.POINTER_PATH.canonicalName.lowercase() -> DomainTypes.POINTER_PATH.ref
         DomainTypes.IMAGE_MATCH.canonicalName.lowercase() -> DomainTypes.IMAGE_MATCH.ref
         DomainTypes.TEXT_MATCH.canonicalName.lowercase() -> DomainTypes.TEXT_MATCH.ref
         DomainTypes.MARKER.canonicalName.lowercase() -> DomainTypes.MARKER.ref

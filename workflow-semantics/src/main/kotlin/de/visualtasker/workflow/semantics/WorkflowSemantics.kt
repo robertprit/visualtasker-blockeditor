@@ -31,6 +31,7 @@ object WorkflowElementTypes {
     const val LITERAL_NUMBER = "literal.number"
     const val LITERAL_STRING = "literal.string"
     const val LITERAL_REGION = "literal.region"
+    const val LITERAL_LIST = "literal.list"
     const val LITERAL_BOOLEAN = "literal.boolean"
     const val VARIABLE_GET = "variable.get"
     const val VARIABLE_REPORTER = "variable.reporter"
@@ -165,6 +166,7 @@ object DefaultWorkflowSemanticDefinitions : WorkflowSemanticDefinitionProvider {
             output = "Region",
             defaults = mapOf("x" to "0", "y" to "0", "width" to "1", "height" to "1"),
         ),
+        definition(WorkflowElementTypes.LITERAL_LIST, output = "List<Any>"),
         definition(WorkflowElementTypes.LITERAL_BOOLEAN, output = "Boolean", defaults = mapOf("value" to "false")),
         definition(WorkflowElementTypes.VARIABLE_GET, output = "Any", defaults = mapOf("variable" to "")),
         definition(

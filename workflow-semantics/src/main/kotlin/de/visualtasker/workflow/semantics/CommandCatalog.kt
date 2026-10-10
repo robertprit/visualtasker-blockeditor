@@ -405,6 +405,74 @@ object VisualTaskerCommandCatalog : CommandCatalog {
     private val entries: List<CommandCatalogEntry> = listOf(
         NativeCommandLegacyDefinitions.requireEntry(BlockTypes.EVENT_START),
         WaitCommandCompatibility.legacyEntry,
+        valueConstructor(
+            id = "geometry.point",
+            canonicalName = "point",
+            returnType = "Point",
+            args = listOf(
+                CommandArgument("x", CommandArgumentType.NUMBER, acceptedTypes = setOf("Number")),
+                CommandArgument("y", CommandArgumentType.NUMBER, acceptedTypes = setOf("Number")),
+            ),
+        ),
+        valueConstructor(
+            id = "geometry.lineSegment",
+            canonicalName = "lineSegment",
+            returnType = "PathSegment",
+            args = listOf(
+                CommandArgument("from", CommandArgumentType.ANY, acceptedTypes = setOf("Point")),
+                CommandArgument("to", CommandArgumentType.ANY, acceptedTypes = setOf("Point")),
+            ),
+        ),
+        valueConstructor(
+            id = "geometry.quadraticBezierSegment",
+            canonicalName = "quadraticBezierSegment",
+            returnType = "PathSegment",
+            args = listOf(
+                CommandArgument("from", CommandArgumentType.ANY, acceptedTypes = setOf("Point")),
+                CommandArgument("control", CommandArgumentType.ANY, acceptedTypes = setOf("Point")),
+                CommandArgument("to", CommandArgumentType.ANY, acceptedTypes = setOf("Point")),
+            ),
+        ),
+        valueConstructor(
+            id = "geometry.cubicBezierSegment",
+            canonicalName = "cubicBezierSegment",
+            returnType = "PathSegment",
+            args = listOf(
+                CommandArgument("from", CommandArgumentType.ANY, acceptedTypes = setOf("Point")),
+                CommandArgument("control1", CommandArgumentType.ANY, acceptedTypes = setOf("Point")),
+                CommandArgument("control2", CommandArgumentType.ANY, acceptedTypes = setOf("Point")),
+                CommandArgument("to", CommandArgumentType.ANY, acceptedTypes = setOf("Point")),
+            ),
+        ),
+        valueConstructor(
+            id = "geometry.path",
+            canonicalName = "path",
+            returnType = "Path",
+            args = listOf(
+                CommandArgument(
+                    "segments",
+                    CommandArgumentType.ANY,
+                    acceptedTypes = setOf("Point", "PathSegment", "List<Point>", "List<PathSegment>"),
+                    variadic = true,
+                ),
+            ),
+        ),
+        valueConstructor(
+            id = "gesture.pointerPath",
+            canonicalName = "pointerPath",
+            returnType = "PointerPath",
+            args = listOf(
+                CommandArgument("path", CommandArgumentType.ANY, acceptedTypes = setOf("Path")),
+                CommandArgument("duration", CommandArgumentType.DURATION_MS, required = false, acceptedTypes = setOf("Number")),
+                CommandArgument("segmentDurations", CommandArgumentType.ANY, required = false, acceptedTypes = setOf("List<Number>")),
+                CommandArgument("speed", CommandArgumentType.NUMBER, required = false, acceptedTypes = setOf("Number")),
+                CommandArgument("startHold", CommandArgumentType.DURATION_MS, required = false, acceptedTypes = setOf("Number")),
+                CommandArgument("endHold", CommandArgumentType.DURATION_MS, required = false, acceptedTypes = setOf("Number")),
+                CommandArgument("delay", CommandArgumentType.DURATION_MS, required = false, acceptedTypes = setOf("Number")),
+                CommandArgument("repeat", CommandArgumentType.NUMBER, required = false, acceptedTypes = setOf("Number")),
+                CommandArgument("pointerId", CommandArgumentType.NUMBER, required = false, acceptedTypes = setOf("Number")),
+            ),
+        ),
         statement(
             id = "action.clickText",
             canonicalName = "click",
@@ -441,7 +509,12 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             sideEffect = CommandSideEffect.UI_INPUT,
             capability = CommandCapability.A11Y,
             args = listOf(
-                CommandArgument("points", CommandArgumentType.ANY, defaultValue = ""),
+                CommandArgument(
+                    "points",
+                    CommandArgumentType.ANY,
+                    defaultValue = "",
+                    acceptedTypes = setOf("Path", "PointerPath", "List<Number>"),
+                ),
                 CommandArgument("repeat", CommandArgumentType.ANY, required = false, defaultValue = "1"),
             ),
         ),
@@ -1046,6 +1119,21 @@ object VisualTaskerCommandCatalog : CommandCatalog {
             returnType = "Boolean",
             args = listOf(CommandArgument("value", CommandArgumentType.BOOLEAN, defaultValue = "false")),
         ).copy(role = CommandCatalogRole.CANONICAL_EXPRESSION_PROJECTION),
+        reporter(
+            id = "literal.list",
+            canonicalName = "list",
+            category = BlockCategories.INPUT,
+            blockType = BlockTypes.LITERAL_LIST,
+            returnType = "List<Any>",
+            args = listOf(
+                CommandArgument(
+                    name = "item",
+                    type = CommandArgumentType.ANY,
+                    acceptedTypes = setOf("Any"),
+                    variadic = true,
+                ),
+            ),
+        ).copy(role = CommandCatalogRole.CANONICAL_EXPRESSION_PROJECTION),
     ) + remFlowNodeCommands + plannedAdapterCommands
 
     private val remFlowNodeCommands: List<CommandCatalogEntry>
@@ -1345,6 +1433,24 @@ private fun catalogCommand(
         liveCapabilityGate = capability,
         liveImplemented = canonicalName != "touch",
     ),
+)
+
+private fun valueConstructor(
+    id: String,
+    canonicalName: String,
+    returnType: String,
+    args: List<CommandArgument>,
+): CommandCatalogEntry = CommandCatalogEntry(
+    id = id,
+    canonicalName = canonicalName,
+    kind = CommandCatalogKind.REPORTER,
+    category = BlockCategories.INPUT,
+    arguments = args,
+    returnType = returnType,
+    sideEffect = CommandSideEffect.NONE,
+    capabilities = setOf(CommandCapability.CORE),
+    block = CommandBlockBinding(BlockTypes.EMSCRIPT_COMMAND_PREFIX + id),
+    flowchart = CommandFlowchartBinding(BlockCategories.INPUT),
 )
 
 fun CommandCatalogEntry.canBeUsedAsExpression(): Boolean =

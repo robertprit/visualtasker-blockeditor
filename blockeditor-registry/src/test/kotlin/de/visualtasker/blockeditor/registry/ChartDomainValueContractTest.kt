@@ -65,7 +65,7 @@ class ChartDomainValueContractTest {
         assertEquals(setOf("chart.exists", "chart.get"), QueryReturnContractAudit.MIGRATED_M1B_3Z)
         assertTrue(QueryReturnContractAudit.ALL.isEmpty())
         assertTrue(QueryReturnContractAudit.currentDQueryIds(audit).isEmpty())
-        assertEquals(127, audit.results.size)
+        assertEquals(134, audit.results.size)
         assertEquals(3, audit.results.count { it.migrationClass == CommandMigrationClass.NATIVE_V1 })
         assertEquals(0, audit.results.count { it.definition == null })
         assertEquals(0, audit.results.count { it.status == CommandBridgeStatus.UNMAPPABLE })

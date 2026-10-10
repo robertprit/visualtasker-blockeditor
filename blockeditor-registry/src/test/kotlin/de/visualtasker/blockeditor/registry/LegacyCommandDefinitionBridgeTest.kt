@@ -21,7 +21,7 @@ class LegacyCommandDefinitionBridgeTest {
     fun `every catalog entry produces exactly one deterministic bridge result`() {
         val second = LegacyCommandDefinitionBridge().analyze()
 
-        assertEquals(127, catalogEntries.size)
+        assertEquals(134, catalogEntries.size)
         assertEquals(catalogEntries.size, audit.results.size)
         assertEquals(catalogEntries.map { it.id }.toSet(), audit.results.map { it.sourceEntry.id }.toSet())
         assertEquals(audit, second)

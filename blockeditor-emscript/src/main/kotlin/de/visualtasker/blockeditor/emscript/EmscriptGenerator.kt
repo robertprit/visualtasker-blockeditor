@@ -54,7 +54,12 @@ class EmscriptGenerator(
                 val command = sanitizeCommandName(statement.command)
                 val arguments = statement.expressionArguments
                     .takeIf { it.isNotEmpty() }
-                    ?.joinToString(", ") { emitExpression(it) }
+                    ?.mapIndexed { index, expression ->
+                        statement.expressionArgumentNames.getOrNull(index)
+                            ?.let { name -> "$name=${emitExpression(expression)}" }
+                            ?: emitExpression(expression)
+                    }
+                    ?.joinToString(", ")
                     ?: statement.arguments
                 appendLine(depth, "$command($arguments);")
             }
@@ -121,8 +126,14 @@ class EmscriptGenerator(
     }
 
     private fun emitExpression(expression: IrExpression): String = when (expression) {
-        is IrExpression.CommandCall ->
-            "${sanitizeCommandName(expression.command)}(${expression.arguments.joinToString(", ") { emitExpression(it) }})"
+        is IrExpression.CommandCall -> {
+            val arguments = expression.arguments.mapIndexed { index, argument ->
+                expression.argumentNames.getOrNull(index)
+                    ?.let { name -> "$name=${emitExpression(argument)}" }
+                    ?: emitExpression(argument)
+            }
+            "${sanitizeCommandName(expression.command)}(${arguments.joinToString(", ")})"
+        }
         is IrExpression.ScreenContains -> "screenContains(\"${escape(expression.text)}\")"
         is IrExpression.And -> "(${emitExpression(expression.left)} && ${emitExpression(expression.right)})"
         is IrExpression.Or -> "(${emitExpression(expression.left)} || ${emitExpression(expression.right)})"
@@ -131,6 +142,7 @@ class EmscriptGenerator(
         is IrExpression.LiteralNumber -> expression.value.toStableNumber()
         is IrExpression.LiteralString -> "\"${escape(expression.value)}\""
         is IrExpression.LiteralText -> "\"${escape(expression.value)}\""
+        is IrExpression.ListLiteral -> "[${expression.values.joinToString(", ") { emitExpression(it) }}]"
         is IrExpression.Compare -> {
             val operator = when (val normalized = OperatorNormalization.normalize(expression.operator)) {
                 is NormalizedOperator.Compare -> normalized.canonicalSymbol

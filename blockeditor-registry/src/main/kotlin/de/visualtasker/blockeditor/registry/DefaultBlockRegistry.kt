@@ -31,6 +31,7 @@ object BlockTypes {
     const val LITERAL_NUMBER = WorkflowElementTypes.LITERAL_NUMBER
     const val LITERAL_STRING = WorkflowElementTypes.LITERAL_STRING
     const val LITERAL_REGION = WorkflowElementTypes.LITERAL_REGION
+    const val LITERAL_LIST = WorkflowElementTypes.LITERAL_LIST
     const val LITERAL_BOOLEAN = WorkflowElementTypes.LITERAL_BOOLEAN
     const val VARIABLE_GET = WorkflowElementTypes.VARIABLE_GET
     const val VARIABLE_REPORTER = WorkflowElementTypes.VARIABLE_REPORTER
@@ -458,6 +459,15 @@ object DefaultBlockRegistry : BlockRegistry {
             valueInputs = listOf(
                 ValueInputDefinition(WorkspaceValueTypeSystem.VARIABLE_SET_VALUE_INPUT, "value", setOf("Any")),
             ),
+        ),
+        BlockDefinition(
+            id = BlockTypes.LITERAL_LIST,
+            label = "List",
+            category = BlockCategories.INPUT,
+            hasPrevious = false,
+            hasNext = false,
+            outputType = "List<Any>",
+            isReporter = true,
         ),
     )
 

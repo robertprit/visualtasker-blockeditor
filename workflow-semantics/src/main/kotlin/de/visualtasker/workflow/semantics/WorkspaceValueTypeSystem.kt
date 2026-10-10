@@ -40,6 +40,14 @@ object WorkspaceValueTypeSystem {
             BlockTypes.LITERAL_BOOLEAN,
             -> return CoreTypes.BOOL.ref
             BlockTypes.LITERAL_STRING -> return CoreTypes.STRING.ref
+            BlockTypes.LITERAL_LIST -> {
+                val elementTypes = block.valueInputs.mapNotNull { input ->
+                    val connected = input.connection.connectedTo ?: return@mapNotNull null
+                    val elementBlockId = WorkspaceGraph.findConnection(document, connected)?.first ?: return@mapNotNull null
+                    expressionType(document, elementBlockId, definitions)
+                }.distinct()
+                return CoreTypes.listOf(elementTypes.singleOrNull() ?: CoreTypes.ANY.ref)
+            }
         }
         return definitions.semanticDefinition(block.type)
             ?.outputType

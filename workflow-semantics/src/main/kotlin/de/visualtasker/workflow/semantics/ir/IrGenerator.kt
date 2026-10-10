@@ -15,6 +15,7 @@ import de.visualtasker.workflow.semantics.VisualTaskerCommandCatalog
 import de.visualtasker.workflow.semantics.WorkflowElementTypes as BlockTypes
 import de.visualtasker.workflow.semantics.WorkflowSemanticDefinitionProvider
 import de.visualtasker.workflow.semantics.canBeUsedAsExpression
+import de.visualtasker.workflow.semantics.argumentAt
 import de.visualtasker.workflow.semantics.maximumArgumentCount
 import de.visualtasker.workflow.semantics.workspaceInputNameAt
 
@@ -22,6 +23,11 @@ class IrGenerator(
     private val definitions: WorkflowSemanticDefinitionProvider = DefaultWorkflowSemanticDefinitions,
     private val commandCatalog: CommandCatalog = VisualTaskerCommandCatalog,
 ) {
+    private data class EmittedCallArguments(
+        val expressions: List<IrExpression>,
+        val names: List<String?>,
+    )
+
     fun generate(document: WorkspaceDocument, scriptName: String = document.id): IrScript {
         val startRoots = document.rootBlocks.mapNotNull { id ->
             document.blocks[id]?.takeIf { it.type == BlockTypes.EVENT_START }
@@ -59,12 +65,13 @@ class IrGenerator(
             )
             BlockTypes.FEEDBACK_VIBRATE -> {
                 val entry = requireNotNull(commandCatalog.findByBlockType(block.type))
-                val expressions = emitCommandExpressionArguments(document, block, entry)
-                if (expressions.isNotEmpty()) {
+                val arguments = emitCommandExpressionArguments(document, block, entry)
+                if (arguments.expressions.isNotEmpty()) {
                     IrStatement.CommandCall(
                         command = entry.canonicalName,
                         arguments = block.fieldText("pattern"),
-                        expressionArguments = expressions,
+                        expressionArguments = arguments.expressions,
+                        expressionArgumentNames = arguments.names,
                     )
                 } else {
                     IrStatement.Vibrate(block.fieldLongList("pattern"))
@@ -119,11 +126,12 @@ class IrGenerator(
                     val entry = commandCatalog.findByBlockType(block.type)
                     val semanticArguments = entry
                         ?.let { emitCommandExpressionArguments(document, block, it) }
-                        .orEmpty()
+                        ?: EmittedCallArguments(emptyList(), emptyList())
                     return IrStatement.CommandCall(
                         command = block.fieldText("command"),
                         arguments = block.fieldText("args"),
-                        expressionArguments = semanticArguments,
+                        expressionArguments = semanticArguments.expressions,
+                        expressionArgumentNames = semanticArguments.names,
                     )
                 }
                 val def = definitions.semanticDefinition(block.type)
@@ -215,16 +223,26 @@ class IrGenerator(
         document: WorkspaceDocument,
         block: BlockNode,
         entry: CommandCatalogEntry,
-    ): List<IrExpression> {
+    ): EmittedCallArguments {
         val maximum = entry.maximumArgumentCount() ?: block.valueInputs.size
-        return buildList {
-            for (index in 0 until maximum) {
-                val inputName = entry.workspaceInputNameAt(index) ?: break
-                val input = block.valueInputs.firstOrNull { it.name == inputName } ?: break
-                if (input.connection.connectedTo == null) break
-                add(emitOptionalValueInput(document, block, inputName) ?: break)
+        val expressions = mutableListOf<IrExpression>()
+        val names = mutableListOf<String?>()
+        var namedArgumentsStarted = false
+        for (index in 0 until maximum) {
+            val inputName = entry.workspaceInputNameAt(index) ?: break
+            val expression = emitOptionalValueInput(document, block, inputName)
+            if (expression == null) {
+                namedArgumentsStarted = true
+                continue
             }
+            val argument = requireNotNull(entry.argumentAt(index))
+            if (entry.id == "gesture.pointerPath" && !argument.required) {
+                namedArgumentsStarted = true
+            }
+            expressions += expression
+            names += if (namedArgumentsStarted) argument.name else null
         }
+        return EmittedCallArguments(expressions, names)
     }
 
     private fun emitExpression(document: WorkspaceDocument, block: BlockNode): IrExpression {
@@ -233,6 +251,11 @@ class IrGenerator(
             BlockTypes.LITERAL_BOOLEAN -> IrExpression.LiteralBoolean(block.fieldBool("value"))
             BlockTypes.LITERAL_NUMBER -> IrExpression.LiteralNumber(block.fieldNumber("value"))
             BlockTypes.LITERAL_STRING -> IrExpression.LiteralString(block.fieldText("value"))
+            BlockTypes.LITERAL_LIST -> IrExpression.ListLiteral(
+                block.valueInputs
+                    .sortedBy { input -> input.name.removePrefix("item").toIntOrNull() ?: Int.MAX_VALUE }
+                    .mapNotNull { input -> emitOptionalValueInput(document, block, input.name) },
+            )
             BlockTypes.LITERAL_REGION -> IrExpression.CommandCall(
                 commandId = "core.region",
                 command = "region",
@@ -270,11 +293,13 @@ class IrGenerator(
                     require(entry.canBeUsedAsExpression()) {
                         "Void command '${entry.canonicalName}' cannot be used as an expression"
                     }
+                    val arguments = emitCommandExpressionArguments(document, block, entry)
                     IrExpression.CommandCall(
                         commandId = entry.id,
                         command = entry.canonicalName,
-                        arguments = emitCommandExpressionArguments(document, block, entry),
+                        arguments = arguments.expressions,
                         returnType = requireNotNull(entry.returnType),
+                        argumentNames = arguments.names,
                     )
                 }
                 block.type.startsWith(BlockTypes.VARIABLE_REPORTER_PREFIX) ->

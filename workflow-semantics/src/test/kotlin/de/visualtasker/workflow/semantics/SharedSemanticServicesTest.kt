@@ -50,13 +50,24 @@ class SharedSemanticServicesTest {
 
     @Test
     fun catalogAndTypeCompatibilityAreNeutralAndComplete() {
-        assertEquals(127, VisualTaskerCommandCatalog.allEntries().size)
+        assertEquals(134, VisualTaskerCommandCatalog.allEntries().size)
         assertTrue(VisualTaskerCommandCatalog.validate().isEmpty())
         assertTrue(WorkspaceValueTypeSystem.isCompatible("Number", setOf("Number", "Any")))
         assertFalse(WorkspaceValueTypeSystem.isCompatible("Number", setOf("Boolean")))
         assertFalse(WorkspaceValueTypeSystem.isCompatible("String", setOf("Number")))
         assertFalse(WorkspaceValueTypeSystem.isCompatible("String?", setOf("String")))
         assertTrue(WorkspaceValueTypeSystem.isCompatible("List<String>", setOf("List<String>")))
+        assertTrue(WorkspaceValueTypeSystem.isCompatible("PointerPath", setOf("PointerPath")))
+        assertFalse(WorkspaceValueTypeSystem.isCompatible("Path", setOf("PointerPath")))
+        assertFalse(WorkspaceValueTypeSystem.isCompatible("PointerPath", setOf("Path")))
+
+        val pointerPath = requireNotNull(VisualTaskerCommandCatalog.findByCanonicalName("pointerPath"))
+        assertEquals("PointerPath", pointerPath.returnType)
+        assertEquals(
+            setOf("Path", "PointerPath", "List<Number>"),
+            requireNotNull(VisualTaskerCommandCatalog.findByCanonicalName("swipe"))
+                .arguments.single { it.name == "points" }.acceptedTypes,
+        )
     }
 
     @Test

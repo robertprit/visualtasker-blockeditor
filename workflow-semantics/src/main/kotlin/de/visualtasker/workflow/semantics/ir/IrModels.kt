@@ -6,6 +6,7 @@ sealed interface IrExpression {
         val command: String,
         val arguments: List<IrExpression>,
         val returnType: String,
+        val argumentNames: List<String?> = emptyList(),
     ) : IrExpression
     data class ScreenContains(val text: String) : IrExpression
     data class And(val left: IrExpression, val right: IrExpression) : IrExpression
@@ -15,6 +16,7 @@ sealed interface IrExpression {
     data class LiteralNumber(val value: Double) : IrExpression
     data class LiteralString(val value: String) : IrExpression
     data class LiteralText(val value: String) : IrExpression
+    data class ListLiteral(val values: List<IrExpression>) : IrExpression
     data class Compare(
         val operator: String,
         val left: IrExpression,
@@ -33,6 +35,7 @@ sealed interface IrStatement {
         val command: String,
         val arguments: String,
         val expressionArguments: List<IrExpression> = emptyList(),
+        val expressionArgumentNames: List<String?> = emptyList(),
     ) : IrStatement
 
     data class ClickText(val text: String) : IrStatement
