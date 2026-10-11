@@ -53,7 +53,7 @@ class TaskerCollectionQueryContractTest {
             bridgeResult.definition?.returnType,
         )
         assertEquals(0, QueryReturnContractAudit.currentDQueryIds(audit).size)
-        assertEquals(134, audit.results.size)
+        assertEquals(136, audit.results.size)
         assertEquals(3, audit.results.count { it.migrationClass == CommandMigrationClass.NATIVE_V1 })
     }
 }

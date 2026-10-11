@@ -473,6 +473,19 @@ object VisualTaskerCommandCatalog : CommandCatalog {
                 CommandArgument("pointerId", CommandArgumentType.NUMBER, required = false, acceptedTypes = setOf("Number")),
             ),
         ),
+        valueConstructor(
+            id = "gesture.multiPath",
+            canonicalName = "multiPath",
+            returnType = "MultiPath",
+            args = listOf(
+                CommandArgument(
+                    "pointers",
+                    CommandArgumentType.ANY,
+                    acceptedTypes = setOf("PointerPath", "List<PointerPath>"),
+                    variadic = true,
+                ),
+            ),
+        ),
         statement(
             id = "action.clickText",
             canonicalName = "click",
@@ -516,6 +529,17 @@ object VisualTaskerCommandCatalog : CommandCatalog {
                     acceptedTypes = setOf("Path", "PointerPath", "List<Number>"),
                 ),
                 CommandArgument("repeat", CommandArgumentType.ANY, required = false, defaultValue = "1"),
+            ),
+        ),
+        catalogCommand(
+            id = "action.multiSwipe",
+            canonicalName = "multiSwipe",
+            aliases = listOf("MULTI_SWIPE"),
+            category = BlockCategories.INPUT,
+            sideEffect = CommandSideEffect.UI_INPUT,
+            capability = CommandCapability.A11Y,
+            args = listOf(
+                CommandArgument("gesture", CommandArgumentType.ANY, acceptedTypes = setOf("MultiPath")),
             ),
         ),
         catalogCommand(

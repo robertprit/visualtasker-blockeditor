@@ -77,6 +77,7 @@ object DomainTypeIds {
     val PATH_SEGMENT = TypeId("domain.geometry.path-segment")
     val PATH = TypeId("domain.geometry.path")
     val POINTER_PATH = TypeId("domain.gesture.pointer-path")
+    val MULTI_PATH = TypeId("domain.gesture.multi-path")
     val IMAGE_MATCH = TypeId("domain.perception.image-match")
     val TEXT_MATCH = TypeId("domain.perception.text-match")
     val MARKER = TypeId("domain.resource.marker")
@@ -108,6 +109,12 @@ object DomainTypes {
         kind = TypeDefinitionKind.DOMAIN,
         documentation = "Immutable single-pointer path with execution timing.",
     )
+    val MULTI_PATH = TypeDefinition(
+        id = DomainTypeIds.MULTI_PATH,
+        canonicalName = "MultiPath",
+        kind = TypeDefinitionKind.DOMAIN,
+        documentation = "Immutable synchronized collection of timed pointer paths.",
+    )
     val IMAGE_MATCH = TypeDefinition(
         id = DomainTypeIds.IMAGE_MATCH,
         canonicalName = "ImageMatch",
@@ -138,6 +145,7 @@ object DomainTypes {
         PATH_SEGMENT,
         PATH,
         POINTER_PATH,
+        MULTI_PATH,
         IMAGE_MATCH,
         TEXT_MATCH,
         MARKER,
@@ -194,6 +202,7 @@ object LanguageTypeCompatibility {
         DomainTypes.PATH_SEGMENT.canonicalName.lowercase() -> DomainTypes.PATH_SEGMENT.ref
         DomainTypes.PATH.canonicalName.lowercase() -> DomainTypes.PATH.ref
         DomainTypes.POINTER_PATH.canonicalName.lowercase() -> DomainTypes.POINTER_PATH.ref
+        DomainTypes.MULTI_PATH.canonicalName.lowercase() -> DomainTypes.MULTI_PATH.ref
         DomainTypes.IMAGE_MATCH.canonicalName.lowercase() -> DomainTypes.IMAGE_MATCH.ref
         DomainTypes.TEXT_MATCH.canonicalName.lowercase() -> DomainTypes.TEXT_MATCH.ref
         DomainTypes.MARKER.canonicalName.lowercase() -> DomainTypes.MARKER.ref

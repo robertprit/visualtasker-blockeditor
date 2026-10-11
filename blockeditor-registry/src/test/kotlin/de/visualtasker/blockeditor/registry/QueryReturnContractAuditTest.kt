@@ -284,7 +284,7 @@ class QueryReturnContractAuditTest {
 
     @Test
     fun `query audit does not alter native V1 population`() {
-        assertEquals(134, bridgeAudit.results.size)
+        assertEquals(136, bridgeAudit.results.size)
         assertEquals(3, bridgeAudit.results.count { it.migrationClass == CommandMigrationClass.NATIVE_V1 })
         assertTrue(QueryReturnContractAudit.ALL.none { decision ->
             bridgeAudit.results.single { it.sourceEntry.id == decision.stableId }

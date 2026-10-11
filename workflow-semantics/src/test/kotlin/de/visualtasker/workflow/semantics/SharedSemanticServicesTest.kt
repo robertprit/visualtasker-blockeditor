@@ -50,7 +50,7 @@ class SharedSemanticServicesTest {
 
     @Test
     fun catalogAndTypeCompatibilityAreNeutralAndComplete() {
-        assertEquals(134, VisualTaskerCommandCatalog.allEntries().size)
+        assertEquals(136, VisualTaskerCommandCatalog.allEntries().size)
         assertTrue(VisualTaskerCommandCatalog.validate().isEmpty())
         assertTrue(WorkspaceValueTypeSystem.isCompatible("Number", setOf("Number", "Any")))
         assertFalse(WorkspaceValueTypeSystem.isCompatible("Number", setOf("Boolean")))

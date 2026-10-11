@@ -173,7 +173,7 @@ class CommandCatalogTest {
         assertEquals(null, VisualTaskerCommandCatalog.findLanguageCommandByAcceptedName("get"))
         assertEquals(null, VisualTaskerCommandCatalog.findLanguageCommandByAcceptedName("boolean"))
         assertEquals("action.wait", VisualTaskerCommandCatalog.findLanguageCommandByAcceptedName("wait")?.id)
-        assertEquals(134, VisualTaskerCommandCatalog.allEntries().size)
+        assertEquals(136, VisualTaskerCommandCatalog.allEntries().size)
     }
 
     @Test

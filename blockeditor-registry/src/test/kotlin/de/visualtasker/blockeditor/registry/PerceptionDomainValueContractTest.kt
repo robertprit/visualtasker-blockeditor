@@ -67,7 +67,7 @@ class PerceptionDomainValueContractTest {
     fun `perception migration remains stable after query return closure`() {
         val audit = LegacyCommandDefinitionBridge().analyze()
 
-        assertEquals(134, audit.results.size)
+        assertEquals(136, audit.results.size)
         assertEquals(3, audit.results.count { it.migrationClass == CommandMigrationClass.NATIVE_V1 })
         assertEquals(0, audit.results.count { it.definition == null })
         assertTrue(QueryReturnContractAudit.currentDQueryIds(audit).isEmpty())
