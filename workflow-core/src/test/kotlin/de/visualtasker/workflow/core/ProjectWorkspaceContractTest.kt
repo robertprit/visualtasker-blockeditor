@@ -6,6 +6,7 @@ import de.visualtasker.workflow.serialization.WorkflowSerializer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -309,6 +310,21 @@ class ProjectWorkspaceContractTest {
 
         assertEquals(ROOT_A, undone.manifest.activeRootId)
         assertEquals(after, redone)
+    }
+
+    @Test
+    fun projectHistoryCanBeClearedWhenActivatingAnotherProject() {
+        val before = twoRootProject()
+        val after = success(before, ProjectOperation.SetActiveRoot(op("switch-clear"), ROOT_B)).project
+        val history = ProjectHistoryController()
+        history.recordAcceptedTransition(before, after)
+
+        history.clear()
+
+        assertEquals(0, history.undoDepth)
+        assertEquals(0, history.redoDepth)
+        assertNull(history.undo(after))
+        assertNull(history.redo(after))
     }
 
     private fun project() = ProjectDocument(

@@ -34,4 +34,9 @@ class ProjectHistoryController(private val maxDepth: Int = 100) {
         while (undoEntries.size > maxDepth) undoEntries.removeFirst()
         return next
     }
+
+    fun clear() {
+        undoEntries.clear()
+        redoEntries.clear()
+    }
 }
