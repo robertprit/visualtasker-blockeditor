@@ -150,6 +150,49 @@ class ProjectWorkspaceContractTest {
     }
 
     @Test
+    fun resourceUpsertAndMetadataPatchAreAtomicAndRoundtrip() {
+        val resource = ProjectResource(ResourceId("resource:screen"), "Screen", ProjectResourceType.Image, ProjectResourceScope.ProjectLocal, "images/screen.png")
+        val updated = resource.copy(name = "Updated Screen", metadata = mapOf("opaque" to "preserved"))
+        val result = success(
+            project(),
+            ProjectTransaction(
+                op("inventory"),
+                listOf(
+                    ProjectOperation.PutResource(op("put-resource"), resource),
+                    ProjectOperation.PutResource(op("update-resource"), updated),
+                    ProjectOperation.PutMetadata(op("metadata"), mapOf("inventory.version" to "1")),
+                ),
+                ProjectRevision(0L),
+            ),
+        ).project
+
+        assertEquals(ProjectRevision(1L), result.revision)
+        assertEquals(updated, result.resources.getValue(resource.id))
+        assertEquals("1", result.metadata["inventory.version"])
+        assertEquals(result, ProjectSerializer.deserialize(ProjectSerializer.serialize(result)))
+    }
+
+    @Test
+    fun invalidMetadataPatchRollsBackEarlierResourceUpsert() {
+        val before = project()
+        val resource = ProjectResource(ResourceId("resource:screen"), "Screen", ProjectResourceType.Image, ProjectResourceScope.ProjectLocal, "images/screen.png")
+        val result = ProjectOperationExecutor.execute(
+            before,
+            ProjectTransaction(
+                op("invalid-inventory"),
+                listOf(
+                    ProjectOperation.PutResource(op("put-resource"), resource),
+                    ProjectOperation.PutMetadata(op("invalid-metadata"), mapOf("" to "invalid")),
+                ),
+                before.revision,
+            ),
+        ) as ProjectOperationResult.Failure
+
+        assertEquals(before, result.project)
+        assertEquals(ProjectOperationDiagnosticCode.ValidationFailed, result.diagnostic.code)
+    }
+
+    @Test
     fun variableScopesSeparateLifetimePersistenceAndProviderBinding() {
         val external = ProjectVariable(VariableDefinition("tasker", "tasker", "String", VariableScope.External), "tasker.variable")
         val stored = success(project(), ProjectOperation.PutVariable(op("variable"), external)).project

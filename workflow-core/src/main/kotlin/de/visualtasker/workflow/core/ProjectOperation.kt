@@ -15,11 +15,13 @@ sealed interface ProjectOperation {
     data class CreateDefinition(override val operationId: ProjectOperationId, val definition: ProjectDefinition) : ProjectOperation
     data class DeleteDefinition(override val operationId: ProjectOperationId, val definitionId: DefinitionId) : ProjectOperation
     data class AddResource(override val operationId: ProjectOperationId, val resource: ProjectResource) : ProjectOperation
+    data class PutResource(override val operationId: ProjectOperationId, val resource: ProjectResource) : ProjectOperation
     data class RemoveResource(override val operationId: ProjectOperationId, val resourceId: ResourceId) : ProjectOperation
     data class PutVariable(override val operationId: ProjectOperationId, val variable: ProjectVariable) : ProjectOperation
     data class RemoveVariable(override val operationId: ProjectOperationId, val variableId: String) : ProjectOperation
     data class BindReference(override val operationId: ProjectOperationId, val reference: ProjectReference) : ProjectOperation
     data class UnbindReference(override val operationId: ProjectOperationId, val referenceId: ProjectReferenceId) : ProjectOperation
+    data class PutMetadata(override val operationId: ProjectOperationId, val entries: Map<String, String>) : ProjectOperation
 
     /** The only project operation allowed to mutate a root's canonical workflow. */
     data class ApplyWorkspaceTransaction(
@@ -159,6 +161,10 @@ object ProjectOperationExecutor {
                 project.copy(resources = project.resources + (operation.resource.id to operation.resource)),
                 resources = setOf(operation.resource.id),
             )
+            is ProjectOperation.PutResource -> success(
+                project.copy(resources = project.resources + (operation.resource.id to operation.resource)),
+                resources = setOf(operation.resource.id),
+            )
             is ProjectOperation.RemoveResource -> when {
                 operation.resourceId !in project.resources -> reject(ProjectOperationDiagnosticCode.ResourceNotFound, "Resource ${operation.resourceId.value} is missing.")
                 project.whereUsed(operation.resourceId).isNotEmpty() -> reject(ProjectOperationDiagnosticCode.ReferencedItem, "Resource ${operation.resourceId.value} is still referenced.")
@@ -176,6 +182,11 @@ object ProjectOperationExecutor {
             is ProjectOperation.UnbindReference -> if (operation.referenceId !in project.references) reject(ProjectOperationDiagnosticCode.ReferenceNotFound, "Reference ${operation.referenceId.value} is missing.") else success(
                 project.copy(references = project.references - operation.referenceId),
             )
+            is ProjectOperation.PutMetadata -> if (operation.entries.keys.any(String::isBlank)) {
+                reject(ProjectOperationDiagnosticCode.ValidationFailed, "Project metadata keys must not be blank.")
+            } else {
+                success(project.copy(metadata = project.metadata + operation.entries))
+            }
             is ProjectOperation.ApplyWorkspaceTransaction -> project.roots[operation.rootId]?.let { root ->
                 val result = operation.stagedPayload?.let {
                     WorkspaceOperationExecutor.executeWithStagedPayload(root.workspace, operation.transaction, it)
