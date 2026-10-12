@@ -37,6 +37,9 @@ enum class VariableScope {
     Global,
     Script,
     Local,
+    Project,
+    AppShared,
+    External,
 }
 
 data class VariableDefinition(
